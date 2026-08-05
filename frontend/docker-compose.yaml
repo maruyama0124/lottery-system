@@ -1,0 +1,14 @@
+name: lottery-frontend
+
+services:
+  web:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      API_URL: http://host.docker.internal:8010
+    working_dir: /app
