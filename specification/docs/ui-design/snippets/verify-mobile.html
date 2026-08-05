@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>メールアドレスの確認 | 練習抽選システム</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body {
+    background: #f3f4f6;
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+  }
+  .mobile-container {
+    max-width: 480px;
+    margin: 0 auto;
+    min-height: 100vh;
+    background: white;
+  }
+  .code-input {
+    letter-spacing: 0.5em;
+    text-indent: 0.5em;
+  }
+</style>
+</head>
+<body>
+  <div class="mobile-container flex flex-col justify-center px-6 py-12">
+
+    <!-- ロゴ・タイトル -->
+    <div class="text-center mb-8">
+      <div class="mb-4 flex justify-center text-purple-600"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg></div>
+      <h1 class="text-2xl font-bold text-gray-900">メールアドレスの確認</h1>
+      <p class="text-sm text-gray-500 mt-2">
+        <span class="font-medium text-gray-700">hanako.suzuki@example.ac.jp</span> 宛に<br>
+        6桁の確認コードを送信しました
+      </p>
+    </div>
+
+    <!-- 入力カード -->
+    <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-6">
+
+      <!-- エラー表示 (状態: error) -->
+      <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+        <p class="text-sm text-red-600">確認コードが正しくありません</p>
+      </div>
+
+      <form>
+        <div class="mb-6">
+          <label for="code" class="block text-sm font-medium text-gray-700 mb-1">確認コード</label>
+          <input type="text" id="code" inputmode="numeric" maxlength="6" placeholder="000000"
+                 class="code-input w-full rounded-lg border border-gray-300 px-4 py-3 text-center text-2xl font-bold focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600">
+          <p class="text-xs text-gray-500 mt-1">有効期限は15分です</p>
+        </div>
+        <button type="submit"
+                class="w-full h-12 rounded-lg bg-purple-600 text-white font-bold hover:bg-purple-700 active:bg-purple-800">
+          確認する
+        </button>
+      </form>
+    </div>
+
+    <!-- 再送・戻る -->
+    <div class="mt-6 text-center space-y-3">
+      <p>
+        <button type="button" class="text-sm font-medium text-purple-600 hover:underline">
+          コードを再送する
+        </button>
+      </p>
+      <p class="text-xs text-gray-500">メールが届かない場合は迷惑メールフォルダもご確認ください</p>
+      <p>
+        <a href="login-mobile.html" class="text-sm text-purple-600 hover:underline">ログイン画面に戻る</a>
+      </p>
+      <p class="text-xs text-gray-400">※ 確認が完了するとそのままログイン状態になります (D-014)</p>
+    </div>
+
+  </div>
+</body>
+</html>

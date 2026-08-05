@@ -1,0 +1,144 @@
+// サークル練習参加抽選システム — DBML スキーマ
+// version: 1.0.0 (database-design/index.md と同期)
+
+Project lottery_system {
+  database_type: 'PostgreSQL'
+  Note: 'サークル練習参加抽選システム'
+}
+
+Table users {
+  id varchar(30) [pk, note: 'usr_ + ULID']
+  email varchar(255) [not null, unique, note: 'ログインID']
+  password_hash varchar(255) [not null, note: 'bcrypt']
+  name varchar(100) [not null]
+  address varchar(255) [not null]
+  phone_number varchar(20) [not null]
+  grade integer [not null, note: '1-3 (CHECK)']
+  gender varchar(10) [not null, note: 'male / female (CHECK)']
+  faculty_department varchar(100) [not null]
+  student_number varchar(30) [not null]
+  is_manager boolean [not null, default: false, note: '定員外・全参加']
+  role varchar(20) [not null, default: 'member', note: 'member / representative']
+  email_verified_at timestamptz [null, note: 'NULL = メール未確認 (D-012)']
+  verification_code_hash varchar(255) [null, note: '6桁コードの bcrypt ハッシュ']
+  verification_expires_at timestamptz [null, note: '発行から15分後']
+  verification_attempts integer [not null, default: 0, note: '入力失敗回数。5回で無効化']
+  is_deleted boolean [not null, default: false]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+
+  indexes {
+    (gender, grade)
+    role
+  }
+}
+
+Table practice_months {
+  id varchar(30) [pk, note: 'pmn_ + ULID']
+  year_month varchar(7) [not null, note: 'YYYY-MM']
+  gender varchar(10) [not null, note: '男女で独立した抽選単位']
+  vote_starts_at timestamptz [not null]
+  vote_ends_at timestamptz [not null, note: '締切後は投票変更不可']
+  grade2_ratio "numeric(3,2)" [note: '2年枠比率 0-1。抽選前に代表が設定']
+  status varchar(20) [not null, default: 'draft', note: 'draft / voting / closed / drawn / published']
+  published_at timestamptz [note: '結果公開日時']
+  is_deleted boolean [not null, default: false]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+
+  indexes {
+    (year_month, gender) [unique]
+  }
+}
+
+Table practices {
+  id varchar(30) [pk, note: 'prc_ + ULID']
+  practice_month_id varchar(30) [not null, ref: > practice_months.id]
+  practice_date date [not null]
+  starts_at time [not null]
+  ends_at time [not null]
+  location varchar(255) [not null]
+  capacity integer [not null, note: 'プレイヤー定員 (> 0)。マネージャー含まず']
+  quota_grade1 integer [null, note: '1年の参加人数枠。抽選前に代表が設定 (D-015)']
+  quota_grade2 integer [null, note: '2年の参加人数枠 (D-015)']
+  quota_grade3 integer [null, note: '3年の参加人数枠。合計 = capacity (D-015)']
+  is_deleted boolean [not null, default: false]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+
+  indexes {
+    (practice_month_id, practice_date)
+  }
+}
+
+Table votes {
+  id varchar(30) [pk, note: 'vot_ + ULID']
+  user_id varchar(30) [not null, ref: > users.id]
+  practice_id varchar(30) [not null, ref: > practices.id]
+  is_deleted boolean [not null, default: false, note: '締切前の取消']
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+
+  indexes {
+    (user_id, practice_id) [unique]
+    practice_id
+  }
+}
+
+Table lottery_executions {
+  id varchar(30) [pk, note: 'lot_ + ULID']
+  practice_month_id varchar(30) [not null, ref: > practice_months.id]
+  executed_by varchar(30) [not null, ref: > users.id, note: '実行した代表']
+  random_seed bigint [not null, note: '同一シードで再現可能']
+  grade2_ratio "numeric(3,2)" [null, note: 'D-015 で廃止。以前の実行履歴のみ値を持つ']
+  settings_snapshot jsonb [not null, note: 'rescue_alpha / warnings / 実行時の学年別枠 quotas (D-015)']
+  is_active boolean [not null, default: true, note: '再実行時に旧実行を false']
+  is_deleted boolean [not null, default: false]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+
+  indexes {
+    (practice_month_id, is_active)
+  }
+}
+
+Table assignments {
+  id varchar(30) [pk, note: 'asg_ + ULID']
+  practice_id varchar(30) [not null, ref: > practices.id]
+  user_id varchar(30) [not null, ref: > users.id]
+  lottery_execution_id varchar(30) [ref: > lottery_executions.id, note: '手動調整時は NULL']
+  assigned_via varchar(20) [not null, note: 'manager / grade3 / guaranteed / distribution / overflow / manual']
+  is_deleted boolean [not null, default: false, note: '微調整での取消']
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+
+  indexes {
+    (practice_id, user_id) [unique, note: 'is_deleted = false の部分一意インデックス']
+    user_id
+  }
+}
+
+Table monthly_member_results {
+  id varchar(30) [pk, note: 'mmr_ + ULID']
+  practice_month_id varchar(30) [not null, ref: > practice_months.id]
+  user_id varchar(30) [not null, ref: > users.id]
+  votes_count integer [not null]
+  wins_count integer [not null]
+  losses_count integer [not null, note: '翌月の救済係数 1 + α × losses に使用']
+  is_deleted boolean [not null, default: false]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+
+  indexes {
+    (practice_month_id, user_id) [unique]
+  }
+}
+
+Table lottery_settings {
+  id varchar(30) [pk, note: 'set_ + ULID']
+  gender varchar(10) [not null, unique, note: '性別グループごとに独立']
+  rescue_alpha "numeric(3,2)" [not null, default: 0.2, note: '落選救済係数 α']
+  is_deleted boolean [not null, default: false]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}

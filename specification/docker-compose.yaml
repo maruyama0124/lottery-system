@@ -1,0 +1,19 @@
+services:
+  # ワンショット実行用 (build / sync_checker / nav_updater)
+  # 例: docker compose -f specification/docker-compose.yaml run --rm mkdocs mkdocs build
+  mkdocs:
+    build: .
+    volumes:
+      - .:/docs
+    working_dir: /docs
+
+  # 開発サーバー用 (http://localhost:8000)
+  # 例: docker compose -f specification/docker-compose.yaml up mkdocs-serve
+  mkdocs-serve:
+    build: .
+    command: mkdocs serve --dev-addr 0.0.0.0:8000
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/docs
+    working_dir: /docs

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>新規登録 | 練習抽選システム</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body {
+    background: #f3f4f6;
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+  }
+  .mobile-container {
+    max-width: 480px;
+    margin: 0 auto;
+    min-height: 100vh;
+    background: white;
+  }
+</style>
+</head>
+<body>
+  <div class="mobile-container px-6 py-10">
+
+    <!-- ロゴ・タイトル -->
+    <div class="text-center mb-8">
+      <div class="mb-3 flex justify-center text-purple-600"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11.1 7.1a16.55 16.55 0 0 1 10.9 4"/><path d="M12 12a12.6 12.6 0 0 1-8.7 5"/><path d="M16.8 13.6a16.55 16.55 0 0 1-9 7.5"/><path d="M20.7 17a12.8 12.8 0 0 0-8.7-5 13.3 13.3 0 0 1 0-10"/><path d="M6.3 3.8a16.55 16.55 0 0 0 1.9 11.5"/><circle cx="12" cy="12" r="10"/></svg></div>
+      <h1 class="text-2xl font-bold text-gray-900">新規登録</h1>
+      <p class="text-sm text-gray-500 mt-2">プロフィールは抽選と連絡に使用されます</p>
+    </div>
+
+    <!-- 登録フォーム -->
+    <form class="space-y-5">
+
+      <div>
+        <label for="email" class="block text-sm font-medium text-gray-700 mb-1">
+          メールアドレス <span class="text-red-500">*</span>
+        </label>
+        <input type="email" id="email" value="hanako.suzuki@example.ac.jp"
+               class="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600">
+      </div>
+
+      <div>
+        <label for="password" class="block text-sm font-medium text-gray-700 mb-1">
+          パスワード <span class="text-red-500">*</span>
+        </label>
+        <input type="password" id="password" placeholder="••••••••"
+               class="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600">
+        <p class="text-xs text-gray-500 mt-1">8文字以上で入力してください</p>
+      </div>
+
+      <!-- 打ち間違えたまま登録するとログインできなくなるため確認欄を設ける (D-014) -->
+      <div>
+        <label for="password-confirm" class="block text-sm font-medium text-gray-700 mb-1">
+          パスワード（確認） <span class="text-red-500">*</span>
+        </label>
+        <input type="password" id="password-confirm" placeholder="••••••••"
+               class="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600">
+        <p class="text-xs text-red-600 mt-1">パスワードが一致しません</p>
+      </div>
+
+      <div>
+        <label for="name" class="block text-sm font-medium text-gray-700 mb-1">
+          名前 <span class="text-red-500">*</span>
+        </label>
+        <input type="text" id="name" value="鈴木 花子"
+               class="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600">
+      </div>
+
+      <div>
+        <label for="address" class="block text-sm font-medium text-gray-700 mb-1">
+          住所 <span class="text-red-500">*</span>
+        </label>
+        <input type="text" id="address" value="東京都八王子市南大沢1-1-1 コーポ南大沢203"
+               class="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600">
+      </div>
+
+      <div>
+        <label for="phone" class="block text-sm font-medium text-gray-700 mb-1">
+          電話番号 <span class="text-red-500">*</span>
+        </label>
+        <input type="tel" id="phone" value="090-1234-5678"
+               class="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600">
+      </div>
+
+      <div>
+        <label for="grade" class="block text-sm font-medium text-gray-700 mb-1">
+          学年 <span class="text-red-500">*</span>
+        </label>
+        <select id="grade"
+                class="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600">
+          <option>1年</option>
+          <option selected>2年</option>
+          <option>3年</option>
+        </select>
+      </div>
+
+      <div>
+        <label for="gender" class="block text-sm font-medium text-gray-700 mb-1">
+          性別 <span class="text-red-500">*</span>
+        </label>
+        <select id="gender"
+                class="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600">
+          <option>男</option>
+          <option selected>女</option>
+        </select>
+      </div>
+
+      <div>
+        <label for="faculty" class="block text-sm font-medium text-gray-700 mb-1">
+          学部学科 <span class="text-red-500">*</span>
+        </label>
+        <input type="text" id="faculty" value="経済学部 経済学科"
+               class="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600">
+      </div>
+
+      <div>
+        <label for="student-id" class="block text-sm font-medium text-gray-700 mb-1">
+          学籍番号 <span class="text-red-500">*</span>
+        </label>
+        <input type="text" id="student-id" value="24E1234"
+               class="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600">
+      </div>
+
+      <div>
+        <label for="role" class="block text-sm font-medium text-gray-700 mb-1">
+          マネージャーかどうか <span class="text-red-500">*</span>
+        </label>
+        <select id="role"
+                class="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600">
+          <option selected>プレイヤー</option>
+          <option>マネージャー</option>
+        </select>
+      </div>
+
+      <div class="pt-2 pb-6">
+        <button type="button"
+                class="w-full h-12 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-700 active:bg-purple-800 transition-colors">
+          登録する
+        </button>
+        <p class="text-center mt-4">
+          <a href="#" class="text-sm text-purple-600 hover:underline">すでにアカウントをお持ちの方はこちら</a>
+        </p>
+      </div>
+
+    </form>
+
+  </div>
+</body>
+</html>

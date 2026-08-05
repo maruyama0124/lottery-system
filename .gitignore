@@ -1,0 +1,26 @@
+# MkDocs ビルド成果物
+specification/site/
+
+# OS
+.DS_Store
+
+# エディタ
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+
+# 個人情報を含むファイル（実名の名簿。絶対にコミットしない）
+*.xlsx
+*.xls
+*.csv
+
+# 環境変数（雛形の .env.example のみ許可）
+.env
+.env.*
+!.env.example
+backend/import_members.py

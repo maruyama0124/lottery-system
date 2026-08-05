@@ -1,0 +1,295 @@
+# 画面定義 — サークル練習参加抽選システム
+# 全画面モバイルファースト（D-009: 代表もスマホ利用前提）
+screens:
+  login:
+    name: "ログイン"
+    path: "/login"
+    layout: "auth"
+    references:
+      requirements: ["REQ-001.2"]
+      apis: ["POST /auth/login"]
+      user_stories: ["メンバーとしてメールとパスワードでログインしたい"]
+    elements:
+      login-form:
+        fields:
+          - { id: email, type: email, label: "メールアドレス", required: true, validation: "email形式" }
+          - { id: password, type: password, label: "パスワード", required: true, validation: "8文字以上" }
+        actions:
+          - { id: submit-login, type: submit, label: "ログイン", api: "POST /auth/login" }
+          - { id: to-register, type: link, label: "新規登録はこちら" }
+          - { id: to-reset, type: link, label: "パスワードを忘れた方" }
+    states: ["default", "loading", "error"]
+
+  register:
+    name: "新規登録"
+    path: "/register"
+    layout: "auth"
+    references:
+      requirements: ["REQ-001.1", "REQ-002.1"]
+      apis: ["POST /auth/register"]
+      user_stories: ["新メンバーとしてプロフィールを登録してシステムを使い始めたい"]
+    elements:
+      register-form:
+        fields:
+          - { id: email, type: email, label: "メールアドレス", required: true, validation: "email形式" }
+          - { id: password, type: password, label: "パスワード", required: true, validation: "8文字以上" }
+          - { id: password_confirm, type: password, label: "パスワード（確認）", required: true, validation: "password と一致すること (D-014)" }
+          - { id: name, type: text, label: "名前", required: true, validation: "-" }
+          - { id: address, type: text, label: "住所", required: true, validation: "-" }
+          - { id: phone_number, type: text, label: "電話番号", required: true, validation: "数字とハイフン" }
+          - { id: grade, type: select, label: "学年 (1〜3年)", required: true, validation: "1-3" }
+          - { id: gender, type: select, label: "性別 (男/女)", required: true, validation: "-" }
+          - { id: faculty_department, type: text, label: "学部学科", required: true, validation: "-" }
+          - { id: student_number, type: text, label: "学籍番号", required: true, validation: "-" }
+          - { id: is_manager, type: select, label: "マネージャーかどうか", required: true, validation: "-" }
+        actions:
+          - { id: submit-register, type: submit, label: "登録する", api: "POST /auth/register" }
+    states: ["default", "loading", "error"]
+    transitions:
+      # 登録直後はメール未確認のため自動ログインせず確認画面へ (D-011)
+      - { on: "登録成功 (201)", to: "verify" }
+
+  verify:
+    name: "メールアドレス確認"
+    path: "/verify"
+    layout: "auth"
+    references:
+      requirements: ["REQ-001.5", "REQ-001.6"]
+      apis: ["POST /auth/verify", "POST /auth/verify/resend"]
+      user_stories: ["登録したメールに届いたコードを入力して登録を完了したい"]
+    elements:
+      verify-form:
+        fields:
+          - { id: code, type: text, label: "確認コード", required: true, validation: "6桁の数字。有効期限15分・失敗5回で無効化" }
+        actions:
+          - { id: submit-verify, type: submit, label: "確認する", api: "POST /auth/verify" }
+          - { id: resend-code, type: button, label: "コードを再送する", api: "POST /auth/verify/resend" }
+          - { id: to-login, type: link, label: "ログイン画面に戻る" }
+    errors:
+      - { code: "INVALID_CODE", message: "確認コードが正しくありません" }
+      - { code: "CODE_EXPIRED", message: "有効期限切れ。再送を促す" }
+      - { code: "CODE_LOCKED", message: "失敗回数が上限。再送を促す" }
+    states: ["default", "loading", "error", "resent"]
+    transitions:
+      # 確認完了と同時にトークンが発行されるため、ログイン画面には戻さない (D-014)
+      - { on: "確認完了 (200・member)", to: "home" }
+      - { on: "確認完了 (200・代表)", to: "admin-home" }
+
+  home:
+    name: "ホーム（メンバー）"
+    path: "/"
+    layout: "default"
+    references:
+      requirements: ["REQ-004.4", "REQ-006.1"]
+      apis: ["GET /practice-months", "GET /practice-months/{pmId}/votes/me", "GET /practice-months/{pmId}/results/me"]
+      user_stories: ["今月の投票状況と自分の参加日をひと目で確認したい"]
+    elements:
+      status-summary:
+        fields:
+          - { id: vote-status-card, type: text, label: "今月の投票状況カード（投票済み/未投票・締切日時）", required: false, validation: "-" }
+          - { id: my-next-practice, type: text, label: "次の参加練習カード", required: false, validation: "-" }
+        actions:
+          - { id: to-vote, type: button, label: "投票する", api: "-" }
+          - { id: to-results, type: button, label: "参加日を確認", api: "-" }
+    states: ["default", "empty", "loading"]
+
+  vote:
+    name: "投票"
+    path: "/vote"
+    layout: "default"
+    references:
+      requirements: ["REQ-004.1", "REQ-004.2", "REQ-004.3", "REQ-004.4"]
+      apis: ["GET /practice-months/{pmId}", "GET /practice-months/{pmId}/votes/me", "PUT /practice-months/{pmId}/votes/me"]
+      user_stories: ["参加したい練習日を複数選んでまとめて投票したい", "締切前なら投票を変更したい"]
+    elements:
+      practice-list:
+        fields:
+          - { id: practice-card, type: text, label: "練習日カード（日付・時間・場所・定員・チェックボックス）", required: false, validation: "-" }
+          - { id: deadline-banner, type: text, label: "締切日時バナー", required: false, validation: "-" }
+        actions:
+          - { id: submit-votes, type: submit, label: "この内容で投票する", api: "PUT /practice-months/{pmId}/votes/me" }
+    states: ["default", "voted", "closed", "loading", "error"]
+
+  my-results:
+    name: "抽選結果（メンバー）"
+    path: "/results"
+    layout: "default"
+    references:
+      requirements: ["REQ-006.1"]
+      apis: ["GET /practice-months/{pmId}/results/me"]
+      user_stories: ["自分がいつ練習に参加できるかを見やすく確認したい"]
+    elements:
+      result-list:
+        fields:
+          - { id: month-selector, type: select, label: "月の切り替え", required: false, validation: "-" }
+          - { id: result-card, type: text, label: "参加日カード（日付・時間・場所）", required: false, validation: "-" }
+        actions: []
+    states: ["default", "unpublished", "empty", "loading"]
+
+  profile:
+    name: "プロフィール編集"
+    path: "/profile"
+    layout: "default"
+    references:
+      requirements: ["REQ-002.2"]
+      apis: ["GET /users/me", "PUT /users/me"]
+      user_stories: ["進級や引越しでプロフィールを更新したい"]
+    elements:
+      profile-form:
+        fields:
+          - { id: name, type: text, label: "名前", required: true, validation: "-" }
+          - { id: address, type: text, label: "住所", required: true, validation: "-" }
+          - { id: phone_number, type: text, label: "電話番号", required: true, validation: "-" }
+          - { id: grade, type: select, label: "学年", required: true, validation: "1-3" }
+          - { id: faculty_department, type: text, label: "学部学科", required: true, validation: "-" }
+          - { id: student_number, type: text, label: "学籍番号", required: true, validation: "-" }
+        actions:
+          - { id: save-profile, type: submit, label: "保存する", api: "PUT /users/me" }
+          - { id: logout, type: button, label: "ログアウト", api: "POST /auth/logout" }
+    states: ["default", "saving", "error"]
+
+  admin-home:
+    name: "管理ホーム（代表）"
+    path: "/admin"
+    layout: "default"
+    references:
+      requirements: ["REQ-003", "REQ-005", "REQ-006.4"]
+      apis: ["GET /practice-months"]
+      user_stories: ["今月の運用ステータス（投票中→締切→抽選→公開）と次にやることを把握したい"]
+    elements:
+      month-status:
+        fields:
+          - { id: status-stepper, type: text, label: "月次ステータスのステップ表示（日程登録→投票受付→抽選→微調整→公開）", required: false, validation: "-" }
+          - { id: vote-progress, type: text, label: "投票進捗カード（投票済み人数）", required: false, validation: "-" }
+        actions:
+          - { id: to-schedule, type: link, label: "練習日程の管理" }
+          - { id: to-lottery, type: link, label: "抽選の実行" }
+          - { id: to-results, type: link, label: "結果の確認・微調整" }
+          - { id: to-roster, type: link, label: "名簿" }
+          - { id: to-settings, type: link, label: "設定" }
+    states: ["default", "loading"]
+
+  admin-schedule:
+    name: "練習日程管理（代表）"
+    path: "/admin/schedule"
+    layout: "default"
+    references:
+      requirements: ["REQ-003.1", "REQ-003.2", "REQ-003.3", "REQ-003.4", "REQ-003.5", "REQ-003.6", "REQ-003.7"]
+      apis: ["POST /practice-months", "PUT /practice-months/{pmId}", "POST /practice-months/{pmId}/practices", "GET /practices/suggestions", "PUT /practices/{practiceId}", "DELETE /practices/{practiceId}"]
+      user_stories: ["月の練習日・場所・定員・投票期間をスマホからまとめて登録したい", "毎月同じ体育館・同じ時間帯なので入力を省きたい"]
+    elements:
+      month-settings:
+        fields:
+          # 時刻は入力させず 0:00〜23:59 に固定する (D-014)
+          - { id: vote-start-date, type: date, label: "投票開始日", required: true, validation: "開始 <= 締切。0:00 開始" }
+          - { id: vote-end-date, type: date, label: "投票締切日", required: true, validation: "23:59 締切" }
+      practice-editor:
+        fields:
+          - { id: practice-suggestion, type: select, label: "よく使う練習から入力", required: false, validation: "選ぶと場所・時刻・定員を自動入力 (D-014)" }
+          - { id: practice-date, type: date, label: "日付", required: true, validation: "-" }
+          - { id: starts-at, type: select, label: "開始時刻", required: true, validation: "30分単位 (00:00〜23:30 の48択)" }
+          - { id: ends-at, type: select, label: "終了時刻", required: true, validation: "30分単位" }
+          - { id: location, type: text, label: "場所", required: true, validation: "-" }
+          - { id: capacity, type: number, label: "定員", required: true, validation: "定員 > 0" }
+        actions:
+          - { id: add-practice, type: button, label: "+ 練習日を追加", api: "POST /practice-months/{pmId}/practices" }
+          # 場所・時刻・定員を引き継ぎ、日付だけ空にして追加する (REQ-003.7 / D-014)
+          - { id: duplicate-practice, type: button, label: "同じ内容で別日を追加", api: "-（画面内で入力欄を複製するのみ）" }
+          - { id: save-vote-period, type: submit, label: "投票期間を保存", api: "PUT /practice-months/{pmId}" }
+      # 月の新規作成のみ確認画面を挟む (REQ-003.8 / D-016)
+      new-month-confirm:
+        fields:
+          - { id: confirm-summary, type: text, label: "対象月・投票期間・練習日一覧（日付順）", required: false, validation: "表示のみ。日付重複時は注意を表示" }
+        actions:
+          - { id: to-confirm, type: button, label: "入力内容を確認", api: "-（画面内で確認ステップへ）" }
+          - { id: back-to-edit, type: button, label: "修正する", api: "-（入力画面へ戻る）" }
+          - { id: create-month, type: submit, label: "作成する", api: "POST /practice-months" }
+    states: ["default", "confirming", "saving", "warning-after-lottery"]
+
+  admin-lottery:
+    name: "抽選実行（代表）"
+    path: "/admin/lottery"
+    layout: "default"
+    references:
+      requirements: ["REQ-005", "REQ-005.3", "REQ-005.5", "REQ-005.5.1", "REQ-005.12"]
+      # 実行履歴は記録するが画面には出さない (D-018)。GET /executions は API として残す
+      apis: ["GET /practice-months/{pmId}/vote-summary", "PUT /practice-months/{pmId}/quotas", "POST /practice-months/{pmId}/lottery"]
+      user_stories: ["日ごとの投票状況を見ながら学年別の参加人数を決めて抽選したい"]
+    elements:
+      # 練習日ごとに1ブロック。投票状況を見て人数を調整する (D-015)
+      quota-editor:
+        fields:
+          - { id: vote-bar, type: text, label: "学年別投票数の積み上げ棒グラフ", required: false, validation: "表示のみ" }
+          - { id: quota-grade3, type: number, label: "3年の参加人数", required: true, validation: "0以上" }
+          - { id: quota-grade2, type: number, label: "2年の参加人数", required: true, validation: "0以上" }
+          - { id: quota-grade1, type: number, label: "1年の参加人数", required: true, validation: "0以上" }
+          - { id: quota-total, type: text, label: "合計 / 定員", required: false, validation: "合計 = 定員 でなければ保存不可" }
+        actions:
+          - { id: save-quotas, type: submit, label: "参加人数を保存する", api: "PUT /practice-months/{pmId}/quotas" }
+      execute:
+        actions:
+          - { id: run-lottery, type: button, label: "抽選を実行する（枠未保存なら無効）", api: "POST /practice-months/{pmId}/lottery" }
+          - { id: rerun-confirm, type: button, label: "再実行（確認ダイアログ）", api: "POST /practice-months/{pmId}/lottery" }
+    states: ["default", "loading", "quota-mismatch", "saving", "running", "done", "rerun-warning"]
+
+  admin-results:
+    name: "結果確認・微調整（代表）"
+    path: "/admin/results"
+    layout: "default"
+    references:
+      requirements: ["REQ-006.2", "REQ-006.3", "REQ-006.4"]
+      apis: ["GET /practice-months/{pmId}/results", "POST /practices/{practiceId}/assignments", "DELETE /assignments/{assignmentId}", "POST /practice-months/{pmId}/publish"]
+      user_stories: ["練習日ごとの参加者を確認し、個別事情に合わせて入れ替えたい", "調整が終わったら結果を公開したい"]
+    elements:
+      results-tabs:
+        fields:
+          - { id: view-toggle, type: text, label: "練習日別/メンバー別の表示切替タブ", required: false, validation: "-" }
+          - { id: participant-row, type: text, label: "参加者行（名前・学年・割当由来バッジ・削除ボタン）", required: false, validation: "-" }
+          - { id: capacity-indicator, type: text, label: "定員インジケーター（超過時は警告色）", required: false, validation: "-" }
+        actions:
+          - { id: add-participant, type: button, label: "+ 参加者を追加", api: "POST /practices/{practiceId}/assignments" }
+          - { id: publish, type: submit, label: "結果を公開する", api: "POST /practice-months/{pmId}/publish" }
+    states: ["default", "unpublished", "published", "capacity-warning"]
+
+  admin-roster:
+    name: "名簿（代表）"
+    path: "/admin/roster"
+    layout: "default"
+    references:
+      requirements: ["REQ-007.1", "REQ-007.1.1", "REQ-007.1.2"]
+      apis: ["GET /users", "GET /users/export"]
+      user_stories: ["メンバーの個人情報一覧を検索・絞り込みして確認し、CSVで出力したい"]
+    elements:
+      roster-controls:
+        fields:
+          - { id: search, type: text, label: "検索（名前・学籍番号）", required: false, validation: "-" }
+          - { id: grade-filter, type: select, label: "学年フィルタ", required: false, validation: "-" }
+          - { id: manager-filter, type: select, label: "マネージャーフィルタ", required: false, validation: "-" }
+      roster-list:
+        fields:
+          - { id: member-card, type: text, label: "メンバーカード（タップで全項目展開）", required: false, validation: "-" }
+        actions:
+          - { id: export-csv, type: button, label: "CSVエクスポート", api: "GET /users/export" }
+    states: ["default", "empty", "loading"]
+
+  admin-settings:
+    name: "設定（代表）"
+    path: "/admin/settings"
+    layout: "default"
+    references:
+      requirements: ["NFR-004.1", "REQ-007.2", "REQ-007.3"]
+      apis: ["GET /settings", "PUT /settings", "PUT /users/{userId}/role", "DELETE /users/{userId}"]
+      user_stories: ["救済係数を調整したい", "代表交代時に権限を引き継ぎたい", "卒業したメンバーを無効化したい"]
+    elements:
+      lottery-settings:
+        fields:
+          - { id: rescue-alpha, type: text, label: "落選救済係数 α（既定 0.2）", required: true, validation: ">= 0" }
+        actions:
+          - { id: save-settings, type: submit, label: "保存する", api: "PUT /settings" }
+      role-management:
+        fields:
+          - { id: member-select, type: select, label: "権限を移譲するメンバー", required: false, validation: "-" }
+        actions:
+          - { id: grant-role, type: button, label: "代表権限を付与", api: "PUT /users/{userId}/role" }
+          - { id: deactivate, type: button, label: "メンバーを無効化", api: "DELETE /users/{userId}" }
+    states: ["default", "saving", "confirm-dialog"]

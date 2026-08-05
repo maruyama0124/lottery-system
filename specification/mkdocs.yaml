@@ -1,0 +1,55 @@
+site_name: 抽選システム (lottery-system)
+site_description: 抽選システムの設計ドキュメント
+docs_dir: docs
+site_dir: site
+
+theme:
+  name: material
+  language: ja
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      toggle:
+        icon: material/weather-night
+        name: ダークモードに切り替え
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: ライトモードに切り替え
+  features:
+    - navigation.tabs
+    - navigation.top
+    - content.code.copy
+    - search.highlight
+
+plugins:
+  - search:
+      lang: ja
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+# nav は nav_updater.py により自動更新される。nav 以降に他のキーを追加しないこと。
+nav:
+  - ホーム: index.md
+  - 事業計画書: business-plan/index.md
+  - 要件定義書: requirements/index.md
+  - DB設計書: database-design/index.md
+  - API設計書: api-design/index.md
+  - UI設計書: ui-design/index.md
+  - インフラ設計書: infrastructure-design/index.md

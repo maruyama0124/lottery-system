@@ -1,0 +1,1124 @@
+openapi: 3.0.0
+info:
+  title: サークル練習参加抽選システム API
+  description: 練習日への投票・重み付き抽選・結果確認を提供する REST API
+  version: 1.0.0
+servers:
+  - url: /api/v1
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: auth
+    description: 認証
+  - name: users
+    description: メンバー・名簿
+  - name: practice-months
+    description: 月別練習・練習日
+  - name: votes
+    description: 投票
+  - name: lottery
+    description: 抽選・結果
+  - name: settings
+    description: 抽選設定
+
+paths:
+  /auth/register:
+    post:
+      tags: [auth]
+      summary: アカウント登録（プロフィール込み）
+      description: |
+        登録直後はメール未確認状態。登録したメールアドレス宛に6桁の確認コードを送信し、
+        `POST /auth/verify` で確認が完了するまでログインできない (REQ-001.1 / D-011)。
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: 登録成功（メール未確認）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: メールアドレスが登録済み
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/verify:
+    post:
+      tags: [auth]
+      summary: メールアドレス確認（6桁コード）
+      description: |
+        確認コードの有効期限は15分。入力を5回失敗するとコードが無効化され、
+        再送するまで確認できない (REQ-001.5 / D-012)。
+
+        確認に成功するとアクセストークンを返す。ログイン画面へ戻さず、
+        そのままログイン状態にすること (D-014)。
+
+        エラーは登録済みメールアドレスを判別できないよう、以下をすべて 400 で返す。
+
+        | code | 状況 |
+        |------|------|
+        | `INVALID_CODE` | コード不一致、未登録のメール、確認済み |
+        | `CODE_EXPIRED` | 有効期限切れ |
+        | `CODE_LOCKED` | 失敗回数が上限に到達 |
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyEmailRequest'
+      responses:
+        # POST の 200 は原則未定義だが、確認完了と同時にログイン状態にするため例外的に定義 (D-014)
+        '200':
+          description: 確認完了（アクセストークンを発行し、そのままログイン状態になる）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /auth/verify/resend:
+    post:
+      tags: [auth]
+      summary: 確認コードの再送
+      description: |
+        新しいコードを発行し、有効期限と失敗回数をリセットする。古いコードは無効になる (REQ-001.6)。
+        メールアドレスの存在を漏らさないため、未登録・確認済みの場合も 204 を返す。
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResendVerificationRequest'
+      responses:
+        '204':
+          description: 再送受付（未登録・確認済みでも 204 を返す）
+
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: ログイン（JWT発行）
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        # POST の 200 は原則未定義だが、トークン返却が必須のため例外的に定義
+        '200':
+          description: ログイン成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: メール未確認（`EMAIL_NOT_VERIFIED`）。確認コードの入力を促すこと
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: ログアウト
+      responses:
+        '204':
+          description: ログアウト成功
+
+  /auth/password-reset/request:
+    post:
+      tags: [auth]
+      summary: パスワードリセットメール送信
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+      responses:
+        '204':
+          description: 送信受付（存在しないメールでも 204 を返す）
+
+  /auth/password-reset/confirm:
+    post:
+      tags: [auth]
+      summary: 新パスワード設定
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirm'
+      responses:
+        '204':
+          description: 再設定成功
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /users/me:
+    get:
+      tags: [users]
+      summary: 自分のプロフィール取得
+      responses:
+        '200':
+          description: プロフィール
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+    put:
+      tags: [users]
+      summary: 自分のプロフィール更新
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest'
+      responses:
+        '204':
+          description: 更新成功
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /users:
+    get:
+      tags: [users]
+      summary: 名簿一覧（代表のみ。男女全体）
+      description: REQ-007.1 / 007.1.1。学年・マネージャー区分での絞り込み、名前・学籍番号での検索に対応
+      parameters:
+        - { name: grade, in: query, schema: { type: integer, enum: [1, 2, 3] } }
+        - { name: is_manager, in: query, schema: { type: boolean } }
+        - { name: gender, in: query, schema: { $ref: '#/components/schemas/Gender' } }
+        - { name: q, in: query, description: 名前・学籍番号の部分一致, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: per_page, in: query, schema: { type: integer, default: 50 } }
+      responses:
+        '200':
+          description: 名簿
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RosterPage'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /users/export:
+    get:
+      tags: [users]
+      summary: 名簿CSVエクスポート（代表のみ）
+      description: REQ-007.1.2。/users と同じ絞り込みパラメータを受け付け、結果を CSV で返す
+      parameters:
+        - { name: grade, in: query, schema: { type: integer, enum: [1, 2, 3] } }
+        - { name: is_manager, in: query, schema: { type: boolean } }
+        - { name: gender, in: query, schema: { $ref: '#/components/schemas/Gender' } }
+        - { name: q, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: CSVファイル
+          content:
+            text/csv:
+              schema: { type: string }
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /users/{userId}/role:
+    put:
+      tags: [users]
+      summary: 代表権限の付与・剥奪（代表のみ）
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleUpdateRequest'
+      responses:
+        '204':
+          description: 更新成功
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /users/{userId}:
+    delete:
+      tags: [users]
+      summary: メンバー無効化（論理削除・代表のみ）
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '204':
+          description: 無効化成功
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /practice-months:
+    get:
+      tags: [practice-months]
+      summary: 月別練習の一覧（自分の性別グループのみ）
+      parameters:
+        - { name: year_month, in: query, schema: { type: string, example: '2026-08' } }
+      responses:
+        '200':
+          description: 月別練習一覧
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PracticeMonth'
+    post:
+      tags: [practice-months]
+      summary: 月別練習単位の作成（代表のみ）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PracticeMonthCreateRequest'
+      responses:
+        '201':
+          description: 作成成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PracticeMonth'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: 同じ月×性別が既に存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /practice-months/{pmId}:
+    get:
+      tags: [practice-months]
+      summary: 月別練習の詳細（練習日一覧含む）
+      parameters:
+        - $ref: '#/components/parameters/PmId'
+      responses:
+        '200':
+          description: 詳細
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PracticeMonthDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [practice-months]
+      summary: 投票期間・枠比率等の更新（代表のみ）
+      parameters:
+        - $ref: '#/components/parameters/PmId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PracticeMonthUpdateRequest'
+      responses:
+        '204':
+          description: 更新成功
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /practice-months/{pmId}/practices:
+    post:
+      tags: [practice-months]
+      summary: 練習日の追加（代表のみ）
+      parameters:
+        - $ref: '#/components/parameters/PmId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PracticeCreateRequest'
+      responses:
+        '201':
+          description: 作成成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Practice'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /practices/suggestions:
+    get:
+      tags: [practice-months]
+      summary: よく使う練習の候補（履歴から）
+      description: |
+        担当性別の過去の登録実績から「場所 + 開始/終了時刻」の組み合わせを
+        利用回数の多い順に返す。日程登録時の入力を省くために使う (REQ-003.6 / D-014)。
+
+        定員は組み合わせのキーに含めない（施設の空き状況で毎月変わるため）。
+        返す `capacity` は同じ組み合わせで最後に登録された値で、初期値として使う想定。
+      responses:
+        '200':
+          description: 候補一覧（最大10件）
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PracticeSuggestion'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /practices/{practiceId}:
+    put:
+      tags: [practice-months]
+      summary: 練習日の更新（代表のみ）
+      parameters:
+        - $ref: '#/components/parameters/PracticeId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PracticeCreateRequest'
+      responses:
+        '204':
+          description: 更新成功
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [practice-months]
+      summary: 練習日の削除（代表のみ。抽選実行後は要確認）
+      parameters:
+        - $ref: '#/components/parameters/PracticeId'
+        - name: force
+          in: query
+          description: 抽選実行後の削除は true が必要（REQ-003.4 の警告）
+          schema: { type: boolean, default: false }
+      responses:
+        '204':
+          description: 削除成功
+        '409':
+          description: 抽選実行済み（force=true が必要）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /practice-months/{pmId}/votes/me:
+    get:
+      tags: [votes]
+      summary: 自分の投票状況
+      parameters:
+        - $ref: '#/components/parameters/PmId'
+      responses:
+        '200':
+          description: 投票状況
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoteStatus'
+    put:
+      tags: [votes]
+      summary: 投票の登録・変更（practice_id 配列で全置換）
+      parameters:
+        - $ref: '#/components/parameters/PmId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VoteUpdateRequest'
+      responses:
+        '204':
+          description: 投票成功
+        '409':
+          description: 投票期間外（締切後の変更は不可）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /practice-months/{pmId}/vote-summary:
+    get:
+      tags: [lottery]
+      summary: 抽選前の投票状況と学年別枠（代表のみ）
+      description: |
+        REQ-005.5 / D-015。練習日ごとの学年別投票者数、代表が設定済みの参加人数枠、
+        システムの提案値を返す。抽選前の調整画面が使う。
+
+        `quotas_ready` が false の練習日があると抽選は実行できない。
+      parameters:
+        - $ref: '#/components/parameters/PmId'
+      responses:
+        '200':
+          description: 投票状況と枠
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoteSummary'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /practice-months/{pmId}/quotas:
+    put:
+      tags: [lottery]
+      summary: 学年別の参加人数枠を保存（代表のみ）
+      description: |
+        REQ-005.3 / D-015。練習日ごとに1〜3年の人数をまとめて保存する。
+        **学年別人数の合計が定員と一致しない場合は 400** を返す。
+      parameters:
+        - $ref: '#/components/parameters/PmId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuotaUpdateRequest'
+      responses:
+        '204':
+          description: 保存成功
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /practice-months/{pmId}/lottery:
+    post:
+      tags: [lottery]
+      summary: 抽選の一括実行（代表のみ）
+      description: REQ-005。再実行時は既存実行が無効化される（REQ-005.12、confirm_rerun 必須）
+      parameters:
+        - $ref: '#/components/parameters/PmId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LotteryExecuteRequest'
+      responses:
+        '201':
+          description: 抽選完了
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LotteryExecution'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: 投票期間中は実行不可 / 再実行に confirm_rerun が必要
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /practice-months/{pmId}/executions:
+    get:
+      tags: [lottery]
+      summary: 抽選実行履歴（代表のみ）
+      parameters:
+        - $ref: '#/components/parameters/PmId'
+      responses:
+        '200':
+          description: 実行履歴
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LotteryExecution'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /practice-months/{pmId}/results/me:
+    get:
+      tags: [lottery]
+      summary: 自分の当選結果（公開後のみ）
+      parameters:
+        - $ref: '#/components/parameters/PmId'
+      responses:
+        '200':
+          description: 自分の参加日一覧
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyResults'
+        '404':
+          description: 未公開または存在しない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /practice-months/{pmId}/results:
+    get:
+      tags: [lottery]
+      summary: 全結果の取得（代表のみ。練習日別・メンバー別）
+      parameters:
+        - $ref: '#/components/parameters/PmId'
+      responses:
+        '200':
+          description: 全結果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FullResults'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /practices/{practiceId}/assignments:
+    post:
+      tags: [lottery]
+      summary: 参加者の手動追加（代表のみ・微調整）
+      description: REQ-006.3。定員超過時は 201 で警告フラグを返す
+      parameters:
+        - $ref: '#/components/parameters/PracticeId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignmentCreateRequest'
+      responses:
+        '201':
+          description: 追加成功（capacity_exceeded で定員超過を警告）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignmentCreated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: 既に割当済み
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /assignments/{assignmentId}:
+    delete:
+      tags: [lottery]
+      summary: 参加者の手動削除（代表のみ・微調整）
+      parameters:
+        - name: assignmentId
+          in: path
+          required: true
+          schema: { type: string, example: asg_01H0000000000000000000000 }
+      responses:
+        '204':
+          description: 削除成功
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /practice-months/{pmId}/publish:
+    post:
+      tags: [lottery]
+      summary: 結果の公開（代表のみ）
+      description: REQ-006.4。公開後にメンバーが /results/me を閲覧できる。月次実績 (monthly_member_results) もこの時点で確定
+      parameters:
+        - $ref: '#/components/parameters/PmId'
+      responses:
+        '204':
+          description: 公開成功
+        '409':
+          description: 抽選未実行
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /settings:
+    get:
+      tags: [settings]
+      summary: 抽選設定の取得（代表のみ・担当性別）
+      responses:
+        '200':
+          description: 設定
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LotterySettings'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    put:
+      tags: [settings]
+      summary: 落選救済係数 α の更新（代表のみ）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LotterySettingsUpdateRequest'
+      responses:
+        '204':
+          description: 更新成功
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    UserId:
+      name: userId
+      in: path
+      required: true
+      schema: { type: string, example: usr_01H0000000000000000000000 }
+    PmId:
+      name: pmId
+      in: path
+      required: true
+      schema: { type: string, example: pmn_01H0000000000000000000000 }
+    PracticeId:
+      name: practiceId
+      in: path
+      required: true
+      schema: { type: string, example: prc_01H0000000000000000000000 }
+
+  responses:
+    BadRequest:
+      description: 入力不正
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: 未認証・トークン無効
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: 権限不足・性別スコープ違反
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: リソースが存在しない
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    Gender:
+      type: string
+      enum: [male, female]
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string, example: VALIDATION_ERROR }
+            message: { type: string }
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field: { type: string }
+                  reason: { type: string }
+
+    RegisterRequest:
+      type: object
+      required: [email, password, name, address, phone_number, grade, gender, faculty_department, student_number, is_manager]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+        name: { type: string }
+        address: { type: string }
+        phone_number: { type: string }
+        grade: { type: integer, enum: [1, 2, 3] }
+        gender: { $ref: '#/components/schemas/Gender' }
+        faculty_department: { type: string }
+        student_number: { type: string }
+        is_manager: { type: boolean }
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+
+    TokenResponse:
+      type: object
+      properties:
+        access_token: { type: string }
+        token_type: { type: string, example: bearer }
+        expires_in: { type: integer, description: 秒 }
+
+    VerifyEmailRequest:
+      type: object
+      required: [email, code]
+      properties:
+        email: { type: string, format: email }
+        code:
+          type: string
+          pattern: '^\d{6}$'
+          example: '482915'
+          description: メールで届いた6桁の確認コード
+
+    ResendVerificationRequest:
+      type: object
+      required: [email]
+      properties:
+        email: { type: string, format: email }
+
+    PasswordResetRequest:
+      type: object
+      required: [email]
+      properties:
+        email: { type: string, format: email }
+
+    PasswordResetConfirm:
+      type: object
+      required: [token, new_password]
+      properties:
+        token: { type: string }
+        new_password: { type: string, minLength: 8 }
+
+    UserProfile:
+      type: object
+      properties:
+        id: { type: string, example: usr_01H0000000000000000000000 }
+        email: { type: string, format: email }
+        name: { type: string }
+        address: { type: string }
+        phone_number: { type: string }
+        grade: { type: integer, enum: [1, 2, 3] }
+        gender: { $ref: '#/components/schemas/Gender' }
+        faculty_department: { type: string }
+        student_number: { type: string }
+        is_manager: { type: boolean }
+        role: { type: string, enum: [member, representative] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    UserUpdateRequest:
+      type: object
+      properties:
+        name: { type: string }
+        address: { type: string }
+        phone_number: { type: string }
+        grade: { type: integer, enum: [1, 2, 3] }
+        faculty_department: { type: string }
+        student_number: { type: string }
+        is_manager: { type: boolean }
+
+    RosterPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserProfile'
+        total: { type: integer }
+        page: { type: integer }
+        per_page: { type: integer }
+
+    RoleUpdateRequest:
+      type: object
+      required: [role]
+      properties:
+        role: { type: string, enum: [member, representative] }
+
+    PracticeMonth:
+      type: object
+      properties:
+        id: { type: string, example: pmn_01H0000000000000000000000 }
+        year_month: { type: string, example: '2026-08' }
+        gender: { $ref: '#/components/schemas/Gender' }
+        vote_starts_at: { type: string, format: date-time }
+        vote_ends_at: { type: string, format: date-time }
+        grade2_ratio:
+          type: number
+          nullable: true
+          description: D-015 で廃止（学年別枠は practices 側で持つ）。以前のデータのみ値を持つ
+        status: { type: string, enum: [draft, voting, closed, drawn, published] }
+        published_at: { type: string, format: date-time, nullable: true }
+
+    PracticeMonthDetail:
+      allOf:
+        - $ref: '#/components/schemas/PracticeMonth'
+        - type: object
+          properties:
+            practices:
+              type: array
+              items:
+                $ref: '#/components/schemas/Practice'
+
+    PracticeMonthCreateRequest:
+      type: object
+      required: [year_month, vote_starts_at, vote_ends_at]
+      properties:
+        year_month: { type: string, example: '2026-08' }
+        vote_starts_at: { type: string, format: date-time }
+        vote_ends_at: { type: string, format: date-time }
+        practices:
+          type: array
+          description: 月の練習日をまとめて登録（REQ-003.1）
+          items:
+            $ref: '#/components/schemas/PracticeCreateRequest'
+
+    PracticeMonthUpdateRequest:
+      type: object
+      properties:
+        vote_starts_at: { type: string, format: date-time }
+        vote_ends_at: { type: string, format: date-time }
+        # grade2_ratio は D-015 で廃止。学年別枠は PUT /practice-months/{pmId}/quotas で設定する
+
+    Practice:
+      type: object
+      properties:
+        id: { type: string, example: prc_01H0000000000000000000000 }
+        practice_date: { type: string, format: date }
+        starts_at: { type: string, example: '18:00' }
+        ends_at: { type: string, example: '21:00' }
+        location: { type: string, example: 第一体育館 }
+        capacity: { type: integer, example: 30 }
+        vote_count: { type: integer, description: 現在の投票数（一覧表示用） }
+
+    PracticeCreateRequest:
+      type: object
+      required: [practice_date, starts_at, ends_at, location, capacity]
+      properties:
+        practice_date: { type: string, format: date }
+        starts_at:
+          type: string
+          pattern: '^\d{2}:(00|30)$'
+          example: '18:00'
+          description: 30分単位のみ (REQ-003.5 / D-014)
+        ends_at:
+          type: string
+          pattern: '^\d{2}:(00|30)$'
+          example: '21:30'
+          description: 30分単位のみ (REQ-003.5 / D-014)
+        location: { type: string }
+        capacity: { type: integer, minimum: 1 }
+
+    PracticeSuggestion:
+      type: object
+      description: 過去の登録実績から作る入力候補 (REQ-003.6 / D-014)
+      properties:
+        location: { type: string, example: 目白小 }
+        starts_at: { type: string, example: '18:00' }
+        ends_at: { type: string, example: '21:30' }
+        capacity: { type: integer, example: 30, description: 同じ組み合わせで最後に登録された定員 }
+        use_count: { type: integer, example: 4, description: 過去に登録された回数（多い順に並ぶ） }
+
+    VoteStatus:
+      type: object
+      properties:
+        practice_month_id: { type: string }
+        voted_practice_ids:
+          type: array
+          items: { type: string }
+        editable: { type: boolean, description: 締切前かどうか }
+
+    VoteUpdateRequest:
+      type: object
+      required: [practice_ids]
+      properties:
+        practice_ids:
+          type: array
+          description: 投票する練習日IDの全量（全置換）
+          items: { type: string }
+
+    VoteSummary:
+      type: object
+      description: 抽選前の調整画面に出す、その月の投票状況と枠 (D-015)
+      properties:
+        practice_month_id: { type: string }
+        quotas_ready:
+          type: boolean
+          description: 全練習日の全学年に枠が設定済みか（false なら抽選できない）
+        practices:
+          type: array
+          items:
+            $ref: '#/components/schemas/PracticeVoteSummary'
+
+    PracticeVoteSummary:
+      type: object
+      properties:
+        practice_id: { type: string }
+        practice_date: { type: string, format: date }
+        starts_at: { type: string, example: '18:00' }
+        ends_at: { type: string, example: '21:30' }
+        location: { type: string }
+        capacity: { type: integer }
+        grades:
+          type: array
+          description: 3年 → 1年の順
+          items:
+            type: object
+            properties:
+              grade: { type: integer, enum: [1, 2, 3] }
+              voters: { type: integer, description: その日に投票した人数 }
+              quota:
+                type: integer
+                nullable: true
+                description: 代表が設定した参加人数枠。未設定なら null
+              suggested_quota:
+                type: integer
+                description: システムの提案値（REQ-005.5.1）
+
+    QuotaUpdateRequest:
+      type: object
+      description: 学年別の参加人数枠をまとめて保存する (D-015)
+      required: [practices]
+      properties:
+        practices:
+          type: array
+          items:
+            type: object
+            required: [practice_id, grades]
+            properties:
+              practice_id: { type: string }
+              grades:
+                type: array
+                description: 1〜3年すべてを指定する。合計は定員と一致させること
+                items:
+                  type: object
+                  required: [grade, quota]
+                  properties:
+                    grade: { type: integer, enum: [1, 2, 3] }
+                    quota: { type: integer, minimum: 0 }
+
+    LotteryExecuteRequest:
+      type: object
+      properties:
+        seed: { type: integer, nullable: true, description: 省略時はサーバーが生成（再現実行用） }
+        confirm_rerun: { type: boolean, default: false, description: 再実行時は true 必須（REQ-005.12） }
+
+    LotteryExecution:
+      type: object
+      properties:
+        id: { type: string, example: lot_01H0000000000000000000000 }
+        practice_month_id: { type: string }
+        executed_by: { type: string }
+        random_seed: { type: integer }
+        grade2_ratio:
+          type: number
+          nullable: true
+          description: D-015 で廃止。実行時の学年別枠は settings_snapshot.quotas に記録する
+        is_active: { type: boolean }
+        warnings:
+          type: array
+          description: 3年定員超過などの警告（REQ-005.3）
+          items: { type: string }
+        created_at: { type: string, format: date-time }
+
+    MyResults:
+      type: object
+      properties:
+        practice_month_id: { type: string }
+        assignments:
+          type: array
+          items:
+            type: object
+            properties:
+              practice: { $ref: '#/components/schemas/Practice' }
+
+    FullResults:
+      type: object
+      properties:
+        by_practice:
+          type: array
+          items:
+            type: object
+            properties:
+              practice: { $ref: '#/components/schemas/Practice' }
+              participants:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Participant'
+        by_member:
+          type: array
+          items:
+            type: object
+            properties:
+              user_id: { type: string }
+              name: { type: string }
+              grade: { type: integer }
+              is_manager: { type: boolean }
+              votes_count: { type: integer }
+              wins_count: { type: integer }
+              practice_ids:
+                type: array
+                items: { type: string }
+
+    Participant:
+      type: object
+      properties:
+        assignment_id: { type: string }
+        user_id: { type: string }
+        name: { type: string }
+        grade: { type: integer }
+        is_manager: { type: boolean }
+        assigned_via:
+          type: string
+          enum: [manager, grade3, guaranteed, distribution, overflow, manual]
+
+    AssignmentCreateRequest:
+      type: object
+      required: [user_id]
+      properties:
+        user_id: { type: string }
+
+    AssignmentCreated:
+      type: object
+      properties:
+        assignment_id: { type: string }
+        capacity_exceeded: { type: boolean, description: 定員超過の警告（REQ-006.3） }
+
+    LotterySettings:
+      type: object
+      properties:
+        gender: { $ref: '#/components/schemas/Gender' }
+        rescue_alpha: { type: number, example: 0.2 }
+
+    LotterySettingsUpdateRequest:
+      type: object
+      required: [rescue_alpha]
+      properties:
+        rescue_alpha: { type: number, minimum: 0 }

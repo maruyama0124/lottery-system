@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ホーム - 練習抽選システム</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body {
+    background: #f3f4f6;
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+  }
+</style>
+</head>
+<body>
+<div class="relative mx-auto bg-white" style="max-width: 480px; margin: 0 auto; min-height: 100vh; background: white;">
+
+  <!-- Sticky Header -->
+  <header class="sticky top-0 z-20 bg-white border-b border-gray-200 px-4 py-3">
+    <h1 class="text-lg font-bold text-gray-900">練習抽選システム</h1>
+  </header>
+
+  <!-- Main -->
+  <main class="px-4 pt-4 pb-24 space-y-4">
+
+    <!-- Greeting -->
+    <p class="text-base text-gray-700">こんにちは、<span class="font-bold text-gray-900">佐藤 花子</span>さん</p>
+
+    <!-- Card 1: 2026年8月の投票 -->
+    <section class="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-base font-bold text-gray-900">2026年8月の投票</h2>
+        <span class="inline-flex items-center rounded-full bg-green-100 text-green-700 text-xs font-semibold px-2.5 py-1">投票受付中</span>
+      </div>
+      <div class="space-y-1 mb-4">
+        <p class="text-sm text-gray-700">投票済み: <span class="font-semibold text-purple-600">3日選択</span></p>
+        <p class="text-sm text-gray-500">締切: 8/20(木) 23:59 まで</p>
+      </div>
+      <button class="w-full rounded-lg bg-purple-600 text-white text-sm font-semibold py-3 hover:bg-purple-700 active:bg-purple-800">
+        投票内容を変更する
+      </button>
+    </section>
+
+    <!-- Card 2: 次の参加練習 -->
+    <section class="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
+      <h2 class="text-base font-bold text-gray-900 mb-3">次の参加練習</h2>
+      <div class="rounded-lg bg-purple-50 border border-purple-100 p-4 text-center">
+        <p class="text-2xl font-bold text-purple-700">8/24(月)</p>
+        <p class="text-lg font-semibold text-gray-800 mt-1">18:00-21:00</p>
+        <p class="text-sm text-gray-600 mt-1">第一体育館</p>
+      </div>
+    </section>
+
+    <!-- Card 3: 今月の参加予定 -->
+    <section class="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
+      <h2 class="text-base font-bold text-gray-900 mb-3">今月の参加予定</h2>
+      <ul class="divide-y divide-gray-100">
+        <li class="flex items-center justify-between py-2.5">
+          <div>
+            <p class="text-sm font-semibold text-gray-800">8/24(月) 18:00-21:00</p>
+            <p class="text-xs text-gray-500">第一体育館</p>
+          </div>
+          <span class="text-xs font-medium text-purple-600">参加確定</span>
+        </li>
+        <li class="flex items-center justify-between py-2.5">
+          <div>
+            <p class="text-sm font-semibold text-gray-800">8/31(月) 18:00-21:00</p>
+            <p class="text-xs text-gray-500">市民体育館</p>
+          </div>
+          <span class="text-xs font-medium text-purple-600">参加確定</span>
+        </li>
+      </ul>
+    </section>
+
+  </main>
+
+  <!-- Fixed Tab Bar -->
+  <nav class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full z-30 bg-white border-t border-gray-200" style="max-width: 480px;">
+    <div class="grid grid-cols-4">
+      <a href="#" class="flex flex-col items-center py-2 text-purple-600">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+        <span class="text-[10px] font-semibold mt-1">ホーム</span>
+      </a>
+      <a href="#" class="flex flex-col items-center py-2 text-gray-400">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 12 2 2 4-4"/><path d="M5 7c0-1.1.9-2 2-2h10a2 2 0 0 1 2 2v12H5V7Z"/><path d="M22 19H2"/></svg>
+        <span class="text-[10px] font-medium mt-1">投票</span>
+      </a>
+      <a href="#" class="flex flex-col items-center py-2 text-gray-400">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/></svg>
+        <span class="text-[10px] font-medium mt-1">結果</span>
+      </a>
+      <a href="#" class="flex flex-col items-center py-2 text-gray-400">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span class="text-[10px] font-medium mt-1">プロフィール</span>
+      </a>
+    </div>
+  </nav>
+
+</div>
+</body>
+</html>

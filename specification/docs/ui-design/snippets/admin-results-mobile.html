@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>結果・微調整 | 代表用管理画面</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+    background: #f3f4f6;
+  }
+  .app-container {
+    max-width: 480px;
+    margin: 0 auto;
+    min-height: 100vh;
+    background: white;
+  }
+</style>
+</head>
+<body>
+<div class="app-container relative flex flex-col">
+
+  <!-- ヘッダー -->
+  <header class="sticky top-0 z-20 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <h1 class="text-lg font-bold text-gray-900">結果・微調整</h1>
+      <span class="bg-purple-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">管理</span>
+    </div>
+    <span class="text-sm font-semibold text-gray-600">男子</span>
+  </header>
+
+  <!-- メインコンテンツ -->
+  <main class="flex-1 px-4 py-4 pb-44 space-y-4">
+
+    <!-- 未公開バナー -->
+    <div class="bg-yellow-50 border border-yellow-300 rounded-xl px-4 py-3">
+      <p class="text-sm text-yellow-800 font-semibold flex items-center gap-2"><span class="shrink-0"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></span>結果は未公開です。微調整が終わったら公開してください</p>
+    </div>
+
+    <!-- タブ切替 -->
+    <div class="flex bg-gray-100 rounded-lg p-1">
+      <button class="flex-1 bg-purple-600 text-white text-sm font-bold py-2 rounded-md shadow-sm">練習日別</button>
+      <button class="flex-1 text-gray-500 text-sm font-semibold py-2 rounded-md">メンバー別</button>
+    </div>
+
+    <!-- 練習日アコーディオン（展開中） -->
+    <section class="bg-white border-2 border-purple-200 rounded-xl shadow-sm overflow-hidden">
+      <button class="w-full px-4 py-3 flex items-center justify-between bg-purple-50">
+        <div class="text-left">
+          <p class="text-sm font-bold text-gray-900">8/24(月) 第一体育館</p>
+          <div class="flex items-center gap-2 mt-1">
+            <div class="w-28 h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div class="h-full bg-green-500 rounded-full" style="width: 96.7%;"></div>
+            </div>
+            <span class="text-xs font-semibold text-green-700">29 / 30名</span>
+          </div>
+        </div>
+        <span class="text-gray-400 text-sm"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg></span>
+      </button>
+
+      <ul class="divide-y divide-gray-100">
+        <!-- 参加者行 -->
+        <li class="px-4 py-2.5 flex items-center gap-2">
+          <span class="text-sm font-semibold text-gray-800 flex-1">山田健太</span>
+          <span class="bg-gray-100 text-gray-600 text-[10px] font-bold px-1.5 py-0.5 rounded">3年</span>
+          <span class="bg-purple-100 text-purple-700 text-[10px] font-bold px-1.5 py-0.5 rounded">3年確定</span>
+          <button class="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-red-500 text-lg leading-none rounded-full hover:bg-red-50">×</button>
+        </li>
+        <li class="px-4 py-2.5 flex items-center gap-2">
+          <span class="text-sm font-semibold text-gray-800 flex-1">鈴木大輔</span>
+          <span class="bg-gray-100 text-gray-600 text-[10px] font-bold px-1.5 py-0.5 rounded">3年</span>
+          <span class="bg-purple-100 text-purple-700 text-[10px] font-bold px-1.5 py-0.5 rounded">3年確定</span>
+          <button class="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-red-500 text-lg leading-none rounded-full hover:bg-red-50">×</button>
+        </li>
+        <li class="px-4 py-2.5 flex items-center gap-2">
+          <span class="text-sm font-semibold text-gray-800 flex-1">佐藤美咲</span>
+          <span class="bg-gray-100 text-gray-600 text-[10px] font-bold px-1.5 py-0.5 rounded">2年</span>
+          <span class="bg-gray-200 text-gray-600 text-[10px] font-bold px-1.5 py-0.5 rounded">マネ</span>
+          <button class="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-red-500 text-lg leading-none rounded-full hover:bg-red-50">×</button>
+        </li>
+        <li class="px-4 py-2.5 flex items-center gap-2">
+          <span class="text-sm font-semibold text-gray-800 flex-1">田中翔</span>
+          <span class="bg-gray-100 text-gray-600 text-[10px] font-bold px-1.5 py-0.5 rounded">2年</span>
+          <span class="bg-green-100 text-green-700 text-[10px] font-bold px-1.5 py-0.5 rounded">保証</span>
+          <button class="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-red-500 text-lg leading-none rounded-full hover:bg-red-50">×</button>
+        </li>
+        <li class="px-4 py-2.5 flex items-center gap-2">
+          <span class="text-sm font-semibold text-gray-800 flex-1">佐々木蓮</span>
+          <span class="bg-gray-100 text-gray-600 text-[10px] font-bold px-1.5 py-0.5 rounded">1年</span>
+          <span class="bg-green-100 text-green-700 text-[10px] font-bold px-1.5 py-0.5 rounded">保証</span>
+          <button class="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-red-500 text-lg leading-none rounded-full hover:bg-red-50">×</button>
+        </li>
+        <li class="px-4 py-2.5 flex items-center gap-2">
+          <span class="text-sm font-semibold text-gray-800 flex-1">伊藤湊</span>
+          <span class="bg-gray-100 text-gray-600 text-[10px] font-bold px-1.5 py-0.5 rounded">1年</span>
+          <span class="bg-blue-100 text-blue-700 text-[10px] font-bold px-1.5 py-0.5 rounded">配分</span>
+          <button class="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-red-500 text-lg leading-none rounded-full hover:bg-red-50">×</button>
+        </li>
+        <li class="px-4 py-2.5 flex items-center gap-2">
+          <span class="text-sm font-semibold text-gray-800 flex-1">高橋悠真</span>
+          <span class="bg-gray-100 text-gray-600 text-[10px] font-bold px-1.5 py-0.5 rounded">2年</span>
+          <span class="bg-orange-100 text-orange-700 text-[10px] font-bold px-1.5 py-0.5 rounded">手動</span>
+          <button class="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-red-500 text-lg leading-none rounded-full hover:bg-red-50">×</button>
+        </li>
+        <li class="px-4 py-1 text-center text-xs text-gray-400">… 他22名 …</li>
+        <li class="p-3">
+          <button class="w-full border-2 border-dashed border-purple-300 text-purple-600 text-sm font-semibold py-2.5 rounded-lg hover:bg-purple-50">
+            + 参加者を追加
+          </button>
+        </li>
+      </ul>
+    </section>
+
+    <!-- 折りたたみ: 満員 -->
+    <section class="bg-white border border-gray-200 rounded-xl shadow-sm">
+      <button class="w-full px-4 py-3 flex items-center justify-between">
+        <div class="text-left">
+          <p class="text-sm font-bold text-gray-900">8/31(月) 市民体育館</p>
+          <div class="flex items-center gap-2 mt-1">
+            <div class="w-28 h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div class="h-full bg-gray-400 rounded-full" style="width: 100%;"></div>
+            </div>
+            <span class="text-xs font-semibold text-gray-500">30 / 30名（満員）</span>
+          </div>
+        </div>
+        <span class="text-gray-400 text-sm"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
+      </button>
+    </section>
+
+    <!-- 折りたたみ: 超過警告 -->
+    <section class="bg-white border border-red-200 rounded-xl shadow-sm">
+      <button class="w-full px-4 py-3 flex items-center justify-between">
+        <div class="text-left">
+          <p class="text-sm font-bold text-gray-900">8/10(月) 第一体育館</p>
+          <div class="flex items-center gap-2 mt-1">
+            <div class="w-28 h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div class="h-full bg-red-500 rounded-full" style="width: 100%;"></div>
+            </div>
+            <span class="text-xs font-bold text-red-600 inline-flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> 31 / 30名（定員超過）</span>
+          </div>
+        </div>
+        <span class="text-gray-400 text-sm"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
+      </button>
+    </section>
+
+  </main>
+
+  <!-- 下部固定: 公開ボタン + タブバー -->
+  <div class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-30">
+    <div class="bg-white/95 backdrop-blur border-t border-gray-200 px-4 pt-3 pb-2">
+      <button class="w-full bg-purple-600 hover:bg-purple-700 text-white text-lg font-bold py-4 rounded-xl shadow-lg">
+        結果を公開する
+      </button>
+    </div>
+    <!-- タブバー -->
+    <nav class="bg-white border-t border-gray-200 flex justify-around items-stretch pb-2">
+      <a href="#" class="flex flex-col items-center gap-0.5 py-2 px-3 text-gray-400">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span class="text-[10px]">ホーム</span>
+      </a>
+      <a href="#" class="flex flex-col items-center gap-0.5 py-2 px-3 text-gray-400">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg><span class="text-[10px]">日程</span>
+      </a>
+      <a href="#" class="flex flex-col items-center gap-0.5 py-2 px-3 text-gray-400">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="12" height="12" x="2" y="10" rx="2" ry="2"/><path d="m17.92 14 3.5-3.5a2.24 2.24 0 0 0 0-3l-5-4.92a2.24 2.24 0 0 0-3 0L10 6"/><path d="M6 18h.01"/><path d="M10 14h.01"/><path d="M15 6h.01"/><path d="M18 9h.01"/></svg><span class="text-[10px]">抽選</span>
+      </a>
+      <a href="#" class="flex flex-col items-center gap-0.5 py-2 px-3 text-purple-600 border-t-2 border-purple-600 -mt-px">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg><span class="text-[10px] font-bold">結果</span>
+      </a>
+      <a href="#" class="flex flex-col items-center gap-0.5 py-2 px-3 text-gray-400">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span class="text-[10px]">名簿</span>
+      </a>
+    </nav>
+  </div>
+
+</div>
+</body>
+</html>
