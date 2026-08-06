@@ -60,12 +60,8 @@ def seed_representatives(db: Session) -> None:
                 email=rep["email"],
                 password_hash=password_hash,
                 name=rep["name"],
-                address="未設定",
-                phone_number="000-0000-0000",
                 grade=3,
                 gender=rep["gender"],
-                faculty_department="未設定",
-                student_number="未設定",
                 is_manager=False,
                 role="representative",
                 # 開発用アカウントは確認メールを受け取れないため確認済みで作る。

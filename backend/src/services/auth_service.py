@@ -16,9 +16,15 @@ from src.core.security import (
     hash_password,
     verify_password,
 )
+from src.core.line import verify_id_token
 from src.db.models import User
 from src.repositories.user_repository import UserRepository
-from src.schemas.auth import RegisterRequest, TokenResponse
+from src.schemas.auth import (
+    LineLoginResponse,
+    LineRegisterRequest,
+    RegisterRequest,
+    TokenResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -51,12 +57,8 @@ class AuthService:
             email=data.email,
             password_hash=hash_password(data.password),
             name=data.name,
-            address=data.address,
-            phone_number=data.phone_number,
             grade=data.grade,
             gender=data.gender,
-            faculty_department=data.faculty_department,
-            student_number=data.student_number,
             is_manager=data.is_manager,
         )
         # 登録直後は未確認。確認コードの入力まではログインできない (D-011)
@@ -124,10 +126,46 @@ class AuthService:
 
     def login(self, email: str, password: str) -> TokenResponse:
         user = self.users.get_by_email(email)
-        if user is None or not verify_password(password, user.password_hash):
+        # LINE ログインのメンバーはパスワードを持たないため、代表のみがここを通る (D-021)
+        if user is None or user.password_hash is None:
+            raise UnauthorizedError("メールアドレスまたはパスワードが正しくありません")
+        if not verify_password(password, user.password_hash):
             raise UnauthorizedError("メールアドレスまたはパスワードが正しくありません")
         if user.email_verified_at is None:
             raise EmailNotVerifiedError()
+        return self._issue_access_token(user)
+
+    def line_login(self, id_token: str) -> LineLoginResponse:
+        """LIFF から受け取った ID トークンでログインする (D-021)。
+
+        未登録なら registered=False を返し、フロントは初回登録画面へ進む。
+        """
+        profile = verify_id_token(id_token)
+        user = self.users.get_by_line_user_id(profile.user_id)
+        if user is None or user.is_deleted:
+            return LineLoginResponse(registered=False, display_name=profile.display_name)
+        return LineLoginResponse(
+            registered=True,
+            token=self._issue_access_token(user),
+            display_name=profile.display_name,
+        )
+
+    def line_register(self, data: LineRegisterRequest) -> TokenResponse:
+        """初回登録 (D-021)。
+
+        本名・学年・性別は LINE から取得できないため入力させる。
+        LINE の表示名はニックネームであることが多く、代表が結果を確認できないため。
+        """
+        profile = verify_id_token(data.id_token)
+        if self.users.get_by_line_user_id(profile.user_id):
+            raise ConflictError("すでに登録されています")
+        user = self.users.create(
+            line_user_id=profile.user_id,
+            name=data.name,
+            grade=data.grade,
+            gender=data.gender,
+            is_manager=data.is_manager,
+        )
         return self._issue_access_token(user)
 
     def _issue_access_token(self, user: User) -> TokenResponse:

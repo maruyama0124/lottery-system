@@ -20,8 +20,14 @@ class UserRepository:
         stmt = select(User).where(User.email == email, User.is_deleted.is_(False))
         return self.db.scalar(stmt)
 
-    def create(self, *, email: str, password_hash: str, **profile: object) -> User:
-        user = User(id=generate_id("usr"), email=email, password_hash=password_hash, **profile)
+    def get_by_line_user_id(self, line_user_id: str) -> User | None:
+        """LINE ログインの本人特定 (D-021)"""
+        stmt = select(User).where(User.line_user_id == line_user_id)
+        return self.db.scalar(stmt)
+
+    def create(self, **profile: object) -> User:
+        """代表は email/password_hash、メンバーは line_user_id を持つ (D-021)"""
+        user = User(id=generate_id("usr"), **profile)
         self.db.add(user)
         self.db.flush()
         return user

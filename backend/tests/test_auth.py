@@ -12,12 +12,8 @@ REGISTER_BODY = {
     "email": "hanako@example.com",
     "password": "password123",
     "name": "佐藤 花子",
-    "address": "東京都八王子市1-2-3",
-    "phone_number": "090-1234-5678",
     "grade": 2,
     "gender": "female",
-    "faculty_department": "経済学部経済学科",
-    "student_number": "26E1234",
     "is_manager": False,
 }
 EMAIL = REGISTER_BODY["email"]

@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     jwt_secret: str = "dev-secret-key-do-not-use-in-production"
     jwt_expires_minutes: int = 43200  # 30日
 
+    # LINE ログイン (D-021)。ID トークンの検証時に client_id として送る
+    line_channel_id: str = ""
+
     # メール送信 (D-012: Resend)
     resend_api_key: str = ""  # 未設定時は送信せずログ出力 (開発用)
     mail_from: str = "onboarding@resend.dev"

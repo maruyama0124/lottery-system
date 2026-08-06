@@ -86,12 +86,8 @@ def make_user(client: TestClient, db_session: Session):
                 "email": email,
                 "password": password,
                 "name": f"テスト 太郎{counter['n']}",
-                "address": "東京都八王子市1-2-3",
-                "phone_number": "090-0000-0000",
                 "grade": grade,
                 "gender": gender,
-                "faculty_department": "経済学部",
-                "student_number": f"26E{counter['n']:04d}",
                 "is_manager": is_manager,
             },
         )

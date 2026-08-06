@@ -7,6 +7,9 @@ from sqlalchemy.orm import Session
 from src.api.deps import CurrentUser
 from src.db.session import get_db
 from src.schemas.auth import (
+    LineLoginRequest,
+    LineLoginResponse,
+    LineRegisterRequest,
     LoginRequest,
     PasswordResetConfirm,
     PasswordResetRequest,
@@ -44,6 +47,18 @@ def resend_verification(data: ResendVerificationRequest, db: DbDep) -> Response:
 @router.post("/login", response_model=TokenResponse)
 def login(data: LoginRequest, db: DbDep) -> TokenResponse:
     return AuthService(db).login(data.email, data.password)
+
+
+@router.post("/line/login", response_model=LineLoginResponse)
+def line_login(data: LineLoginRequest, db: DbDep) -> LineLoginResponse:
+    """LIFF の ID トークンでログインする (D-021)。未登録なら registered=False を返す"""
+    return AuthService(db).line_login(data.id_token)
+
+
+@router.post("/line/register", status_code=status.HTTP_201_CREATED, response_model=TokenResponse)
+def line_register(data: LineRegisterRequest, db: DbDep) -> TokenResponse:
+    """初回登録 (D-021)。本名・学年・性別を受け取り、そのままログイン状態にする"""
+    return AuthService(db).line_register(data)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

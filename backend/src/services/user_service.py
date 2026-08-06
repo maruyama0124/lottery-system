@@ -2,7 +2,7 @@
 import csv
 import io
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from src.core.errors import ForbiddenError, NotFoundError
@@ -10,10 +10,8 @@ from src.db.models import User
 from src.repositories.user_repository import UserRepository
 from src.schemas.users import UserUpdateRequest
 
-CSV_HEADERS = [
-    "名前", "メールアドレス", "学年", "性別", "学部学科",
-    "学籍番号", "住所", "電話番号", "区分", "権限",
-]
+# 個人情報は Google フォームで管理するため、本システムは氏名・学年・性別のみ扱う (D-021)
+CSV_HEADERS = ["名前", "学年", "性別", "区分", "権限"]
 
 
 def _roster_stmt(
@@ -27,9 +25,7 @@ def _roster_stmt(
     if gender is not None:
         stmt = stmt.where(User.gender == gender)
     if q:
-        stmt = stmt.where(
-            or_(User.name.ilike(f"%{q}%"), User.student_number.ilike(f"%{q}%"))
-        )
+        stmt = stmt.where(User.name.ilike(f"%{q}%"))
     return stmt.order_by(User.gender, User.grade.desc(), User.name)
 
 
@@ -74,9 +70,8 @@ class UserService:
         writer.writerow(CSV_HEADERS)
         for u in rows:
             writer.writerow([
-                u.name, u.email, f"{u.grade}年",
+                u.name, f"{u.grade}年",
                 "男" if u.gender == "male" else "女",
-                u.faculty_department, u.student_number, u.address, u.phone_number,
                 "マネージャー" if u.is_manager else "プレイヤー",
                 "代表" if u.role == "representative" else "メンバー",
             ])

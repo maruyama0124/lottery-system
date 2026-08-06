@@ -10,13 +10,13 @@ def test_get_and_update_me(client, make_user) -> None:
 
     res = client.put(
         "/api/v1/users/me",
-        json={"grade": 2, "address": "神奈川県横浜市4-5-6"},
+        json={"grade": 2, "name": "テスト 花子"},
         headers=auth_header(token),
     )
     assert res.status_code == 204
     me2 = client.get("/api/v1/users/me", headers=auth_header(token)).json()
     assert me2["grade"] == 2
-    assert me2["address"] == "神奈川県横浜市4-5-6"
+    assert me2["name"] == "テスト 花子"
 
 
 def test_roster_requires_representative(client, make_user) -> None:
@@ -41,7 +41,8 @@ def test_roster_covers_both_genders_and_filters(client, make_user) -> None:
     assert g1["total"] == 1
     assert g1["items"][0]["grade"] == 1
 
-    q = client.get("/api/v1/users?q=26E0003", headers=auth_header(rep_token)).json()
+    # 検索は氏名のみを対象とする (D-021 で学籍番号を廃止)
+    q = client.get("/api/v1/users?q=太郎3", headers=auth_header(rep_token)).json()
     assert q["total"] == 1
 
 
@@ -53,7 +54,9 @@ def test_roster_csv_export(client, make_user) -> None:
     assert res.status_code == 200
     assert res.headers["content-type"].startswith("text/csv")
     body = res.text
-    assert "名前" in body and "学籍番号" in body  # ヘッダー
+    assert "名前" in body and "学年" in body  # ヘッダー (D-021 で個人情報の列は廃止)
+    # 個人情報は Google フォームで管理するため、CSV には出力しない (D-021)
+    assert "住所" not in body and "電話番号" not in body and "学籍番号" not in body
     assert body.count("\n") >= 3  # ヘッダー + 2名
 
     filtered = client.get(
