@@ -351,3 +351,59 @@ def test_settings_get_and_update(client, make_user) -> None:
     # member は 403
     _m, member_token = make_user(gender="male")
     assert client.get("/api/v1/settings", headers=auth_header(member_token)).status_code == 403
+
+
+def test_participation_table_is_visible_to_members_after_publish(client, make_user) -> None:
+    """練習参加表 (REQ-006.5 / D-025): 公開前は404、公開後はメンバーも見られる"""
+    rep_token, pm, member_tokens = setup_month_with_votes(client, make_user)
+    client.post(
+        f"/api/v1/practice-months/{pm['id']}/lottery",
+        json={"confirm_rerun": False},
+        headers=auth_header(rep_token),
+    )
+
+    # 公開前は取得できない (微調整中の結果を見せない)
+    before = client.get(
+        f"/api/v1/practice-months/{pm['id']}/participation",
+        headers=auth_header(member_tokens[0]),
+    )
+    assert before.status_code == 404
+
+    client.post(f"/api/v1/practice-months/{pm['id']}/publish", headers=auth_header(rep_token))
+
+    res = client.get(
+        f"/api/v1/practice-months/{pm['id']}/participation",
+        headers=auth_header(member_tokens[0]),
+    )
+    assert res.status_code == 200
+    body = res.json()
+
+    assert len(body["practices"]) == 2
+    # 1年3名・2年2名・3年1名が投票している (代表は投票していない)
+    assert {g["grade"] for g in body["grades"]} == {1, 2, 3}
+    counts = {g["grade"]: len(g["rows"]) for g in body["grades"]}
+    assert counts == {1: 3, 2: 2, 3: 1}
+
+    # 全員が全日当選しているため、各行が2日ぶんの practice_id を持つ
+    for section in body["grades"]:
+        for row in section["rows"]:
+            assert len(row["practice_ids"]) == 2
+            assert set(row["practice_ids"]) <= {p["id"] for p in body["practices"]}
+
+
+def test_participation_table_excludes_other_gender(client, make_user) -> None:
+    """参加表は自分の性別グループのみ (NFR-002.4)"""
+    rep_token, pm, member_tokens = setup_month_with_votes(client, make_user)
+    client.post(
+        f"/api/v1/practice-months/{pm['id']}/lottery",
+        json={"confirm_rerun": False},
+        headers=auth_header(rep_token),
+    )
+    client.post(f"/api/v1/practice-months/{pm['id']}/publish", headers=auth_header(rep_token))
+
+    _uid, female_token = make_user(gender="female", grade=1)
+    res = client.get(
+        f"/api/v1/practice-months/{pm['id']}/participation",
+        headers=auth_header(female_token),
+    )
+    assert res.status_code in (403, 404)

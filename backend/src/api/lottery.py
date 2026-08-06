@@ -13,6 +13,7 @@ from src.schemas.lottery import (
     LotteryExecuteRequest,
     LotteryExecutionResponse,
     MyResults,
+    ParticipationTable,
     QuotaUpdateRequest,
     VoteSummaryResponse,
 )
@@ -66,6 +67,12 @@ def list_executions(
 @router.get("/practice-months/{pm_id}/results/me", response_model=MyResults)
 def my_results(pm_id: str, user: CurrentUser, db: DbDep) -> MyResults:
     return LotteryService(db).my_results(user, pm_id)
+
+
+@router.get("/practice-months/{pm_id}/participation", response_model=ParticipationTable)
+def participation_table(pm_id: str, user: CurrentUser, db: DbDep) -> ParticipationTable:
+    """練習参加表。メンバーも閲覧できる。公開前は 404 (REQ-006.5 / D-025)"""
+    return LotteryService(db).participation_table(user, pm_id)
 
 
 @router.get("/practice-months/{pm_id}/results", response_model=FullResults)

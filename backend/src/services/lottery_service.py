@@ -20,6 +20,9 @@ from src.schemas.lottery import (
     MyResultItem,
     MyResults,
     Participant,
+    ParticipationGradeSection,
+    ParticipationRow,
+    ParticipationTable,
     PracticeResults,
     PracticeVoteSummary,
     QuotaUpdateRequest,
@@ -337,6 +340,48 @@ class LotteryService:
         ]
         items.sort(key=lambda i: (i.practice.practice_date, i.practice.starts_at))
         return MyResults(practice_month_id=pm.id, assignments=items)
+
+    def participation_table(self, user: User, pm_id: str) -> ParticipationTable:
+        """月の練習参加表 (REQ-006.5 / D-025)
+
+        メンバーも閲覧できる。誰がどの日に来るかを一覧するためのもので、
+        氏名・学年・マネージャー区分のみを返す（本システムはそれ以外を持たない）。
+        微調整中の結果が見えると混乱するため、公開後のみ取得できる。
+        """
+        pm = self.practice_service.get_month_for(user, pm_id)
+        if pm.status != "published":
+            raise NotFoundError("抽選結果はまだ公開されていません")
+
+        practices = self.practices.list_by_month(pm.id)
+        users = {u.id: u for u in self.repo.list_members(pm.gender)}
+
+        joined: dict[str, list[str]] = defaultdict(list)
+        for a in self.repo.list_assignments([p.id for p in practices]):
+            joined[a.user_id].append(a.practice_id)
+
+        sections = []
+        for grade in GRADES:
+            rows = [
+                ParticipationRow(
+                    user_id=uid,
+                    name=users[uid].name,
+                    is_manager=users[uid].is_manager,
+                    practice_ids=sorted(pids),
+                )
+                for uid, pids in joined.items()
+                if uid in users and users[uid].grade == grade
+            ]
+            # マネージャーは全日参加のため先頭に固め、あとは氏名順
+            rows.sort(key=lambda r: (not r.is_manager, r.name))
+            if rows:
+                sections.append(ParticipationGradeSection(grade=grade, rows=rows))
+
+        return ParticipationTable(
+            practice_month_id=pm.id,
+            year_month=pm.year_month,
+            practices=[PracticeResponse.model_validate(p) for p in practices],
+            grades=sections,
+        )
 
     def full_results(self, rep: User, pm_id: str) -> FullResults:
         pm = self.practice_service.get_month_for_rep(rep, pm_id)

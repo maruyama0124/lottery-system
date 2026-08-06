@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { VolleyballIcon } from "@/components/ui/icons";
+import { Quasar } from "@/components/quasar";
 
 type Phase = "loading" | "register" | "error";
 
@@ -126,22 +126,21 @@ export default function LineLoginPage() {
 
   if (phase === "loading") {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-white px-6">
-        <div className="mb-4 text-brand-600">
-          <VolleyballIcon width={48} height={48} />
-        </div>
-        <p className="text-sm text-gray-500">読み込んでいます...</p>
+      <div className="flex min-h-screen flex-col items-center justify-center bg-brand-50 px-6">
+        <Quasar mood="wait" size={120} className="animate-pulse" />
+        <p className="mt-4 text-sm font-semibold text-gray-500">読み込んでいます...</p>
       </div>
     );
   }
 
   if (phase === "error") {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-white px-6">
-        <div className="w-full rounded-2xl border border-red-200 bg-red-50 p-6 text-center">
-          <p className="text-sm text-red-600">{errorMessage}</p>
-          <p className="mt-3 text-xs text-red-500">
-            LINE アプリから開き直してみてください
+      <div className="flex min-h-screen flex-col items-center justify-center bg-brand-50 px-6">
+        <Quasar mood="sad" size={120} />
+        <div className="mt-5 w-full rounded-3xl bg-white p-6 text-center shadow-sm">
+          <p className="font-bold text-gray-800">{errorMessage}</p>
+          <p className="mt-2 text-sm text-gray-500">
+            LINE アプリから開き直してください
           </p>
         </div>
       </div>
@@ -149,19 +148,19 @@ export default function LineLoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col justify-center bg-white px-6 py-12">
-      <div className="mb-8 text-center">
-        <div className="mb-4 flex justify-center text-brand-600">
-          <VolleyballIcon width={60} height={60} />
-        </div>
-        <h1 className="text-2xl font-bold text-gray-900">はじめての登録</h1>
-        <p className="mt-2 text-sm text-gray-500">
-          {displayName ? `${displayName} さん、こんにちは` : "こんにちは"}
+    <div className="min-h-screen bg-brand-50 px-5 py-10">
+      <div className="mb-6 text-center">
+        <Quasar mood="happy" size={120} className="mx-auto" />
+        <p className="mt-3 text-xl font-bold text-brand-700">
+          練習抽選bot クエーさん
         </p>
-        <p className="mt-1 text-sm text-gray-500">最初の1回だけ入力をお願いします</p>
+        <p className="mt-2 font-bold text-gray-800">
+          {displayName ? `${displayName} さん` : "ようこそ"}
+        </p>
+        <p className="mt-1 text-sm text-gray-500">初回のみ登録をお願いします</p>
       </div>
 
-      <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+      <div className="rounded-3xl bg-white p-6 shadow-sm">
         {errorMessage && (
           <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
             <p className="text-sm text-red-600">{errorMessage}</p>
@@ -169,7 +168,7 @@ export default function LineLoginPage() {
         )}
         <form onSubmit={handleRegister}>
           <div className="mb-4">
-            <label htmlFor="name" className="mb-1 block text-sm font-medium text-gray-700">
+            <label htmlFor="name" className="mb-1.5 block text-sm font-bold text-gray-700">
               名前（本名）
             </label>
             <input
@@ -179,63 +178,86 @@ export default function LineLoginPage() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="山田 太郎"
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600"
+              className="w-full rounded-2xl border-2 border-gray-200 px-4 py-3.5 text-base focus:border-brand-500 focus:outline-none"
             />
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1.5 text-xs text-gray-500">
               代表が抽選結果を確認するため、本名で入力してください
             </p>
           </div>
 
           <div className="mb-4">
-            <label htmlFor="grade" className="mb-1 block text-sm font-medium text-gray-700">
-              学年
-            </label>
-            <select
-              id="grade"
-              value={grade}
-              onChange={(e) => setGrade(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600"
-            >
-              <option value="1">1年</option>
-              <option value="2">2年</option>
-              <option value="3">3年</option>
-            </select>
+            <span className="mb-1.5 block text-sm font-bold text-gray-700">学年</span>
+            <div className="grid grid-cols-3 gap-2">
+              {["1", "2", "3"].map((g) => (
+                <button
+                  key={g}
+                  type="button"
+                  onClick={() => setGrade(g)}
+                  className={`rounded-2xl py-3.5 text-base font-bold transition-colors ${
+                    grade === g
+                      ? "bg-brand-600 text-white"
+                      : "border-2 border-gray-200 text-gray-500"
+                  }`}
+                >
+                  {g}年
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="mb-4">
-            <label htmlFor="gender" className="mb-1 block text-sm font-medium text-gray-700">
+            <span className="mb-1.5 block text-sm font-bold text-gray-700">
               男子 / 女子
-            </label>
-            <select
-              id="gender"
-              value={gender}
-              onChange={(e) => setGender(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600"
-            >
-              <option value="male">男子</option>
-              <option value="female">女子</option>
-            </select>
-            <p className="mt-1 text-xs text-gray-500">抽選は男女それぞれ別に行われます</p>
+            </span>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { value: "male", label: "男子" },
+                { value: "female", label: "女子" },
+              ].map((g) => (
+                <button
+                  key={g.value}
+                  type="button"
+                  onClick={() => setGender(g.value)}
+                  className={`rounded-2xl py-3.5 text-base font-bold transition-colors ${
+                    gender === g.value
+                      ? "bg-brand-600 text-white"
+                      : "border-2 border-gray-200 text-gray-500"
+                  }`}
+                >
+                  {g.label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1.5 text-xs text-gray-500">抽選は男女それぞれ別に行われます</p>
           </div>
 
           <div className="mb-6">
-            <label className="flex items-center gap-2 text-sm text-gray-700">
-              <input
-                type="checkbox"
-                checked={isManager}
-                onChange={(e) => setIsManager(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-600"
-              />
-              マネージャーです
-            </label>
+            <button
+              type="button"
+              onClick={() => setIsManager(!isManager)}
+              className={`flex w-full items-center gap-3 rounded-2xl p-4 text-left transition-colors ${
+                isManager ? "bg-brand-50" : "bg-gray-50"
+              }`}
+            >
+              <span
+                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
+                  isManager
+                    ? "bg-brand-600 text-white"
+                    : "border-2 border-gray-200 text-transparent"
+                }`}
+              >
+                ✓
+              </span>
+              <span className="text-sm font-bold text-gray-700">マネージャーです</span>
+            </button>
           </div>
 
           <button
             type="submit"
             disabled={isSubmitting}
-            className="h-12 w-full rounded-lg bg-brand-600 font-bold text-white transition-colors hover:bg-brand-700 active:bg-brand-800 disabled:opacity-50"
+            className="w-full rounded-full bg-brand-600 py-4 text-base font-bold text-white shadow-lg shadow-brand-200 active:scale-[0.98] disabled:opacity-60"
           >
-            {isSubmitting ? "登録中..." : "登録して投票へ"}
+            {isSubmitting ? "登録中..." : "登録する"}
           </button>
         </form>
       </div>

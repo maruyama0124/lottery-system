@@ -1,13 +1,24 @@
 "use client";
 
-// メンバーホーム — 画面設計書 home-mobile.html 対応
+// メンバー画面 — これ1枚だけ (D-022)
+// 投票受付中は投票フォーム、締切後は抽選待ち、公開後は当選日。
+// メンバーがやることは「投票する」「結果を見る」の2つだけなので画面を分けない。
 import Link from "next/link";
-import { MemberHeader } from "@/components/member/header";
+import { useState } from "react";
+import { ParticipationTable } from "@/components/member/participation-table";
+import { Quasar } from "@/components/quasar";
 import { ErrorMessage } from "@/components/ui/error-message";
 import { Loading } from "@/components/ui/loading";
+import { apiClient, ApiClientError } from "@/lib/api-client";
 import { useApi } from "@/hooks/use-api";
 import { useRequireAuth } from "@/hooks/use-auth";
-import type { MyResults, PracticeMonth, VoteStatus } from "@/types/api";
+import type {
+  MyResults,
+  ParticipationTable as ParticipationTableData,
+  PracticeMonth,
+  PracticeMonthDetail,
+  VoteStatus,
+} from "@/types/api";
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"] as const;
 
@@ -17,21 +28,19 @@ function formatDate(dateStr: string): string {
   return `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAYS[d.getDay()]})`;
 }
 
-/** ISO日時 → "8/20(木) 23:59" */
-function formatDateTime(iso: string): string {
+/** ISO日時 → "8/20(木)" */
+function formatDeadline(iso: string): string {
   const d = new Date(iso);
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  return `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAYS[d.getDay()]}) ${hh}:${mm}`;
+  return `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAYS[d.getDay()]})`;
 }
 
-/** "2026-08" → "2026年8月" */
-function formatYearMonth(yearMonth: string): string {
-  const [y, m] = yearMonth.split("-");
-  return `${y}年${Number(m)}月`;
+/** "08:00:00" → "8:00" */
+function formatTime(t: string): string {
+  const [h, m] = t.split(":");
+  return `${Number(h)}:${m}`;
 }
 
-export default function HomePage() {
+export default function MemberPage() {
   const { user, isLoading: authLoading } = useRequireAuth();
 
   const {
@@ -43,149 +52,282 @@ export default function HomePage() {
 
   const currentMonth = months?.[0];
 
-  const { data: voteStatus } = useApi<VoteStatus>(
+  const { data: detail } = useApi<PracticeMonthDetail>(
+    currentMonth ? `/v1/practice-months/${currentMonth.id}` : null,
+  );
+  const { data: voteStatus, mutate: mutateVoteStatus } = useApi<VoteStatus>(
     currentMonth ? `/v1/practice-months/${currentMonth.id}/votes/me` : null,
   );
-
-  const { data: myResults, error: resultsError } = useApi<MyResults>(
+  const { data: myResults } = useApi<MyResults>(
     currentMonth ? `/v1/practice-months/${currentMonth.id}/results/me` : null,
   );
+  // 参加表は公開後のみ取得できる (公開前は 404 が返る)
+  const { data: participation } = useApi<ParticipationTableData>(
+    currentMonth?.status === "published"
+      ? `/v1/practice-months/${currentMonth.id}/participation`
+      : null,
+  );
 
-  if (authLoading || !user) {
+  // ユーザーが触るまではサーバー上の投票内容を表示する
+  const [localSelection, setLocalSelection] = useState<string[] | null>(null);
+  const selectedIds = localSelection ?? voteStatus?.voted_practice_ids ?? [];
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  // 結果公開後の表示切り替え。既定は自分の参加日
+  const [resultTab, setResultTab] = useState<"mine" | "all">("mine");
+
+  const editable = voteStatus?.editable ?? false;
+  const published = currentMonth?.status === "published";
+
+  const toggle = (practiceId: string) => {
+    if (!editable) return;
+    setSaved(false);
+    setLocalSelection(
+      selectedIds.includes(practiceId)
+        ? selectedIds.filter((id) => id !== practiceId)
+        : [...selectedIds, practiceId],
+    );
+  };
+
+  const submit = async () => {
+    if (!currentMonth || !editable || isSubmitting) return;
+    setIsSubmitting(true);
+    setSubmitError(null);
+    try {
+      await apiClient.put<VoteStatus>(
+        `/v1/practice-months/${currentMonth.id}/votes/me`,
+        { practice_ids: selectedIds },
+      );
+      await mutateVoteStatus();
+      setLocalSelection(null);
+      setSaved(true);
+    } catch (e) {
+      setSubmitError(
+        e instanceof ApiClientError ? e.message : "投票の保存に失敗しました",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (authLoading || !user || monthsLoading) {
     return (
-      <>
-        <MemberHeader title="練習抽選システム" />
+      <div className="flex min-h-screen items-center justify-center">
         <Loading />
-      </>
+      </div>
     );
   }
 
-  const resultsNotPublished = resultsError?.status === 404;
   const assignments = myResults?.assignments ?? [];
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const nextPractice =
-    assignments
-      .map((a) => a.practice)
-      .filter((p) => new Date(`${p.practice_date}T00:00:00`) >= today)
-      .sort((a, b) => a.practice_date.localeCompare(b.practice_date))[0] ?? null;
 
   return (
-    <>
-      <MemberHeader title="練習抽選システム" />
-      <main className="space-y-4 px-4 pt-4 pb-24">
-        {/* あいさつ */}
-        <p className="text-base text-gray-700">
-          こんにちは、<span className="font-bold text-gray-900">{user.name}</span>さん
-        </p>
+    <div className="min-h-screen pb-32">
+      <Header userName={user.name} isRep={user.role === "representative"} />
 
-        {monthsLoading && <Loading />}
+      <main className="space-y-5 px-4">
         {monthsError && (
           <ErrorMessage
-            message="練習情報の取得に失敗しました"
+            message="練習情報を取得できませんでした"
             onRetry={() => mutateMonths()}
           />
         )}
 
-        {!monthsLoading && !monthsError && !currentMonth && (
-          <section className="rounded-xl border border-gray-200 bg-white p-6 text-center shadow-sm">
-            <p className="text-sm text-gray-500">練習が登録されていません</p>
-          </section>
+        {!monthsError && !currentMonth && (
+          <Card>
+            <div className="py-6 text-center">
+              <p className="font-bold text-gray-700">練習が登録されていません</p>
+              <p className="mt-1 text-sm text-gray-500">
+                代表が登録すると表示されます
+              </p>
+            </div>
+          </Card>
         )}
 
-        {currentMonth && (
+        {/* 結果公開後 — 自分の参加日と全員の参加表をタブで切り替える (D-025)。
+            縦に並べると参加表まで毎回スクロールすることになるため */}
+        {currentMonth && published && (
           <>
-            {/* カード1: 今月の投票 */}
-            <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-base font-bold text-gray-900">
-                  {formatYearMonth(currentMonth.year_month)}の投票
-                </h2>
-                {currentMonth.status === "published" ? (
-                  <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700">
-                    結果公開済み
-                  </span>
-                ) : voteStatus?.editable ? (
-                  <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700">
-                    投票受付中
-                  </span>
-                ) : null}
-              </div>
-              <div className="mb-4 space-y-1">
-                <p className="text-sm text-gray-700">
-                  投票済み:{" "}
-                  <span className="font-semibold text-brand-600">
-                    {voteStatus ? voteStatus.voted_practice_ids.length : 0}日選択
-                  </span>
-                </p>
-                <p className="text-sm text-gray-500">
-                  締切: {formatDateTime(currentMonth.vote_ends_at)} まで
-                </p>
-              </div>
-              <Link
-                href="/vote"
-                className="block w-full rounded-lg bg-brand-600 py-3 text-center text-sm font-semibold text-white hover:bg-brand-700 active:bg-brand-800"
-              >
-                投票内容を変更する
-              </Link>
-            </section>
+            <div className="flex gap-2">
+              {(
+                [
+                  { key: "mine", label: "自分の参加日" },
+                  { key: "all", label: "練習参加表" },
+                ] as const
+              ).map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => setResultTab(t.key)}
+                  className={`flex-1 rounded-full py-2.5 text-sm font-bold transition-colors ${
+                    resultTab === t.key
+                      ? "bg-brand-600 text-white"
+                      : "border-2 border-gray-200 bg-white text-gray-500"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
 
-            {/* カード2: 次の参加練習 */}
-            <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-              <h2 className="mb-3 text-base font-bold text-gray-900">次の参加練習</h2>
-              {resultsNotPublished || !myResults ? (
-                <div className="rounded-lg border border-gray-100 bg-gray-50 p-4 text-center">
-                  <p className="text-sm text-gray-500">抽選結果はまだ公開されていません</p>
-                </div>
-              ) : nextPractice ? (
-                <div className="rounded-lg border border-brand-100 bg-brand-50 p-4 text-center">
-                  <p className="text-2xl font-bold text-brand-700">
-                    {formatDate(nextPractice.practice_date)}
-                  </p>
-                  <p className="mt-1 text-lg font-semibold text-gray-800">
-                    {nextPractice.starts_at}-{nextPractice.ends_at}
-                  </p>
-                  <p className="mt-1 text-sm text-gray-600">{nextPractice.location}</p>
-                </div>
-              ) : (
-                <div className="rounded-lg border border-gray-100 bg-gray-50 p-4 text-center">
-                  <p className="text-sm text-gray-500">参加予定の練習はありません</p>
-                </div>
-              )}
-            </section>
-
-            {/* カード3: 今月の参加予定 */}
-            <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-              <h2 className="mb-3 text-base font-bold text-gray-900">今月の参加予定</h2>
-              {resultsNotPublished || !myResults ? (
-                <p className="py-2 text-sm text-gray-500">
-                  抽選結果はまだ公開されていません
+            {resultTab === "mine" ? (
+              <Card>
+                {/* 1件を1行に収める。縦に伸ばさず一覧性を優先する */}
+                <p className="mb-3 font-bold text-gray-900">
+                  {assignments.length > 0
+                    ? `参加する練習 ${assignments.length}日`
+                    : "今月の参加はありません"}
                 </p>
-              ) : assignments.length === 0 ? (
-                <p className="py-2 text-sm text-gray-500">参加予定はありません</p>
-              ) : (
-                <ul className="divide-y divide-gray-100">
-                  {assignments.map(({ practice }) => (
-                    <li
-                      key={practice.id}
-                      className="flex items-center justify-between py-2.5"
+                {assignments.length > 0 && (
+                  <ul className="divide-y divide-gray-100">
+                    {assignments.map(({ practice }) => (
+                      <li
+                        key={practice.id}
+                        className="flex items-baseline gap-3 py-2.5"
+                      >
+                        <span className="w-20 shrink-0 font-bold text-accent-700">
+                          {formatDate(practice.practice_date)}
+                        </span>
+                        <span className="shrink-0 text-sm font-semibold text-gray-700">
+                          {formatTime(practice.starts_at)}〜{formatTime(practice.ends_at)}
+                        </span>
+                        <span className="truncate text-sm text-gray-500">
+                          {practice.location}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Card>
+            ) : participation ? (
+              <ParticipationTable
+                data={participation}
+                currentUserId={user.id}
+                currentUserGrade={user.grade}
+                currentUserIsManager={user.is_manager}
+              />
+            ) : (
+              <Card>
+                <Loading />
+              </Card>
+            )}
+          </>
+        )}
+
+        {/* 締切後・結果未公開 — 抽選待ち */}
+        {currentMonth && !published && !editable && (
+          <Card>
+            <div className="py-6 text-center">
+              <p className="font-bold text-gray-700">抽選結果を待っています</p>
+              <p className="mt-1 text-sm text-gray-500">
+                公開されると表示されます
+              </p>
+            </div>
+          </Card>
+        )}
+
+        {/* 投票受付中 */}
+        {currentMonth && editable && (
+          <>
+            <Card>
+              <p className="font-bold text-gray-900">
+                {saved ? "投票を保存しました" : "参加できる日を選択してください"}
+              </p>
+              <p className="mt-0.5 text-sm text-gray-500">
+                {formatDeadline(currentMonth.vote_ends_at)}まで
+                {saved ? "は何度でも変更できます" : "に送信してください"}
+              </p>
+            </Card>
+
+            <div className="space-y-2">
+              {detail?.practices.map((practice) => {
+                const selected = selectedIds.includes(practice.id);
+                return (
+                  <button
+                    key={practice.id}
+                    type="button"
+                    onClick={() => toggle(practice.id)}
+                    className={`flex w-full items-center gap-2.5 rounded-2xl border-2 px-3 py-2.5 text-left transition-colors ${
+                      selected
+                        ? "border-brand-500 bg-brand-50"
+                        : "border-transparent bg-white"
+                    }`}
+                  >
+                    <span
+                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                        selected
+                          ? "bg-brand-600 text-white"
+                          : "border-2 border-gray-200 text-transparent"
+                      }`}
                     >
-                      <div>
-                        <p className="text-sm font-semibold text-gray-800">
-                          {formatDate(practice.practice_date)} {practice.starts_at}-
-                          {practice.ends_at}
-                        </p>
-                        <p className="text-xs text-gray-500">{practice.location}</p>
-                      </div>
-                      <span className="text-xs font-medium text-brand-600">参加確定</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
+                      ✓
+                    </span>
+                    <span className="w-20 shrink-0 font-bold text-gray-900">
+                      {formatDate(practice.practice_date)}
+                    </span>
+                    <span className="shrink-0 text-sm font-semibold text-gray-600">
+                      {formatTime(practice.starts_at)}〜{formatTime(practice.ends_at)}
+                    </span>
+                    <span className="truncate text-sm text-gray-500">
+                      {practice.location}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {submitError && <ErrorMessage message={submitError} />}
           </>
         )}
       </main>
-    </>
+
+      {/* 投票ボタン（投票期間中のみ） */}
+      {currentMonth && editable && (
+        <div className="fixed bottom-0 left-1/2 z-40 w-full max-w-[480px] -translate-x-1/2 bg-brand-50 px-4 pb-5 pt-8">
+          <button
+            type="button"
+            onClick={submit}
+            disabled={isSubmitting}
+            className="w-full rounded-full bg-brand-600 py-4 text-base font-bold text-white shadow-lg shadow-brand-200 active:scale-[0.98] disabled:opacity-60"
+          >
+            {isSubmitting
+              ? "送信中..."
+              : selectedIds.length === 0
+                ? "選択せずに送信"
+                : `${selectedIds.length}日を送信`}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Header({ userName, isRep }: { userName: string; isRep: boolean }) {
+  return (
+    <header className="px-4 pb-5 pt-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Quasar mood="normal" size={44} className="shrink-0" />
+          <div>
+            <p className="text-lg font-bold text-brand-700">練習抽選bot クエーさん</p>
+            <p className="mt-0.5 text-sm text-gray-500">{userName} さん</p>
+          </div>
+        </div>
+        {isRep && (
+          <Link
+            href="/admin"
+            className="rounded-full bg-white px-4 py-2 text-sm font-bold text-brand-600 shadow-sm"
+          >
+            管理画面
+          </Link>
+        )}
+      </div>
+    </header>
+  );
+}
+
+function Card({ children }: { children: React.ReactNode }) {
+  return (
+    <section className="rounded-3xl bg-white p-5 shadow-sm">{children}</section>
   );
 }

@@ -140,3 +140,28 @@ class LotterySettingsResponse(BaseModel):
 
 class LotterySettingsUpdateRequest(BaseModel):
     rescue_alpha: Decimal = Field(ge=0)
+
+
+class ParticipationRow(BaseModel):
+    """参加表の1行 — メンバー1人ぶん (REQ-006.5 / D-025)"""
+
+    user_id: str
+    name: str
+    is_manager: bool
+    practice_ids: list[str]  # 参加する練習日
+
+
+class ParticipationGradeSection(BaseModel):
+    """学年ごとの区切り。1年が最大45人程度になるため学年で分ける"""
+
+    grade: int
+    rows: list[ParticipationRow]
+
+
+class ParticipationTable(BaseModel):
+    """月の練習参加表。縦にメンバー・横に練習日の表を組むためのデータ"""
+
+    practice_month_id: str
+    year_month: str
+    practices: list[PracticeResponse]
+    grades: list[ParticipationGradeSection]

@@ -9,9 +9,9 @@ depends_on:
 - database-design/index.md
 derived_by:
 - ui-design/index.md
-sync_hash: 33fa900025c6
+sync_hash: 488df8023147
 dependency_hashes:
-  requirements/index.md: 1468ad0ac169
+  requirements/index.md: dbb7c5f2554c
   database-design/index.md: a01f103f9cf3
 ---
 
@@ -153,6 +153,7 @@ graph LR
 | POST | /practice-months/{pmId}/lottery | 抽選の一括実行（再実行含む。枠未設定なら409） | 代表 | REQ-005, REQ-005.12 |
 | GET | /practice-months/{pmId}/executions | 抽選実行履歴 | 代表 | REQ-005.11 |
 | GET | /practice-months/{pmId}/results/me | 自分の当選結果（公開後のみ） | member | REQ-006.1 |
+| GET | /practice-months/{pmId}/participation | 練習参加表（学年別。公開後のみ） | member | REQ-006.5 |
 | GET | /practice-months/{pmId}/results | 全結果（練習日別・メンバー別） | 代表 | REQ-006.2 |
 | POST | /practices/{practiceId}/assignments | 参加者の手動追加 | 代表 | REQ-006.3 |
 | DELETE | /assignments/{assignmentId} | 参加者の手動削除 | 代表 | REQ-006.3 |
@@ -183,7 +184,7 @@ graph LR
 | REQ-003 (練習日程管理) | POST/PUT /practice-months, POST/PUT/DELETE /practices, GET /practices/suggestions |
 | REQ-004 (投票) | GET /practice-months, GET/PUT /practice-months/{pmId}/votes/me |
 | REQ-005 (抽選) | POST /practice-months/{pmId}/lottery, GET /vote-summary, PUT /quotas, GET /executions |
-| REQ-006 (抽選結果) | GET /results/me, GET /results, POST/DELETE assignments, POST /publish |
+| REQ-006 (抽選結果) | GET /results/me, GET /results, GET /participation, POST/DELETE assignments, POST /publish |
 | REQ-007 (メンバー管理) | GET /users, GET /users/export, PUT /users/{userId}/role, DELETE /users/{userId} |
 | NFR-002.3〜4 (アクセス制御) | 全エンドポイントのロール・性別スコープ検証 (403) |
 | NFR-004.1 (設定変更) | GET/PUT /settings, PUT /practice-months/{pmId} (grade2_ratio) |

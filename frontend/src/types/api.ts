@@ -188,6 +188,26 @@ export interface MyResults {
   assignments: { practice: Practice }[];
 }
 
+/** 練習参加表 (D-025) — 縦にメンバー・横に練習日 */
+export interface ParticipationRow {
+  user_id: string;
+  name: string;
+  is_manager: boolean;
+  practice_ids: string[];
+}
+
+export interface ParticipationGradeSection {
+  grade: number;
+  rows: ParticipationRow[];
+}
+
+export interface ParticipationTable {
+  practice_month_id: string;
+  year_month: string;
+  practices: Practice[];
+  grades: ParticipationGradeSection[];
+}
+
 export interface Participant {
   assignment_id: string;
   user_id: string;
