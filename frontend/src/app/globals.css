@@ -56,3 +56,14 @@ body {
   /* 画面ごとに layout 側で背景を敷くため、地の色は白にしておく */
   background: #ffffff;
 }
+
+/* iOS Safari の日付入力は独自描画の固有幅を持ち、2列レイアウトで
+   枠からはみ出す。独自描画を無効化して指定幅に従わせる (min-w-0 では不足) */
+input[type="date"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background-color: transparent;
+}
+input[type="date"]::-webkit-date-and-time-value {
+  text-align: left;
+}
