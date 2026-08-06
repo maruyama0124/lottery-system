@@ -2,7 +2,7 @@
 from sqlalchemy.orm import Session
 
 from src.core.datetime_utils import to_utc
-from src.core.errors import ConflictError, ForbiddenError, NotFoundError
+from src.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationError
 from src.db.models import Practice, PracticeMonth, User
 from src.repositories.practice_repository import PracticeMonthRepository, PracticeRepository
 from src.schemas.practices import (
@@ -51,6 +51,7 @@ class PracticeService:
             vote_ends_at=to_utc(data.vote_ends_at),
         )
         for p in data.practices:
+            self._ensure_date_in_month(pm, p.practice_date)
             self._create_practice(pm.id, p)
         return pm
 
@@ -64,6 +65,18 @@ class PracticeService:
             pm.grade2_ratio = data.grade2_ratio
         self.db.flush()
 
+    @staticmethod
+    def _ensure_date_in_month(pm, practice_date) -> None:
+        """練習日は対象月の中に限る (D-033)。
+
+        月と練習日がずれたまま登録すると、画面の表記（9月の欄に8月の日付）も
+        前月参照（落選救済の月送り）も狂う。フロントの min/max と二重に守る。
+        """
+        if practice_date.strftime("%Y-%m") != pm.year_month:
+            raise ValidationError(
+                f"練習日は {pm.year_month.replace('-', '年')}月 の日付を指定してください"
+            )
+
     def _create_practice(self, pm_id: str, data: PracticeCreateRequest) -> Practice:
         return self.practices.create(
             pm_id,
@@ -75,7 +88,8 @@ class PracticeService:
         )
 
     def add_practice(self, rep: User, pm_id: str, data: PracticeCreateRequest) -> Practice:
-        self.get_month_for_rep(rep, pm_id)
+        pm = self.get_month_for_rep(rep, pm_id)
+        self._ensure_date_in_month(pm, data.practice_date)
         return self._create_practice(pm_id, data)
 
     def _get_practice_for_rep(self, rep: User, practice_id: str) -> Practice:
@@ -87,6 +101,9 @@ class PracticeService:
 
     def update_practice(self, rep: User, practice_id: str, data: PracticeCreateRequest) -> None:
         practice = self._get_practice_for_rep(rep, practice_id)
+        pm = self.months.get(practice.practice_month_id)
+        if pm is not None:
+            self._ensure_date_in_month(pm, data.practice_date)
         practice.practice_date = data.practice_date
         practice.starts_at = data.starts_at
         practice.ends_at = data.ends_at

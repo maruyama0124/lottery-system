@@ -105,6 +105,13 @@ const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
   return `${pad(Math.floor(i / 2))}:${i % 2 === 0 ? "00" : "30"}`;
 });
 
+/** 対象月の初日と末日 (date 入力の min/max 用) */
+function monthRange(yearMonth: string): [string, string] {
+  const [y, m] = yearMonth.split("-").map(Number);
+  const last = new Date(y, m, 0).getDate();
+  return [`${yearMonth}-01`, `${yearMonth}-${String(last).padStart(2, "0")}`];
+}
+
 function PracticeForm({
   values,
   onChange,
@@ -113,6 +120,7 @@ function PracticeForm({
   submitLabel,
   busy,
   suggestions,
+  yearMonth,
 }: {
   values: PracticeFormValues;
   onChange: (v: PracticeFormValues) => void;
@@ -123,9 +131,13 @@ function PracticeForm({
   busy?: boolean;
   /** 過去の登録実績。選ぶと場所・時刻・定員が埋まる (D-014) */
   suggestions?: PracticeSuggestion[];
+  /** 対象月 (YYYY-MM)。指定するとその月の日付しか選べない (D-033) */
+  yearMonth?: string;
 }) {
+  const range = yearMonth && /^\d{4}-\d{2}$/.test(yearMonth) ? monthRange(yearMonth) : null;
+  const dateInMonth = !range || (values.practice_date >= range[0] && values.practice_date <= range[1]);
   const valid =
-    values.practice_date && values.starts_at && values.ends_at && values.location && Number(values.capacity) > 0;
+    values.practice_date && dateInMonth && values.starts_at && values.ends_at && values.location && Number(values.capacity) > 0;
 
   const applySuggestion = (index: string) => {
     const s = suggestions?.[Number(index)];
@@ -159,9 +171,16 @@ function PracticeForm({
         <input
           type="date"
           value={values.practice_date}
+          min={range?.[0]}
+          max={range?.[1]}
           onChange={(e) => onChange({ ...values, practice_date: e.target.value })}
           className={inputClass}
         />
+        {values.practice_date && !dateInMonth && yearMonth && (
+          <p className="mt-1 text-xs font-semibold text-red-600">
+            {formatYearMonth(yearMonth)}の日付を選んでください
+          </p>
+        )}
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="min-w-0">
@@ -245,12 +264,15 @@ function PracticeCard({
   onUpdated,
   suggestions,
   onDuplicate,
+  yearMonth,
 }: {
   practice: Practice;
   onUpdated: () => void;
   suggestions?: PracticeSuggestion[];
   /** この練習の内容を追加フォームに引き継ぐ (D-014) */
   onDuplicate?: (practice: Practice) => void;
+  /** 対象月。編集時もこの月の日付しか選べない (D-033) */
+  yearMonth?: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<PracticeFormValues>(practiceToForm(practice));
@@ -303,6 +325,7 @@ function PracticeCard({
           values={form}
           onChange={setForm}
           suggestions={suggestions}
+          yearMonth={yearMonth}
           onSubmit={save}
           onCancel={() => {
             setForm(practiceToForm(practice));
@@ -551,6 +574,7 @@ function NewMonthForm({
                 values={p}
                 onChange={(v) => updatePractice(i, v)}
                 suggestions={suggestions}
+                yearMonth={yearMonth}
               />
               <div className="mt-3 flex gap-2">
                 {/* 同じ体育館・時間帯の練習を月に何度も登録するため、日付だけ空にして複製する (D-014) */}
@@ -827,6 +851,7 @@ export default function AdminSchedulePage() {
                         practice={p}
                         onUpdated={() => mutateDetail()}
                         suggestions={suggestions}
+                        yearMonth={detail.year_month}
                         onDuplicate={(src) => {
                           // 日付だけ空にして追加フォームを開く
                           setAddForm({ ...practiceToForm(src), practice_date: "" });
@@ -842,6 +867,7 @@ export default function AdminSchedulePage() {
                           values={addForm}
                           onChange={setAddForm}
                           suggestions={suggestions}
+                          yearMonth={detail.year_month}
                           onSubmit={addPractice}
                           onCancel={() => {
                             setAdding(false);

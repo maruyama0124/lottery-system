@@ -317,3 +317,38 @@ def test_practice_suggestions_require_representative(client, make_user) -> None:
     _member, token = make_user(gender="male")
     res = client.get("/api/v1/practices/suggestions", headers=auth_header(token))
     assert res.status_code == 403
+
+
+def test_practice_date_must_be_inside_the_month(client, make_user) -> None:
+    """練習日は対象月の日付に限る (D-033)。月ずれ登録のミスを防ぐ"""
+    _rep_id, rep_token = make_user(role="representative", gender="male")
+    pm = create_month(client, rep_token, practices=1)
+
+    # 追加: 対象月の翌月の日付は 400
+    res = client.post(
+        f"/api/v1/practice-months/{pm['id']}/practices",
+        json={
+            "practice_date": "2026-10-05",
+            "starts_at": "18:00",
+            "ends_at": "21:00",
+            "location": "第一体育館",
+            "capacity": 20,
+        },
+        headers=auth_header(rep_token),
+    )
+    assert res.status_code == 400
+
+    # 更新: 既存の練習日を月外に動かすのも 400
+    practice_id = pm["practices"][0]["id"]
+    res = client.put(
+        f"/api/v1/practices/{practice_id}",
+        json={
+            "practice_date": "2026-10-05",
+            "starts_at": "18:00",
+            "ends_at": "21:00",
+            "location": "第一体育館",
+            "capacity": 20,
+        },
+        headers=auth_header(rep_token),
+    )
+    assert res.status_code == 400
