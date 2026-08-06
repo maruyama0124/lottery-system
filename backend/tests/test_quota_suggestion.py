@@ -1,40 +1,62 @@
-"""枠の提案値ロジックのテスト (D-028)
+"""枠の提案値ロジックのテスト (D-031)
 
-運用実態が「各学年10人ずつ・合計30人」であるため、定員を学年数で等分する。
-投票状況では変えない（余った枠は抽選側が他学年へ回すため: D-027）。
+基準は定員の等分（定員30なら各学年10）。投票が基準に満たない学年の余りを、
+投票に余力のある学年へ 3年 → 2年 → 1年 の順に回す。日ごとに完結し、
+月をまたぐ按分はしない。
 """
 from src.services.lottery_service import LotteryService
 
 suggest = LotteryService._suggest_quotas
 
 
-def test_capacity_30_is_split_evenly() -> None:
-    """定員30なら 10 / 10 / 10 になる（運用の既定値）"""
-    days = [(30, {3: 7, 2: 11, 1: 33})]
-    assert suggest(days, {3: 7, 2: 11, 1: 33}) == [{3: 10, 2: 10, 1: 10}]
+def test_full_votes_give_even_split() -> None:
+    """全学年の投票が基準以上なら 10 / 10 / 10 になる"""
+    days = [(30, {3: 12, 2: 15, 1: 33})]
+    assert suggest(days, {}) == [{3: 10, 2: 10, 1: 10}]
 
 
-def test_suggestion_does_not_depend_on_votes() -> None:
-    """投票状況が違っても提案値は変わらない"""
-    a = suggest([(30, {3: 0, 2: 0, 1: 50})], {3: 0, 2: 0, 1: 50})
-    b = suggest([(30, {3: 20, 2: 20, 1: 0})], {3: 20, 2: 20, 1: 0})
-    assert a == b == [{3: 10, 2: 10, 1: 10}]
+def test_shortage_of_grade3_flows_to_juniors() -> None:
+    """3年の投票が基準に満たない日は、余りが下級生へ回る"""
+    # 実データ相当: 3年5人しか投票していない → 3年5、余り5は2年(余力なし)を飛ばして1年へ
+    days = [(30, {3: 5, 2: 10, 1: 26})]
+    assert suggest(days, {}) == [{3: 5, 2: 10, 1: 15}]
 
 
-def test_remainder_goes_to_upper_grades() -> None:
-    """割り切れない定員は 3年 → 2年 → 1年 の順に1ずつ多く配る"""
-    assert suggest([(20, {})], {}) == [{3: 7, 2: 7, 1: 6}]
-    assert suggest([(10, {})], {}) == [{3: 4, 2: 3, 1: 3}]
+def test_leftover_goes_to_grade2_before_grade1() -> None:
+    """余りは 2年 → 1年 の順（上級生優先）。2年に余力があれば先に取る"""
+    days = [(30, {3: 6, 2: 15, 1: 29})]
+    # 3年6で4席余り、2年は投票15で余力5 → 2年+4 で 6/14/10
+    assert suggest(days, {}) == [{3: 6, 2: 14, 1: 10}]
 
 
-def test_each_day_is_calculated_independently() -> None:
-    """日ごとに定員が違っても、それぞれの定員で等分する"""
-    result = suggest([(30, {}), (20, {}), (9, {})], {})
-    assert result == [{3: 10, 2: 10, 1: 10}, {3: 7, 2: 7, 1: 6}, {3: 3, 2: 3, 1: 3}]
+def test_votes_never_exceeded() -> None:
+    """どの学年の枠も、その日の投票者数を超えない（全体が定員未満の日を除く）"""
+    days = [(30, {3: 2, 2: 4, 1: 40})]
+    result = suggest(days, {})[0]
+    assert result[3] == 2 and result[2] == 4 and result[1] == 24
+
+
+def test_empty_seats_are_parked_on_grade1() -> None:
+    """全学年の投票者が定員未満の日は、埋まらない席を1年に載せて合計＝定員を保つ"""
+    days = [(30, {3: 2, 2: 3, 1: 5})]
+    result = suggest(days, {})[0]
+    assert result == {3: 2, 2: 3, 1: 25}  # 実際に埋まるのは10人。残りは抽選側で処理
+    assert sum(result.values()) == 30
+
+
+def test_each_day_is_independent() -> None:
+    """月をまたぐ按分はせず、日ごとに同じ規則で計算する"""
+    days = [(30, {3: 5, 2: 10, 1: 26}), (30, {3: 12, 2: 15, 1: 33})]
+    assert suggest(days, {}) == [{3: 5, 2: 10, 1: 15}, {3: 10, 2: 10, 1: 10}]
 
 
 def test_sum_always_matches_capacity() -> None:
     """保存時に合計＝定員が求められるため、提案値も常に定員ちょうどにする"""
-    for capacity in (0, 1, 2, 5, 9, 10, 15, 20, 30, 31):
-        result = suggest([(capacity, {})], {})
+    for capacity, voters in [
+        (30, {3: 0, 2: 0, 1: 0}),
+        (20, {3: 1, 2: 0, 1: 2}),
+        (9, {3: 9, 2: 9, 1: 9}),
+        (31, {3: 4, 2: 30, 1: 2}),
+    ]:
+        result = suggest([(capacity, voters)], {})
         assert sum(result[0].values()) == capacity

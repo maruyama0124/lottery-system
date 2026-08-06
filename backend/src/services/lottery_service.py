@@ -151,26 +151,44 @@ class LotteryService:
         )
 
     @staticmethod
+    def base_shares(capacity: int) -> dict[int, int]:
+        """定員を学年数で等分した「基準」。端数は 3年 → 2年 → 1年 の順に1ずつ足す"""
+        base, extra = divmod(capacity, len(GRADES))
+        shares = {g: base for g in GRADES}
+        for g in PRIORITY_GRADES[:extra]:
+            shares[g] += 1
+        return shares
+
+    @staticmethod
     def _suggest_quotas(
         days: list[tuple[int, dict[int, int]]],  # (定員, 学年 -> その日の投票者数)
         month_voters: dict[int, int],  # 学年 -> 月内に1回でも投票した人数 (現在は未使用)
     ) -> list[dict[int, int]]:
-        """日ごとの枠の初期値を提案する (D-028)。
+        """日ごとの枠の初期値を提案する (D-031)。日ごとに完結し、月をまたぐ按分はしない。
 
-        運用実態が「各学年10人ずつ・合計30人」であるため、**定員を学年数で等分**する。
-        端数は 3年 → 2年 → 1年 の順に1ずつ配る。
+        1. 基準は定員の等分（定員30なら各学年10）
+        2. 各学年に「その日の投票者数」と「基準」の少ないほうを割り当てる
+           — 投票が基準に満たない学年の枠は、書いても埋まらないため
+        3. 余った席は 3年 → 2年 → 1年 の順に、投票者数を上限として配る
+           — 上級生優先の方針 (D-015) をここでも踏襲する
+        4. それでも余る席（全学年の投票者が定員未満の日）は1年に載せる
+           — 保存時に合計＝定員が要求されるため。埋まらない席は抽選側が
+             他学年へ回すので (D-027)、どの学年に置いても結果は変わらない
 
-        当初は月全体の投票状況から按分していたが (D-015)、実際には固定的に
-        回していることが分かったため単純な等分に変更した。投票者数を上限に
-        しないのは、余った枠を抽選側が他学年へ回すため (D-027)。
+        一度 D-028 で「常に 10/10/10」の固定値にしたが、投票が足りない日にも
+        10 と表示されるのは逆に分かりにくいという指摘で本方式に戻した。
         代表は画面で自由に増減できる。
         """
         result: list[dict[int, int]] = []
-        for capacity, _voters in days:
-            base, extra = divmod(capacity, len(GRADES))
-            quotas = {g: base for g in GRADES}
-            for g in PRIORITY_GRADES[:extra]:
-                quotas[g] += 1
+        for capacity, voters in days:
+            shares = LotteryService.base_shares(capacity)
+            quotas = {g: min(voters.get(g, 0), shares[g]) for g in GRADES}
+            free = capacity - sum(quotas.values())
+            for g in PRIORITY_GRADES:
+                take = min(max(0, voters.get(g, 0) - quotas[g]), free)
+                quotas[g] += take
+                free -= take
+            quotas[PRIORITY_GRADES[-1]] += free  # 誰も埋められない席
             result.append(quotas)
         return result
 

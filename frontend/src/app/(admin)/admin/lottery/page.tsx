@@ -44,11 +44,56 @@ function toDraft(summary: VoteSummary): QuotaDraft {
   for (const p of summary.practices) {
     draft[p.practice_id] = {};
     for (const g of p.grades) {
-      // 未設定なら提案値（投票数の比率で按分した値）を初期表示する
+      // 未設定なら提案値（基準の等分に投票状況を反映した値: D-031）を初期表示する
       draft[p.practice_id][g.grade] = g.quota ?? g.suggested_quota;
     }
   }
   return draft;
+}
+
+/** 定員を学年数で等分した「基準」。端数は 3年 → 2年 → 1年 の順に1ずつ足す */
+function baseShares(capacity: number): Record<number, number> {
+  const base = Math.floor(capacity / 3);
+  const extra = capacity % 3;
+  const shares: Record<number, number> = { 3: base, 2: base, 1: base };
+  for (const g of [3, 2, 1].slice(0, extra)) shares[g] += 1;
+  return shares;
+}
+
+/** 現在の枠が基準からどうずれているか（＝不足分がどこへ回っているか）を文で示す (D-031) */
+function shareNote(
+  capacity: number,
+  quotas: Record<number, number>,
+  voters: Record<number, number>,
+): string[] {
+  const base = baseShares(capacity);
+  const grades = [3, 2, 1];
+  const minus = grades.filter((g) => (quotas[g] ?? 0) < base[g]);
+  const plus = grades.filter((g) => (quotas[g] ?? 0) > base[g]);
+  const notes: string[] = [];
+
+  if (minus.length || plus.length) {
+    const baseText = base[3] === base[1] ? `各${base[3]}` : `${base[3]}・${base[2]}・${base[1]}`;
+    const minusText = minus.map((g) => `${g}年 −${base[g] - (quotas[g] ?? 0)}`).join("・");
+    const plusText = plus.map((g) => `${g}年 +${(quotas[g] ?? 0) - base[g]}`).join("・");
+    if (minus.length && plus.length) {
+      notes.push(`基準${baseText}に対し、${minusText} のぶんを ${plusText} に回しています`);
+    } else if (minus.length) {
+      notes.push(`基準${baseText}に対し ${minusText}`);
+    } else {
+      notes.push(`基準${baseText}に対し ${plusText}`);
+    }
+  }
+
+  // 投票者より多い枠は書いても埋まらない。抽選側の流用 (D-027) の存在を添える
+  const over = grades.filter((g) => (quotas[g] ?? 0) > (voters[g] ?? 0));
+  if (over.length) {
+    const overText = over
+      .map((g) => `${g}年（投票${voters[g] ?? 0}人に枠${quotas[g] ?? 0}）`)
+      .join("・");
+    notes.push(`${overText} は投票を超えるぶんが抽選時に他学年へ回るか、空席になります`);
+  }
+  return notes;
 }
 
 /** 学年別の投票数を積み上げ棒で表す */
@@ -271,6 +316,15 @@ export default function AdminLotteryPage() {
                       合計 {total} / 定員 {p.capacity}
                       {matched ? " ✓" : "（定員と一致させてください）"}
                     </p>
+                    {shareNote(
+                      p.capacity,
+                      draft[p.practice_id] ?? {},
+                      Object.fromEntries(p.grades.map((g) => [g.grade, g.voters])),
+                    ).map((note) => (
+                      <p key={note} className="mt-1 text-xs text-gray-500">
+                        {note}
+                      </p>
+                    ))}
                   </div>
                 );
               })}
