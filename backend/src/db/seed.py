@@ -1,6 +1,6 @@
 """初期データ投入 (DB設計書 §5)
 
-- lottery_settings: 男女2行 (rescue_alpha = 0.2)
+- lottery_settings: 男女2行 (rescue_alpha = 0.5)
 - 初期代表アカウント: 男子代表・女子代表 各1名 (開発用)
 
 冪等: 既存データがあればスキップする。
@@ -41,7 +41,7 @@ def seed_lottery_settings(db: Session) -> None:
             LotterySettings(
                 id=generate_id("set"),
                 gender=gender,
-                rescue_alpha=Decimal("0.2"),
+                rescue_alpha=Decimal("0.5"),
             )
         )
         print(f"lottery_settings ({gender}): 作成")

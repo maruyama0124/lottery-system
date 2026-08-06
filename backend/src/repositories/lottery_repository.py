@@ -173,7 +173,7 @@ class LotteryRepository:
         settings = self.get_settings(gender)
         if settings is None:
             settings = LotterySettings(
-                id=generate_id("set"), gender=gender, rescue_alpha=Decimal("0.2")
+                id=generate_id("set"), gender=gender, rescue_alpha=Decimal("0.5")
             )
             self.db.add(settings)
             self.db.flush()

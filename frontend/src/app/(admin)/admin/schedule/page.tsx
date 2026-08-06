@@ -164,7 +164,7 @@ function PracticeForm({
         />
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <div>
+        <div className="min-w-0">
           <label className={labelClass}>開始時刻</label>
           <select
             value={values.starts_at}
@@ -179,7 +179,7 @@ function PracticeForm({
             ))}
           </select>
         </div>
-        <div>
+        <div className="min-w-0">
           <label className={labelClass}>終了時刻</label>
           <select
             value={values.ends_at}
@@ -520,7 +520,7 @@ function NewMonthForm({
           />
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <div>
+          <div className="min-w-0">
             <label className={labelClass}>投票開始日</label>
             <input
               type="date"
@@ -529,7 +529,7 @@ function NewMonthForm({
               className={inputClass}
             />
           </div>
-          <div>
+          <div className="min-w-0">
             <label className={labelClass}>投票締切日</label>
             <input
               type="date"
@@ -642,7 +642,7 @@ function VotePeriodForm({
       <h3 className="mb-2 text-sm font-bold text-gray-900">投票受付期間</h3>
       <div className="space-y-4 rounded-xl border border-gray-200 bg-white p-4">
         <div className="grid grid-cols-2 gap-3">
-          <div>
+          <div className="min-w-0">
             <label htmlFor="vote-start" className={labelClass}>
               開始日
             </label>
@@ -654,7 +654,7 @@ function VotePeriodForm({
               className={inputClass}
             />
           </div>
-          <div>
+          <div className="min-w-0">
             <label htmlFor="vote-end" className={labelClass}>
               締切日
             </label>

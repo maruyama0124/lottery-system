@@ -8,9 +8,9 @@ depends_on:
 - requirements/index.md
 derived_by:
 - api-design/index.md
-sync_hash: a01f103f9cf3
+sync_hash: b603fc756c5e
 dependency_hashes:
-  requirements/index.md: e45a0e15de24
+  requirements/index.md: ba66783ed1cd
 ---
 
 # DB設計書 — サークル練習参加抽選システム
@@ -112,7 +112,7 @@ erDiagram
     lottery_settings {
         varchar id PK "set_"
         varchar gender UK
-        numeric rescue_alpha "既定 0.2"
+        numeric rescue_alpha "既定 0.5"
     }
 ```
 
@@ -252,7 +252,7 @@ erDiagram
 |--------|----|------|------|
 | id | varchar(30) | PK | `set_` + ULID |
 | gender | varchar(10) | NOT NULL, UNIQUE | 性別グループごとに独立した設定 |
-| rescue_alpha | numeric(3,2) | NOT NULL, DEFAULT 0.2 | 落選救済係数 α |
+| rescue_alpha | numeric(3,2) | NOT NULL, DEFAULT 0.5 | 落選救済係数 α (D-032) |
 | is_deleted | boolean | NOT NULL, DEFAULT false | — |
 | created_at / updated_at | timestamptz | NOT NULL | — |
 

@@ -134,7 +134,7 @@ Table monthly_member_results {
 Table lottery_settings {
   id varchar(30) [pk, note: 'set_ + ULID']
   gender varchar(10) [not null, unique, note: '性別グループごとに独立']
-  rescue_alpha "numeric(3,2)" [not null, default: 0.2, note: '落選救済係数 α']
+  rescue_alpha "numeric(3,2)" [not null, default: 0.5, note: '落選救済係数 α (D-032)']
   is_deleted boolean [not null, default: false]
   created_at timestamptz [not null]
   updated_at timestamptz [not null]

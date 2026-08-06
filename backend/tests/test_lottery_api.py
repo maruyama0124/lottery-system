@@ -336,17 +336,17 @@ def test_settings_get_and_update(client, make_user) -> None:
     _rep_id, rep_token = make_user(role="representative", gender="male")
     res = client.get("/api/v1/settings", headers=auth_header(rep_token))
     assert res.status_code == 200
-    assert float(res.json()["rescue_alpha"]) == 0.2
+    assert float(res.json()["rescue_alpha"]) == 0.5  # 既定値 (D-032)
 
     assert (
         client.put(
-            "/api/v1/settings", json={"rescue_alpha": 0.5}, headers=auth_header(rep_token)
+            "/api/v1/settings", json={"rescue_alpha": 0.8}, headers=auth_header(rep_token)
         ).status_code
         == 204
     )
     assert float(
         client.get("/api/v1/settings", headers=auth_header(rep_token)).json()["rescue_alpha"]
-    ) == 0.5
+    ) == 0.8
 
     # member は 403
     _m, member_token = make_user(gender="male")

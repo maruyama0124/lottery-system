@@ -11,8 +11,8 @@ derived_by:
 - ui-design/index.md
 sync_hash: 488df8023147
 dependency_hashes:
-  requirements/index.md: e45a0e15de24
-  database-design/index.md: a01f103f9cf3
+  requirements/index.md: ba66783ed1cd
+  database-design/index.md: b603fc756c5e
 ---
 
 # API設計書 — サークル練習参加抽選システム
