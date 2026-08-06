@@ -9,10 +9,10 @@ depends_on:
 - database-design/index.md
 derived_by:
 - ui-design/index.md
-sync_hash: 0e7b035ee359
+sync_hash: 33fa900025c6
 dependency_hashes:
-  requirements/index.md: 2c207f7157b0
-  database-design/index.md: df1f268c47a3
+  requirements/index.md: 1468ad0ac169
+  database-design/index.md: a01f103f9cf3
 ---
 
 # API設計書 — サークル練習参加抽選システム
@@ -25,7 +25,9 @@ FastAPI で実装する RESTful API。フロントエンド (Next.js) から HTT
 
 - **認証方式**: JWT Bearer Token（`Authorization: Bearer <token>`）
 - ログイン成功時にアクセストークンを発行。以降のリクエストはすべてトークン必須（`/auth/*` の一部を除く）
-- **メールアドレス確認**: 新規登録したユーザーは、6桁の確認コードを `POST /auth/verify` に送るまでメール未確認状態となり、ログインできない（403 `EMAIL_NOT_VERIFIED`）。コードの有効期限は15分、入力失敗5回で無効化（D-011 / D-012）
+- **メンバーは LINE ログイン**（D-021）: LIFF が発行した ID トークンを `POST /auth/line/login` に送る。サーバーは LINE の検証エンドポイント（`https://api.line.me/oauth2/v2.1/verify`）に `id_token` と `client_id`（チャネルID）を送って検証し、応答の `sub` を LINE ユーザーIDとして本人を特定する。**クライアントから送られたユーザーIDは信用しない**（詐称を防ぐため）
+- **代表はメールアドレスとパスワード**: `POST /auth/login`。メンバーは `password_hash` を持たないため、この経路は代表のみが通る
+- **メールアドレス確認**: 代表アカウントは6桁の確認コードを `POST /auth/verify` に送るまでログインできない（403 `EMAIL_NOT_VERIFIED`）。コードの有効期限は15分、入力失敗5回で無効化（D-011 / D-012）
 - **ロール**:
 
 | ロール | 権限 |
@@ -99,10 +101,12 @@ graph LR
 
 | メソッド | パス | 概要 | 権限 | 要件 |
 |----------|------|------|------|------|
-| POST | /auth/register | アカウント登録（プロフィール込み。登録直後はメール未確認） | 不要 | REQ-001.1, REQ-002.1 |
+| POST | /auth/line/login | LINE ログイン（LIFF の ID トークンを検証。未登録なら `registered: false`） | 不要 | REQ-001.1, REQ-001.6 |
+| POST | /auth/line/register | 初回登録（本名・学年・性別を受け取り会員作成。JWT を発行） | 不要 | REQ-001.5 |
+| POST | /auth/register | アカウント登録（代表用。登録直後はメール未確認） | 不要 | REQ-002.1 |
 | POST | /auth/verify | メールアドレス確認（6桁コード。成功時に JWT を発行） | 不要 | REQ-001.5 |
 | POST | /auth/verify/resend | 確認コードの再送 | 不要 | REQ-001.6 |
-| POST | /auth/login | ログイン（JWT発行。未確認は 403） | 不要 | REQ-001.2 |
+| POST | /auth/login | ログイン（代表用。JWT発行。未確認は 403） | 不要 | REQ-001.2 |
 | POST | /auth/logout | ログアウト | member | REQ-001.3 |
 | POST | /auth/password-reset/request | リセットメール送信 | 不要 | REQ-001.4 |
 | POST | /auth/password-reset/confirm | 新パスワード設定 | 不要 | REQ-001.4 |

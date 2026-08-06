@@ -10,8 +10,8 @@ depends_on:
 derived_by: []
 sync_hash: bbac5fc60482
 dependency_hashes:
-  requirements/index.md: 2c207f7157b0
-  api-design/index.md: 0e7b035ee359
+  requirements/index.md: 1468ad0ac169
+  api-design/index.md: 33fa900025c6
 ---
 
 # 画面設計書 — サークル練習参加抽選システム

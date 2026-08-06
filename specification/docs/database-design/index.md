@@ -8,9 +8,9 @@ depends_on:
 - requirements/index.md
 derived_by:
 - api-design/index.md
-sync_hash: df1f268c47a3
+sync_hash: a01f103f9cf3
 dependency_hashes:
-  requirements/index.md: 2c207f7157b0
+  requirements/index.md: 1468ad0ac169
 ---
 
 # DB設計書 — サークル練習参加抽選システム
@@ -44,15 +44,12 @@ erDiagram
 
     users {
         varchar id PK "usr_"
-        varchar email UK
+        varchar line_user_id UK "メンバーの識別子"
+        varchar email UK "代表のログインID"
         varchar password_hash
-        varchar name
-        varchar address
-        varchar phone_number
+        varchar name "本名"
         int grade "1-3"
         varchar gender "male / female"
-        varchar faculty_department
-        varchar student_number
         boolean is_manager
         varchar role "member / representative"
         timestamptz email_verified_at "NULL = メール未確認"
@@ -126,25 +123,24 @@ erDiagram
 | カラム | 型 | 制約 | 説明 |
 |--------|----|------|------|
 | id | varchar(30) | PK | `usr_` + ULID |
-| email | varchar(255) | NOT NULL, UNIQUE | ログインID |
-| password_hash | varchar(255) | NOT NULL | bcrypt ハッシュ |
-| name | varchar(100) | NOT NULL | 氏名 |
-| address | varchar(255) | NOT NULL | 住所 |
-| phone_number | varchar(20) | NOT NULL | 電話番号 |
+| line_user_id | varchar(50) | NULL 許容, UNIQUE | LINE のユーザーID。メンバーの本人特定に使う。代表は NULL (D-021) |
+| email | varchar(255) | NULL 許容, UNIQUE | 代表のログインID。メンバーは NULL (D-021) |
+| password_hash | varchar(255) | NULL 許容 | bcrypt ハッシュ。代表のみ保持 (D-021) |
+| name | varchar(100) | NOT NULL | 本名。LINE の表示名はニックネームが多いため別に入力させる (D-021) |
 | grade | integer | NOT NULL, CHECK (1〜3) | 学年 |
 | gender | varchar(10) | NOT NULL, CHECK (male / female) | 抽選グループの決定に使用 |
-| faculty_department | varchar(100) | NOT NULL | 学部学科 |
-| student_number | varchar(30) | NOT NULL | 学籍番号 |
 | is_manager | boolean | NOT NULL, DEFAULT false | マネージャー区分（定員外・全参加） |
 | role | varchar(20) | NOT NULL, DEFAULT 'member' | member / representative（代表。担当範囲は自分の gender） |
-| email_verified_at | timestamptz | NULL 許容 | NULL = メール未確認。確認済みになるまでログイン不可 (D-012) |
+| email_verified_at | timestamptz | NULL 許容 | NULL = メール未確認。確認済みになるまでログイン不可 (D-012)。代表のみ使用 |
 | verification_code_hash | varchar(255) | NULL 許容 | 6桁確認コードの bcrypt ハッシュ。平文では保持しない |
 | verification_expires_at | timestamptz | NULL 許容 | コードの有効期限（発行から15分） |
 | verification_attempts | integer | NOT NULL, DEFAULT 0 | 入力失敗回数。5回で無効化し再送を促す |
 | is_deleted | boolean | NOT NULL, DEFAULT false | 退会（論理削除） |
 | created_at / updated_at | timestamptz | NOT NULL | — |
 
-インデックス: `(gender, grade)`, `(role)` ／ 一意制約: `email`
+インデックス: `(gender, grade)`, `(role)` ／ 一意制約: `line_user_id`, `email`
+
+住所・電話番号・学部学科・学籍番号は Google フォームで収集・管理するため、本システムでは保持しない (D-021)。抽選に必要な氏名・学年・性別・マネージャー区分に限定している。
 
 ### practice_months — 月別抽選単位（月 × 性別）
 
