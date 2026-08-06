@@ -153,72 +153,24 @@ class LotteryService:
     @staticmethod
     def _suggest_quotas(
         days: list[tuple[int, dict[int, int]]],  # (定員, 学年 -> その日の投票者数)
-        month_voters: dict[int, int],  # 学年 -> 月内に1回でも投票した人数
+        month_voters: dict[int, int],  # 学年 -> 月内に1回でも投票した人数 (現在は未使用)
     ) -> list[dict[int, int]]:
-        """月全体を見てから日ごとの枠を提案する (D-015)。
+        """日ごとの枠の初期値を提案する (D-028)。
 
-        「3年はなるべく全員参加させたい。ただし1年が回らなくなるなら削る」を、
-        比率を固定せず投票状況から導く。
+        運用実態が「各学年10人ずつ・合計30人」であるため、**定員を学年数で等分**する。
+        端数は 3年 → 2年 → 1年 の順に1ずつ配る。
 
-        1. 各学年に「その学年の投票者数」ぶんの枠を月全体で確保する
-           （全員が月に最低1回当選できる裏付け。REQ-005.6 と同じ考え方）
-        2. 残枠を 3年 → 2年 → 1年 の順に、その学年の延べ投票数を上限として配る
-        3. 月の枠を、その日の学年別投票数に比例して日ごとに按分する
-
-        あくまで初期値であり、代表は画面で自由に増減できる。
+        当初は月全体の投票状況から按分していたが (D-015)、実際には固定的に
+        回していることが分かったため単純な等分に変更した。投票者数を上限に
+        しないのは、余った枠を抽選側が他学年へ回すため (D-027)。
+        代表は画面で自由に増減できる。
         """
-        month_votes = {g: sum(v.get(g, 0) for _cap, v in days) for g in GRADES}
-        total_capacity = sum(cap for cap, _v in days)
-
-        # 1. 全員に月1回ぶんを確保（総枠が足りなければ上級生から優先して確保する）
-        month_quota = {g: 0 for g in GRADES}
-        remaining = total_capacity
-        for g in PRIORITY_GRADES:
-            take = min(month_voters.get(g, 0), remaining)
-            month_quota[g] = take
-            remaining -= take
-
-        # 2. 残枠を優先順に、延べ投票数を上限として配る
-        for g in PRIORITY_GRADES:
-            if remaining <= 0:
-                break
-            take = min(month_votes[g] - month_quota[g], remaining)
-            month_quota[g] += max(0, take)
-            remaining -= max(0, take)
-
-        # 3. 日ごとに、優先度の高い学年から順に割り当てる
-        #    取り分は「その学年に残っている月の枠 × 残り日程における投票割合」。
-        #    月の枠を上限として扱うので、上級生の端数繰り上げで
-        #    下級生の枠が食われて月0回の人が出ることはない
-        remaining_quota = dict(month_quota)
-        remaining_votes = dict(month_votes)
-
         result: list[dict[int, int]] = []
-        for capacity, voters in days:
-            quotas = {g: 0 for g in GRADES}
-            free = capacity
-            for g in PRIORITY_GRADES:
-                if remaining_votes[g] <= 0:
-                    continue
-                share = round(remaining_quota[g] * voters.get(g, 0) / remaining_votes[g])
-                quotas[g] = max(0, min(voters.get(g, 0), share, remaining_quota[g], free))
-                free -= quotas[g]
-
-            # 端数で余った枠を、月の枠と投票者に余力のある学年へ優先度順に配る
-            while free > 0:
-                for g in PRIORITY_GRADES:
-                    if quotas[g] < min(voters.get(g, 0), remaining_quota[g]):
-                        quotas[g] += 1
-                        free -= 1
-                        break
-                else:
-                    # 埋められる学年がない（投票者が定員に満たない日）。空席として残す
-                    quotas[PRIORITY_GRADES[-1]] += free
-                    free = 0
-
-            for g in GRADES:
-                remaining_quota[g] -= quotas[g]
-                remaining_votes[g] -= voters.get(g, 0)
+        for capacity, _voters in days:
+            base, extra = divmod(capacity, len(GRADES))
+            quotas = {g: base for g in GRADES}
+            for g in PRIORITY_GRADES[:extra]:
+                quotas[g] += 1
             result.append(quotas)
         return result
 
@@ -426,6 +378,7 @@ class LotteryService:
                 votes_count=len(votes[uid]),
                 wins_count=len(wins.get(uid, [])),
                 practice_ids=sorted(wins.get(uid, [])),
+                voted_practice_ids=sorted(votes[uid]),
             )
             for uid in sorted(votes, key=lambda u: (-users[u].grade, users[u].name))
             if uid in users

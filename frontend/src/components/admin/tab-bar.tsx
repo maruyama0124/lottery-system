@@ -8,7 +8,6 @@ import {
   ClipboardListIcon,
   DicesIcon,
   HouseIcon,
-  UsersIcon,
 } from "@/components/ui/icons";
 
 const tabs = [
@@ -16,7 +15,6 @@ const tabs = [
   { href: "/admin/schedule", label: "日程", Icon: CalendarDaysIcon },
   { href: "/admin/lottery", label: "抽選", Icon: DicesIcon },
   { href: "/admin/results", label: "結果", Icon: ClipboardListIcon },
-  { href: "/admin/roster", label: "名簿", Icon: UsersIcon },
 ];
 
 export function AdminTabBar() {

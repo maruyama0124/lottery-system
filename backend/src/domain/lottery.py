@@ -10,9 +10,11 @@ Phase 1 — 学年ごとに独立した抽選 (3年・2年・1年をそれぞれ
     1-a. 最低1回保証 (最優先): 全投票者に月1枠を割当
     1-b. 残枠配分: 「当選数 ÷ 投票数」が小さい人を優先し、落選救済の重みで抽選
 Phase 2 — 同一学年内での余り枠の再配分
-    保証できなかった投票者を最優先に救済し、残りを同学年で配分する。
-    **学年をまたいだ流し込みは行わない** — 代表が日ごとに決めた学年別の人数を
-    システムが勝手に変えないため (D-015)
+    保証できなかった投票者を最優先に救済し、残りを同学年で配分する
+Phase 3 — 学年をまたいだ余り枠の再配分 (D-027)
+    投票者が足りずに余った枠は空席にせず、他学年へ学年順に1人ずつ配る。
+    当初は学年をまたいだ流用を行わなかったが (D-015)、上級生の投票者が
+    定員に満たない日に空席が多発したため方針を変更した
 """
 from __future__ import annotations
 
@@ -132,35 +134,42 @@ def run_lottery(
             for pid in sorted(votes[m.id]):
                 assign(pid, m.id, VIA_MANAGER, counts=False)
 
-    # ---------- Phase 1・2: 学年ごとに独立して抽選する ----------
-    for grade in GRADES:
-        grade_voters = [m for m in voters if m.grade == grade and not m.is_manager]
-        if not grade_voters:
-            continue
-        q = quota[grade]
+    # ---------- Phase 1: 最低1回保証 ----------
+    # 2段構えで解く (D-029)。
+    #   1-a. まず自分の学年の枠の中で配置する（代表が決めた学年構成を尊重する）
+    #   1-b. そこに入れなかった人だけ、他学年の余り枠も使って配置し直す
+    # いずれも席の入れ替え（既に入っている人を別の日へ動かす）を伴う最大マッチング。
+    # 1-b がないと、ある学年の枠の総数が投票者数に満たないときに構造的な0回が出る
+    # （実データで1年58名に対し1年枠50席となり8名が0回になった）。
+    players = [m for m in voters if not m.is_manager]
+    day_seats = {pid: sum(quota[g][pid] for g in GRADES) for pid in practice_ids}
 
-        # 1-a. 最低1回保証 (最優先)
-        # 単純な先着順だと、選択肢の少ない人が後回しになったときに
-        # 投票日が先に埋まり、枠が余っているのに0回になることがある。
-        # そのため席の入れ替え（既に入っている人を別の日へ動かす）を行い、
-        # 保証できる人数を最大にする。
-        occupants: dict[str, list[str]] = defaultdict(list)  # practice_id -> member_ids
-        placed: dict[str, str] = {}  # member_id -> practice_id
+    occupants: dict[str, list[str]] = defaultdict(list)  # practice_id -> member_ids
+    placed: dict[str, str] = {}  # member_id -> practice_id
+    grade_of = {m.id: m.grade for m in players}
+
+    def make_place(has_room, movable=None):
+        """has_room(pid, member_id) が真なら入れる。空きがなければ入れ替えを試みる。
+
+        movable(occupant_id, member_id) は「その占有者を動かしてよいか」の判定。
+        1-a では同学年どうしに限定する。他学年の人を動かすと、動かされた側が
+        自分の学年の枠に戻れず押し出されてしまうため（3年の席に1年が入り込む）。
+        """
 
         def place(member_id: str, seen: set[str]) -> bool:
-            options = [pid for pid in sorted(votes[member_id]) if pid in q]
+            options = [pid for pid in sorted(votes[member_id]) if pid in day_seats]
             rng.shuffle(options)  # seed 固定なので決定的
             for pid in options:
                 if pid in seen:
                     continue
                 seen.add(pid)
-                if q[pid] > 0:
-                    q[pid] -= 1
+                if has_room(pid, member_id):
                     occupants[pid].append(member_id)
                     placed[member_id] = pid
                     return True
-                # 空きがない日でも、先に入っている人が別の日へ移れれば席が空く
                 for other in list(occupants[pid]):
+                    if movable is not None and not movable(other, member_id):
+                        continue
                     if place(other, seen):
                         occupants[pid].remove(other)
                         occupants[pid].append(member_id)
@@ -168,34 +177,118 @@ def run_lottery(
                         return True
             return False
 
-        unguaranteed: list[Member] = []
-        for m in weighted_order(grade_voters):
-            if not place(m.id, set()):
-                unguaranteed.append(m)
-        for member_id, pid in placed.items():
-            assign(pid, member_id, VIA_GUARANTEED)
+        return place
 
-        # 1-b. 残枠配分
-        distribute(grade_voters, q, VIA_DISTRIBUTION)
+    # 1-a. 自学年の枠の中だけで配置する。
+    #      その日にすでに入っている同学年の人数と、自学年の枠を比べる
+    def has_own_grade_room(pid: str, member_id: str) -> bool:
+        # その日の定員は常に守る。そのうえで自学年の枠に空きがあるかを見る
+        if len(occupants[pid]) >= day_seats[pid]:
+            return False
+        g = grade_of[member_id]
+        same_grade = sum(1 for mid in occupants[pid] if grade_of[mid] == g)
+        return same_grade < quota[g][pid]
 
-        # Phase 2: 同学年内の余り枠で未保証者を救済する
-        for m in weighted_order([m for m in unguaranteed if wins[m.id] == 0]):
-            options = assignable_days(m, q)
-            if options:
-                pid = rng.choice(options)
-                assign(pid, m.id, VIA_OVERFLOW)
-                q[pid] -= 1
-            else:
-                result.warnings.append(
-                    f"メンバー {m.id}: 投票した練習日の{grade}年枠がすべて埋まっており"
-                    "最低1回保証を満たせませんでした"
-                )
+    place_in_grade = make_place(has_own_grade_room)
+    unguaranteed: list[Member] = []
+    for m in weighted_order(players):
+        if not place_in_grade(m.id, set()):
+            unguaranteed.append(m)
 
-        # 使い切れなかった枠は空席のまま残す (代表が枠を見直す判断材料として警告する)
-        unfilled = sum(q[pid] for pid in practice_ids)
-        if unfilled:
+    # 1-b. 入れなかった人を、他学年の余り枠も使って配置する
+    place_anywhere = make_place(lambda pid, _mid: len(occupants[pid]) < day_seats[pid])
+    for m in weighted_order(unguaranteed):
+        place_anywhere(m.id, set())
+
+    for member_id, pid in placed.items():
+        assign(pid, member_id, VIA_GUARANTEED)
+
+    # 保証で使った席を枠から引く。
+    # 日ごとに「その学年が何人入ったか」を数え、自学年の枠から引く。
+    # 枠を超えたぶん（他学年の余りを借りた人数）だけ、余っている学年から引く。
+    # 1人ずつ順に引くと、自学年に枠が残っているのに他学年から引いてしまい、
+    # 枠が空いているように見えるのに埋まらない席が生まれる
+    for pid in practice_ids:
+        used = defaultdict(int)
+        for member_id, p_id in placed.items():
+            if p_id == pid:
+                used[grade_of[member_id]] += 1
+        borrowed = 0
+        for g in GRADES:
+            take = min(used[g], quota[g][pid])
+            quota[g][pid] -= take
+            borrowed += used[g] - take
+        for g in GRADES:
+            if borrowed <= 0:
+                break
+            take = min(borrowed, quota[g][pid])
+            quota[g][pid] -= take
+            borrowed -= take
+
+    # ---------- Phase 2: 残枠を学年ごとに配る ----------
+    for grade in GRADES:
+        grade_voters = [m for m in players if m.grade == grade]
+        if grade_voters:
+            distribute(grade_voters, quota[grade], VIA_DISTRIBUTION)
+
+    # ---------- Phase 3: 学年をまたいだ余り枠の再配分 (D-027) ----------
+    # 投票者が足りずに余った枠は、空席にせず他学年へ回す。
+    for pid in practice_ids:
+        if sum(quota[g][pid] for g in GRADES) <= 0:
+            continue
+
+        def waiting_of(g: int) -> list[Member]:
+            """その日に投票していて、まだ入っていない人。0回の人を先に置く"""
+            pool = [
+                m
+                for m in players
+                if m.grade == g and pid in votes[m.id] and pid not in assigned[m.id]
+            ]
+            return sorted(pool, key=lambda m: wins[m.id])
+
+        # 3-a. まず自分の学年の枠で埋める。
+        #      枠が余っていて投票者もいるのに埋まらない、という状態を作らない
+        for g in GRADES:
+            pool = waiting_of(g)
+            while quota[g][pid] > 0 and pool:
+                zero = [m for m in pool if wins[m.id] == 0]
+                m = weighted_pick(zero or pool)
+                pool.remove(m)
+                assign(pid, m.id, VIA_DISTRIBUTION)
+                quota[g][pid] -= 1
+
+        # 3-b. それでも余った枠は、学年の区別をなくして他学年へ回す。
+        #      特定の学年に偏らないよう、学年を順番に回して1人ずつ配る
+        leftover = sum(quota[g][pid] for g in GRADES)
+        for g in GRADES:
+            quota[g][pid] = 0
+        waiting = {g: waiting_of(g) for g in GRADES}
+        turn = [g for g in GRADES if waiting[g]]
+        i = 0
+        while leftover > 0 and any(waiting[g] for g in turn):
+            g = turn[i % len(turn)]
+            i += 1
+            if not waiting[g]:
+                continue
+            zero = [m for m in waiting[g] if wins[m.id] == 0]
+            m = weighted_pick(zero or waiting[g])
+            waiting[g].remove(m)
+            assign(pid, m.id, VIA_OVERFLOW)
+            leftover -= 1
+
+        # 全学年を配りきってもなお余る場合のみ、空席として警告する
+        if leftover > 0:
             result.warnings.append(
-                f"{grade}年: 投票者が足りず {unfilled}枠 が空席のままです。枠の見直しを検討してください"
+                f"{pid}: 投票者が足りず {leftover}枠 が空席のままです"
+            )
+
+    # ---------- 最低1回保証の判定 (REQ-005.6) ----------
+    # Phase 3 まで終えてなお0回の人だけを警告する
+    for m in voters:
+        if not m.is_manager and wins[m.id] == 0:
+            result.warnings.append(
+                f"メンバー {m.id}: 投票した練習日がすべて埋まっており"
+                "最低1回保証を満たせませんでした"
             )
 
     # ---------- 落選記録 (次月の救済係数の入力) ----------

@@ -230,6 +230,8 @@ export interface MemberResult {
   votes_count: number;
   wins_count: number;
   practice_ids: string[];
+  /** 投票した練習日。微調整で「この人はこの日に来られるのか」を判断するために使う */
+  voted_practice_ids: string[];
 }
 
 export interface FullResults {

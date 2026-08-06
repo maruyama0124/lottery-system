@@ -110,7 +110,8 @@ class MemberResult(BaseModel):
     is_manager: bool
     votes_count: int
     wins_count: int
-    practice_ids: list[str]
+    practice_ids: list[str]  # 当選した練習日
+    voted_practice_ids: list[str]  # 投票した練習日 (微調整時の判断材料)
 
 
 class FullResults(BaseModel):

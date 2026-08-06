@@ -77,10 +77,14 @@ def test_managers_attend_all_voted_days_outside_capacity() -> None:
             assert manager_assigned[mid] == votes[mid]
 
 
-def test_each_grade_stays_within_its_quota() -> None:
-    """学年ごとの割当がその日の学年別枠を超えないこと (D-015)"""
+def test_each_grade_stays_within_its_quota_unless_others_leave_seats() -> None:
+    """学年ごとの割当は自分の枠を超えないこと。
+
+    ただし他学年の投票者が足りず枠が余った場合は、その余りを引き受けて
+    枠を超えることがある (D-027)。その場合でも合計は定員を超えない。
+    """
     for seed in range(20):
-        result, members, _votes = run(seed)
+        result, members, votes = run(seed)
         grade_of = {m.id: m.grade for m in members if not m.is_manager}
         count: dict[tuple[str, int], int] = defaultdict(int)
         for pid, mid, _via in result.assignments:
@@ -88,38 +92,63 @@ def test_each_grade_stays_within_its_quota() -> None:
             if grade is not None:
                 count[(pid, grade)] += 1
         for p in PRACTICES:
+            voters_of = defaultdict(int)
+            for m in members:
+                if not m.is_manager and p.id in votes.get(m.id, set()):
+                    voters_of[m.grade] += 1
+            # 他学年が枠を使い切れなかったぶんだけ上振れしうる
+            leftover = sum(
+                max(0, q - voters_of[g]) for g, q in QUOTAS.items()
+            )
             for grade, quota in QUOTAS.items():
-                assert count[(p.id, grade)] <= quota, (
-                    f"seed={seed} 練習 {p.id} の{grade}年が枠 {quota} を超過"
+                assert count[(p.id, grade)] <= quota + leftover, (
+                    f"seed={seed} 練習 {p.id} の{grade}年が枠 {quota} を大きく超過"
                 )
 
 
-def test_grades_are_independent() -> None:
-    """ある学年の投票者が増えても他学年の当選数に影響しないこと (D-015)"""
-    base_members = [Member(id=f"g2_{i}", grade=2) for i in range(5)]
-    votes = {m.id: {"prc_x"} for m in base_members}
+def test_grade_quota_caps_the_distribution_phase() -> None:
+    """残枠の配分は学年別の枠を上限とする。
+
+    最低1回保証 (Phase 1) は日ごとの席数で解くため学年をまたぐが (D-029)、
+    その後の配分では各学年が自分の枠を超えない。
+    """
+    # 1年枠7に対し1年が20人。2年枠3に対し2年が5人。保証で全員は入れない規模にする
     practices = [PracticeDay(id="prc_x", capacity=10, quotas={3: 0, 2: 3, 1: 7})]
+    members = [Member(id=f"g2_{i}", grade=2) for i in range(5)] + [
+        Member(id=f"g1_{i}", grade=1) for i in range(20)
+    ]
+    votes = {m.id: {"prc_x"} for m in members}
 
-    before = run_lottery(practices, base_members, votes, rescue_alpha=0.2, seed=1)
-    g2_wins_before = sum(1 for _, mid, _ in before.assignments if mid.startswith("g2_"))
-
-    # 1年生を大量に追加しても2年枠は変わらない
-    more = base_members + [Member(id=f"g1_{i}", grade=1) for i in range(20)]
-    votes_more = {m.id: {"prc_x"} for m in more}
-    after = run_lottery(practices, more, votes_more, rescue_alpha=0.2, seed=1)
-    g2_wins_after = sum(1 for _, mid, _ in after.assignments if mid.startswith("g2_"))
-
-    assert g2_wins_before == g2_wins_after == 3
+    for seed in range(20):
+        result = run_lottery(practices, members, votes, rescue_alpha=0.2, seed=seed)
+        assert len(result.assignments) == 10  # 定員ちょうど
+        g2 = sum(1 for _, mid, _ in result.assignments if mid.startswith("g2_"))
+        g1 = sum(1 for _, mid, _ in result.assignments if mid.startswith("g1_"))
+        # 投票者が枠を満たしているため、枠どおりに収まる
+        assert (g2, g1) == (3, 7), f"seed={seed}: 2年{g2} 1年{g1}"
 
 
-def test_unfilled_quota_warns() -> None:
-    """投票者が枠に満たない場合は空席のまま警告する (D-015)"""
+def test_unfilled_quota_warns_only_when_nobody_can_fill() -> None:
+    """全学年を配りきってもなお余る場合だけ空席として警告する (D-027)"""
     practices = [PracticeDay(id="prc_x", capacity=10, quotas={3: 5, 2: 5, 1: 0})]
     members = [Member(id="g3_1", grade=3)]
     result = run_lottery(practices, members, {"g3_1": {"prc_x"}}, rescue_alpha=0.2, seed=1)
-    assert any("3年" in w and "空席" in w for w in result.warnings)
-    # 学年をまたいだ流し込みは行わない → 2年枠は空いたまま
+    assert any("空席" in w for w in result.warnings)
     assert len(result.assignments) == 1
+
+
+def test_leftover_quota_flows_to_other_grades() -> None:
+    """余った枠は空席にせず他学年へ回す (D-027)"""
+    practices = [PracticeDay(id="prc_x", capacity=10, quotas={3: 5, 2: 5, 1: 0})]
+    members = [Member(id="g3_1", grade=3)] + [
+        Member(id=f"g1_{i}", grade=1) for i in range(9)
+    ]
+    votes = {m.id: {"prc_x"} for m in members}
+    result = run_lottery(practices, members, votes, rescue_alpha=0.2, seed=1)
+
+    # 1年枠は0だが、3年・2年の余りが回って定員10が埋まる
+    assert len(result.assignments) == 10
+    assert not result.warnings
 
 
 def test_capacity_never_exceeded_by_players() -> None:

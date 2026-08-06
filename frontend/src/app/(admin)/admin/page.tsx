@@ -9,7 +9,6 @@ import {
   ClipboardListIcon,
   DicesIcon,
   SettingsIcon,
-  UsersIcon,
   CheckIcon,
 } from "@/components/ui/icons";
 import { ErrorMessage } from "@/components/ui/error-message";
@@ -212,7 +211,6 @@ const MENU_ITEMS = [
   { href: "/admin/schedule", label: "練習日程の管理", Icon: CalendarDaysIcon },
   { href: "/admin/lottery", label: "抽選の実行", Icon: DicesIcon },
   { href: "/admin/results", label: "結果の確認・微調整", Icon: ClipboardListIcon },
-  { href: "/admin/roster", label: "名簿", Icon: UsersIcon },
   { href: "/admin/settings", label: "設定", Icon: SettingsIcon },
 ];
 

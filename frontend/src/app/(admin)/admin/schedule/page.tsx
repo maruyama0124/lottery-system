@@ -59,8 +59,10 @@ function errorMessage(err: unknown): string {
   return "エラーが発生しました";
 }
 
+// type="date" は既定で最小幅を持ち、2列に並べると枠からはみ出す。
+// min-w-0 で指定した幅に収める
 const inputClass =
-  "w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600";
+  "w-full min-w-0 rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600";
 const labelClass = "mb-1.5 block text-xs font-semibold text-gray-500";
 
 // ---------- 練習日フォーム（追加・編集で共用） ----------

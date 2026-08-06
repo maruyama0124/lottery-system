@@ -14,7 +14,6 @@ import { apiClient, ApiClientError } from "@/lib/api-client";
 import { useApi } from "@/hooks/use-api";
 import { useRequireRepresentative } from "@/hooks/use-auth";
 import type {
-  AssignedVia,
   AssignmentCreated,
   FullResults,
   PracticeMonth,
@@ -34,15 +33,6 @@ function shortDate(dateStr: string): string {
   const d = new Date(`${dateStr}T00:00:00`);
   return `${d.getMonth() + 1}/${d.getDate()}`;
 }
-
-const VIA_BADGES: Record<AssignedVia, { label: string; className: string }> = {
-  manager: { label: "マネ", className: "bg-gray-200 text-gray-600" },
-  grade3: { label: "3年確定", className: "bg-brand-100 text-brand-700" },
-  guaranteed: { label: "保証", className: "bg-green-100 text-green-700" },
-  distribution: { label: "配分", className: "bg-blue-100 text-blue-700" },
-  overflow: { label: "流込", className: "bg-cyan-100 text-cyan-700" },
-  manual: { label: "手動", className: "bg-orange-100 text-orange-700" },
-};
 
 type Tab = "practice" | "member" | "matrix";
 
@@ -69,6 +59,10 @@ export default function AdminResultsPage() {
   );
 
   const [tab, setTab] = useState<Tab>("practice");
+  // メンバー別タブの学年絞り込み ("all" | "3" | "2" | "1" | "manager")
+  const [memberGrade, setMemberGrade] = useState("all");
+  // メンバー別タブで展開中の1名。その人の参加日をここで直接調整する
+  const [openMemberId, setOpenMemberId] = useState<string | null>(null);
   const [openPracticeIds, setOpenPracticeIds] = useState<Set<string>>(new Set());
   const [addingFor, setAddingFor] = useState<string | null>(null);
   const [selectedUserId, setSelectedUserId] = useState("");
@@ -76,6 +70,13 @@ export default function AdminResultsPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  // メンバー別タブの絞り込み結果。マネージャーは学年に関係なく1つにまとめる
+  const filteredMembers = (results?.by_member ?? []).filter((m) => {
+    if (memberGrade === "all") return true;
+    if (memberGrade === "manager") return m.is_manager;
+    return !m.is_manager && String(m.grade) === memberGrade;
+  });
 
   const toggleOpen = (practiceId: string) => {
     setOpenPracticeIds((prev) => {
@@ -97,6 +98,31 @@ export default function AdminResultsPage() {
     } catch (e) {
       setActionError(
         e instanceof ApiClientError ? e.error.message : "削除に失敗しました",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** メンバー別タブから、その人を指定の練習日へ追加する */
+  const handleAddFor = async (practiceId: string, userId: string, name: string) => {
+    if (busy) return;
+    setBusy(true);
+    setActionError(null);
+    try {
+      const created = await apiClient.post<AssignmentCreated>(
+        `/v1/practices/${practiceId}/assignments`,
+        { user_id: userId },
+      );
+      if (created?.capacity_exceeded) {
+        setCapacityWarnings((prev) => new Set(prev).add(practiceId));
+      }
+      await mutateResults();
+    } catch (e) {
+      setActionError(
+        e instanceof ApiClientError
+          ? e.error.message
+          : `${name}さんの追加に失敗しました`,
       );
     } finally {
       setBusy(false);
@@ -159,8 +185,27 @@ export default function AdminResultsPage() {
     const pct = Math.min((playerCount / capacity) * 100, 100);
     const open = openPracticeIds.has(practice.id);
     const assignedUserIds = new Set(participants.map((p) => p.user_id));
-    const candidates =
-      roster?.items.filter((u) => !assignedUserIds.has(u.id)) ?? [];
+    // 追加候補は「この日に投票した人」を先に出す。投票していない人を入れても
+    // 当人が来られない可能性があるため、区別できるようにしておく
+    const votedIds = new Set(
+      (results?.by_member ?? [])
+        .filter((m) => m.voted_practice_ids.includes(practice.id))
+        .map((m) => m.user_id),
+    );
+    const winsOf = new Map(
+      (results?.by_member ?? []).map((m) => [m.user_id, m] as const),
+    );
+    const candidates = (roster?.items ?? [])
+      .filter((u) => !assignedUserIds.has(u.id))
+      .map((u) => ({ user: u, voted: votedIds.has(u.id), stat: winsOf.get(u.id) }))
+      .sort((a, b) => {
+        if (a.voted !== b.voted) return a.voted ? -1 : 1; // 投票者が先
+        // 投票者どうしは当選が少ない人を先に出す
+        const aw = a.stat?.wins_count ?? 0;
+        const bw = b.stat?.wins_count ?? 0;
+        if (aw !== bw) return aw - bw;
+        return a.user.name.localeCompare(b.user.name, "ja");
+      });
 
     return (
       <section
@@ -221,21 +266,31 @@ export default function AdminResultsPage() {
                 </p>
               </li>
             )}
+            {/* 抽選のどの段階で入ったか (保証/配分/流込) は内部処理であり、
+                代表の判断材料にならないため表示しない。マネージャーだけは
+                定員外という運用上の意味があるので区別する */}
             {participants.map((p) => {
-              const via = VIA_BADGES[p.assigned_via];
               return (
                 <li key={p.assignment_id} className="flex items-center gap-2 px-4 py-2.5">
                   <span className="flex-1 text-sm font-semibold text-gray-800">
                     {p.name}
                   </span>
-                  <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold text-gray-600">
-                    {p.grade}年
-                  </span>
-                  <span
-                    className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${via.className}`}
-                  >
-                    {via.label}
-                  </span>
+                  {p.is_manager ? (
+                    <span className="rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-bold text-gray-600">
+                      マネージャー
+                    </span>
+                  ) : (
+                    <>
+                      <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold text-gray-600">
+                        {p.grade}年
+                      </span>
+                      {/* 誰を外すかの判断材料。月内でよく当たっている人ほど外しやすい */}
+                      <span className="text-[11px] text-gray-500">
+                        月{winsOf.get(p.user_id)?.wins_count ?? 0}/
+                        {winsOf.get(p.user_id)?.votes_count ?? 0}
+                      </span>
+                    </>
+                  )}
                   <button
                     onClick={() => handleDelete(p.assignment_id, p.name)}
                     aria-label={`${p.name}を削除`}
@@ -255,11 +310,31 @@ export default function AdminResultsPage() {
                     className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 focus:ring-2 focus:ring-brand-600 focus:outline-none"
                   >
                     <option value="">メンバーを選択…</option>
-                    {candidates.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.name}（{u.grade}年{u.is_manager ? "・マネ" : ""}）
-                      </option>
-                    ))}
+                    {candidates.some((c) => c.voted) && (
+                      <optgroup label="この日に投票した人">
+                        {candidates
+                          .filter((c) => c.voted)
+                          .map(({ user, stat }) => (
+                            <option key={user.id} value={user.id}>
+                              {user.name}（{user.grade}年
+                              {user.is_manager ? "・マネ" : ""}）投票
+                              {stat?.votes_count ?? 0}→当選{stat?.wins_count ?? 0}
+                            </option>
+                          ))}
+                      </optgroup>
+                    )}
+                    {candidates.some((c) => !c.voted) && (
+                      <optgroup label="この日に投票していない人">
+                        {candidates
+                          .filter((c) => !c.voted)
+                          .map(({ user }) => (
+                            <option key={user.id} value={user.id}>
+                              {user.name}（{user.grade}年
+                              {user.is_manager ? "・マネ" : ""}）
+                            </option>
+                          ))}
+                      </optgroup>
+                    )}
                   </select>
                   <div className="flex gap-2">
                     <button
@@ -377,38 +452,143 @@ export default function AdminResultsPage() {
         )}
 
         {results && tab === "member" && (
-          <section className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white shadow-sm">
-            {results.by_member.length === 0 && (
-              <p className="p-4 text-sm text-gray-500">結果がまだありません</p>
-            )}
-            {results.by_member.map((m) => (
-              <div key={m.user_id} className="flex items-center gap-2 px-4 py-2.5">
-                <span className="flex-1 text-sm font-semibold text-gray-800">
-                  {m.name}
-                </span>
-                <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold text-gray-600">
-                  {m.grade}年
-                </span>
-                {m.is_manager && (
-                  <span className="rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-bold text-gray-600">
-                    マネ
-                  </span>
+          <>
+            {/* 88名が縦に並ぶため学年で絞り込む */}
+            <div className="mb-3 flex items-center gap-2">
+              <label htmlFor="grade-filter" className="text-sm font-semibold text-gray-600">
+                表示
+              </label>
+              <select
+                id="grade-filter"
+                value={memberGrade}
+                onChange={(e) => setMemberGrade(e.target.value)}
+                className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-brand-600 focus:outline-none"
+              >
+                <option value="all">すべて（{results.by_member.length}名）</option>
+                {[3, 2, 1].map((g) => {
+                  const n = results.by_member.filter(
+                    (m) => m.grade === g && !m.is_manager,
+                  ).length;
+                  return n ? (
+                    <option key={g} value={String(g)}>
+                      {g}年（{n}名）
+                    </option>
+                  ) : null;
+                })}
+                {results.by_member.some((m) => m.is_manager) && (
+                  <option value="manager">
+                    マネージャー（
+                    {results.by_member.filter((m) => m.is_manager).length}名）
+                  </option>
                 )}
-                <span className="text-sm text-gray-500">
-                  投票{m.votes_count} →{" "}
-                  <span
-                    className={
-                      m.wins_count === 0
-                        ? "font-bold text-red-600"
-                        : "font-bold text-gray-800"
-                    }
+              </select>
+            </div>
+
+          <section className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white shadow-sm">
+            {filteredMembers.length === 0 && (
+              <p className="p-4 text-sm text-gray-500">該当するメンバーがいません</p>
+            )}
+            {filteredMembers.map((m) => {
+              const open = openMemberId === m.user_id;
+              return (
+                <div key={m.user_id}>
+                  <button
+                    type="button"
+                    onClick={() => setOpenMemberId(open ? null : m.user_id)}
+                    className={`flex w-full items-center gap-2 px-4 py-2.5 text-left ${
+                      open ? "bg-brand-50" : ""
+                    }`}
                   >
-                    当選{m.wins_count}
-                  </span>
-                </span>
-              </div>
-            ))}
+                    <span className="flex-1 text-sm font-semibold text-gray-800">
+                      {m.name}
+                    </span>
+                    <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold text-gray-600">
+                      {m.grade}年
+                    </span>
+                    {m.is_manager && (
+                      <span className="rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-bold text-gray-600">
+                        マネ
+                      </span>
+                    )}
+                    <span className="text-sm text-gray-500">
+                      投票{m.votes_count} →{" "}
+                      <span
+                        className={
+                          m.wins_count === 0
+                            ? "font-bold text-red-600"
+                            : "font-bold text-gray-800"
+                        }
+                      >
+                        当選{m.wins_count}
+                      </span>
+                    </span>
+                    <ChevronDownIcon
+                      width={16}
+                      height={16}
+                      className={`shrink-0 text-gray-400 ${open ? "" : "-rotate-90"}`}
+                    />
+                  </button>
+
+                  {/* 展開すると、その人の参加日をここで直接いじれる。
+                      練習日別タブを行き来せずに1人分の調整を完結させる */}
+                  {open && (
+                    <div className="space-y-1.5 bg-brand-50 px-4 pt-1 pb-3">
+                      {results.by_practice.map((pr) => {
+                        const joining = pr.participants.find(
+                          (x) => x.user_id === m.user_id,
+                        );
+                        const voted = m.voted_practice_ids.includes(pr.practice.id);
+                        const players = pr.participants.filter((x) => !x.is_manager);
+                        const full = players.length >= pr.practice.capacity;
+                        return (
+                          <div
+                            key={pr.practice.id}
+                            className="flex items-center gap-2 rounded-lg bg-white px-3 py-2"
+                          >
+                            <span className="w-20 shrink-0 text-sm font-bold text-gray-800">
+                              {formatPracticeDate(pr.practice.practice_date)}
+                            </span>
+                            <span className="flex-1 truncate text-xs text-gray-500">
+                              {players.length}/{pr.practice.capacity}名
+                              {voted ? "" : "・未投票"}
+                            </span>
+                            {joining ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleDelete(joining.assignment_id, m.name)
+                                }
+                                disabled={busy}
+                                className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-600 disabled:opacity-50"
+                              >
+                                外す
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleAddFor(pr.practice.id, m.user_id, m.name)
+                                }
+                                disabled={busy}
+                                className={`rounded-full px-3 py-1 text-xs font-bold disabled:opacity-50 ${
+                                  full
+                                    ? "bg-gray-100 text-gray-500"
+                                    : "bg-brand-100 text-brand-700"
+                                }`}
+                              >
+                                {full ? "追加（定員超過）" : "追加"}
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </section>
+          </>
         )}
 
         {results && tab === "matrix" && (
