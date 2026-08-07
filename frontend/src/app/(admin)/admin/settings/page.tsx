@@ -67,7 +67,9 @@ function AlphaForm({ initial }: { initial: string | number }) {
         className={inputClass}
       />
       <p className="mt-2 text-xs text-gray-500">
-        前月に落選した回数 × α だけ当選確率が上がります
+        前月あまり参加できなかった人への優遇（当選枠の優先確保と並び順）は自動で働きます。
+        α は当選率が同点で並んだ人どうしのくじ引きの重み（1 + α × 前月落選数）で、
+        結果への影響はわずかです。通常は変更不要です
       </p>
       {saveError && <p className="mt-2 text-xs text-red-600">{saveError}</p>}
       {saved && <SuccessMessage text="抽選設定を保存しました" />}

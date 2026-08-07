@@ -367,3 +367,40 @@ def test_second_seat_requires_serious_votes_both_months() -> None:
             serious_two += 1
     # serious は毎回2席以上、casual は優先確保の対象にならない
     assert serious_two == 30
+
+
+def test_second_seat_uses_swap_when_days_are_full() -> None:
+    """2席目の確保でも席の入れ替えが働く (D-036)
+
+    6席に対し目標は5人×1席 + a の2席目 = 6席ちょうど。
+    空き席が a の保有日側に残った配置では、a の未保有日は満席になるが、
+    占有者を空き席へ動かせば a の2席目が作れる。入れ替えがないと取り漏れる。
+    """
+    practices = [
+        PracticeDay(id=f"p{i}", capacity=2, quotas={3: 0, 2: 0, 1: 2}) for i in range(3)
+    ]
+    members = [
+        Member(id="a", grade=1, prev_votes=4, prev_losses=3),  # 前月 1/4 (不遇)
+        Member(id="x", grade=1),
+        Member(id="y", grade=1),
+        Member(id="z", grade=1),
+        Member(id="w", grade=1),
+    ]
+    votes = {m.id: {"p0", "p1", "p2"} for m in members}  # 全員3日投票
+
+    for seed in range(50):
+        result = run_lottery(practices, members, votes, rescue_alpha=0.5, seed=seed)
+        wins = Counter(mid for _pid, mid, _via in result.assignments)
+        assert wins["a"] == 2, f"seed={seed}: a が2席目を確保できていない ({dict(wins)})"
+        assert sum(wins.values()) == 6  # 席は使い切る
+
+
+def test_internal_check_is_silent_on_valid_runs() -> None:
+    """正常な抽選で内部検証 (D-036) の警告が出ないこと"""
+    practices = [PracticeDay(id=f"p{i}", capacity=10, quotas={3: 3, 2: 3, 1: 4}) for i in range(4)]
+    members = [Member(id=f"g{g}_{i}", grade=g) for g in (3, 2, 1) for i in range(8)]
+    votes = {m.id: {f"p{i}" for i in range(4)} for m in members}
+    for seed in range(10):
+        result = run_lottery(practices, members, votes, rescue_alpha=0.5, seed=seed)
+        internal = [w for w in result.warnings if w.startswith("内部検証")]
+        assert not internal, f"seed={seed}: {internal}"

@@ -23,7 +23,7 @@ def seats_enough(practices, members, votes):
     return len(placed), len(players)
 
 rng = random.Random(20260806)
-fail_zero = fail_cap = fail_dup = 0
+fail_zero = fail_cap = fail_dup = fail_check = 0
 cases = 0
 for case in range(400):
     n_days = rng.randint(1, 8)
@@ -69,10 +69,15 @@ for case in range(400):
             print(f"[定員超過] case={case}: {p.id} {per_day[p.id]}/{p.capacity}")
             break
 
+    # 3.5 エンジン自身の内部検証 (D-036) が発火していないか
+    if any(w.startswith("内部検証") for w in r.warnings):
+        fail_check += 1
+        print(f"[内部検証] case={case}: {[w for w in r.warnings if w.startswith('内部検証')][:2]}")
+
     # 3. 同じ人を同じ日に二重に入れていないか
     pairs = [(pid, mid) for pid, mid, _v in r.assignments]
     if len(pairs) != len(set(pairs)):
         fail_dup += 1
         print(f"[二重割当] case={case}")
 
-print(f"\n{cases}ケース検証: 0回の欠陥 {fail_zero} / 定員超過 {fail_cap} / 二重割当 {fail_dup}")
+print(f"\n{cases}ケース検証: 0回の欠陥 {fail_zero} / 定員超過 {fail_cap} / 二重割当 {fail_dup} / 内部検証警告 {fail_check}")

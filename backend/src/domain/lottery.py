@@ -146,30 +146,36 @@ def run_lottery(
             for pid in sorted(votes[m.id]):
                 assign(pid, m.id, VIA_MANAGER, counts=False)
 
-    # ---------- Phase 1: 最低1回保証 ----------
-    # 2段構えで解く (D-029)。
-    #   1-a. まず自分の学年の枠の中で配置する（代表が決めた学年構成を尊重する）
-    #   1-b. そこに入れなかった人だけ、他学年の余り枠も使って配置し直す
+    # ---------- Phase 1: 保証マッチング (D-029 / D-035 / D-036) ----------
+    # 目標席数は「全員1席、前月不遇者は2席」。手順:
+    #   1-a. 自分の学年の枠の中で1席目（代表が決めた学年構成を尊重する）
+    #   1-b. 入れなかった人だけ、他学年の余り枠も使って1席目
+    #        （学年内で解くと、枠の総数が投票者数に満たない学年で構造的な0回が出る）
+    #   1-c. 前月不遇者（前月3日以上投票して当選1回以下、今月も3日以上投票）の2席目
     # いずれも席の入れ替え（既に入っている人を別の日へ動かす）を伴う最大マッチング。
-    # 1-b がないと、ある学年の枠の総数が投票者数に満たないときに構造的な0回が出る
-    # （実データで1年58名に対し1年枠50席となり8名が0回になった）。
+    # 2席目の確保にも入れ替えが働くため、席が偏った月でも取りこぼさない (D-036)。
     players = [m for m in voters if not m.is_manager]
     day_seats = {pid: sum(quota[g][pid] for g in GRADES) for pid in practice_ids}
 
     occupants: dict[str, list[str]] = defaultdict(list)  # practice_id -> member_ids
-    placed: dict[str, str] = {}  # member_id -> practice_id
+    held: dict[str, set[str]] = defaultdict(set)  # member_id -> このフェーズで得た席
     grade_of = {m.id: m.grade for m in players}
 
     def make_place(has_room, movable=None):
-        """has_room(pid, member_id) が真なら入れる。空きがなければ入れ替えを試みる。
+        """has_room(pid, member_id) が真なら入れる。満席なら占有者の移動を試みる。
 
+        既に席を持つ人にも安全（自分の持っていない日にだけ置く）。
         movable(occupant_id, member_id) は「その占有者を動かしてよいか」の判定。
         1-a では同学年どうしに限定する。他学年の人を動かすと、動かされた側が
-        自分の学年の枠に戻れず押し出されてしまうため（3年の席に1年が入り込む）。
+        自分の学年の枠に戻れず押し出されてしまうため。
         """
 
         def place(member_id: str, seen: set[str]) -> bool:
-            options = [pid for pid in sorted(votes[member_id]) if pid in day_seats]
+            options = [
+                pid
+                for pid in sorted(votes[member_id])
+                if pid in day_seats and pid not in held[member_id]
+            ]
             rng.shuffle(options)  # seed 固定なので決定的
             for pid in options:
                 if pid in seen:
@@ -177,16 +183,20 @@ def run_lottery(
                 seen.add(pid)
                 if has_room(pid, member_id):
                     occupants[pid].append(member_id)
-                    placed[member_id] = pid
+                    held[member_id].add(pid)
                     return True
                 for other in list(occupants[pid]):
                     if movable is not None and not movable(other, member_id):
                         continue
+                    # 占有者の席をいったん外して別の日へ動かす。動けなければ戻す
+                    occupants[pid].remove(other)
+                    held[other].discard(pid)
                     if place(other, seen):
-                        occupants[pid].remove(other)
                         occupants[pid].append(member_id)
-                        placed[member_id] = pid
+                        held[member_id].add(pid)
                         return True
+                    occupants[pid].append(other)
+                    held[other].add(pid)
             return False
 
         return place
@@ -212,8 +222,24 @@ def run_lottery(
     for m in weighted_order(unguaranteed):
         place_anywhere(m.id, set())
 
-    for member_id, pid in placed.items():
-        assign(pid, member_id, VIA_GUARANTEED)
+    # 1-c. 前月不遇者への2席目の優先確保 (D-035)。
+    #      「しっかり投票したのに月1回」が2か月続くのを防ぐ。
+    #      投票が1〜2日の人の当選が少ないのは不遇ではないため対象にしない。
+    #      最低1回保証が常に優先（1席目を持てた人だけが対象になる）
+    second_chance = [
+        m
+        for m in players
+        if m.prev_votes >= 3
+        and m.prev_wins <= 1
+        and len(votes[m.id]) >= 3
+        and len(held[m.id]) == 1
+    ]
+    for m in weighted_order(second_chance):
+        place_anywhere(m.id, set())
+
+    for member_id, pids in held.items():
+        for i, pid in enumerate(sorted(pids)):
+            assign(pid, member_id, VIA_GUARANTEED if i == 0 else VIA_DISTRIBUTION)
 
     # 保証で使った席を枠から引く。
     # 日ごとに「その学年が何人入ったか」を数え、自学年の枠から引く。
@@ -222,8 +248,8 @@ def run_lottery(
     # 枠が空いているように見えるのに埋まらない席が生まれる
     for pid in practice_ids:
         used = defaultdict(int)
-        for member_id, p_id in placed.items():
-            if p_id == pid:
+        for member_id, pids in held.items():
+            if pid in pids:
                 used[grade_of[member_id]] += 1
         borrowed = 0
         for g in GRADES:
@@ -236,38 +262,6 @@ def run_lottery(
             take = min(borrowed, quota[g][pid])
             quota[g][pid] -= take
             borrowed -= take
-
-    # ---------- Phase 1.5: 前月不遇者への2席目の優先確保 (D-035) ----------
-    # 「しっかり投票したのに月1回」が2か月続くのを防ぐため、
-    # 前月3日以上投票して当選1回以下だった人には、残枠配分に先立って
-    # 2席目を確保する。今月も3日以上投票している人に限る
-    # （投票が少ない人の当選が少ないのは不遇ではないため）。
-    # 席が足りない月は全員には行き渡らない（最低1回保証が常に優先）。
-    second_chance = [
-        m
-        for m in players
-        if m.prev_votes >= 3
-        and m.prev_wins <= 1
-        and len(votes[m.id]) >= 3
-        and wins[m.id] == 1
-    ]
-    for m in weighted_order(second_chance):
-        options = [
-            pid
-            for pid in sorted(votes[m.id])
-            if pid not in assigned[m.id] and sum(quota[g][pid] for g in GRADES) > 0
-        ]
-        if not options:
-            continue
-        pid = rng.choice(options)
-        assign(pid, m.id, VIA_DISTRIBUTION)
-        if quota[m.grade][pid] > 0:
-            quota[m.grade][pid] -= 1
-        else:
-            for g in GRADES:
-                if quota[g][pid] > 0:
-                    quota[g][pid] -= 1
-                    break
 
     # ---------- Phase 2: 残枠を学年ごとに配る ----------
     for grade in GRADES:
@@ -333,6 +327,38 @@ def run_lottery(
             result.warnings.append(
                 f"メンバー {m.id}: 投票した練習日がすべて埋まっており"
                 "最低1回保証を満たせませんでした"
+            )
+
+    # ---------- 内部検証 (D-036) ----------
+    # 実行のたびに不変条件を機械チェックする。破れているのは実装の欠陥なので、
+    # 警告として表面化させ、静かに壊れたまま運用され続けるのを防ぐ
+    capacity_of = {p.id: p.capacity for p in practices}
+    per_day: dict[str, int] = defaultdict(int)
+    seen_pairs: set[tuple[str, str]] = set()
+    player_ids = {m.id for m in players}
+    for pid, mid, _via in result.assignments:
+        if (pid, mid) in seen_pairs:
+            result.warnings.append(f"内部検証: {mid} が {pid} に二重に割り当てられています")
+        seen_pairs.add((pid, mid))
+        if mid in player_ids:
+            per_day[pid] += 1
+    for pid in practice_ids:
+        if per_day[pid] > capacity_of[pid]:
+            result.warnings.append(
+                f"内部検証: {pid} の割当 {per_day[pid]}名 が定員 {capacity_of[pid]}名 を超えています"
+            )
+        elif per_day[pid] < capacity_of[pid] and any(
+            pid in votes[m.id] and pid not in assigned[m.id] for m in players
+        ):
+            result.warnings.append(
+                f"内部検証: {pid} に空席が残っていますが、入れるはずの投票者がいます"
+            )
+    for m in players:
+        if wins[m.id] == 0 and any(
+            per_day[pid] < capacity_of[pid] for pid in votes[m.id] if pid in capacity_of
+        ):
+            result.warnings.append(
+                f"内部検証: {m.id} は空席のある日に投票していますが月0回のままです"
             )
 
     # ---------- 落選記録 (次月の救済係数の入力) ----------
