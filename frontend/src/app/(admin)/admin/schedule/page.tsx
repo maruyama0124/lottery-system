@@ -160,7 +160,7 @@ function PracticeForm({
             <option value="">選択してください</option>
             {suggestions.map((s, i) => (
               <option key={`${s.location}-${s.starts_at}-${i}`} value={i}>
-                {s.location} {s.starts_at}〜{s.ends_at}（定員{s.capacity}・{s.use_count}回）
+                {s.location}
               </option>
             ))}
           </select>

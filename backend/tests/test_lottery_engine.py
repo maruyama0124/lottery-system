@@ -7,7 +7,7 @@ D-015 以降は学年別の枠を代表が日ごとに決めるため、
 テストでも枠を明示して渡す（ここでは 3年8 / 2年10 / 1年12 = 定員30）。
 """
 import random
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 from src.domain.lottery import (
     VIA_MANAGER,
@@ -280,3 +280,90 @@ def test_losses_recorded_for_next_month() -> None:
         elif votes[m.id]:
             assert result.losses[m.id] == len(votes[m.id]) - wins[m.id]
             assert result.losses[m.id] >= 0
+
+
+def test_prev_month_underdog_is_prioritized_in_distribution() -> None:
+    """前月不遇だった人は、残枠配分で前月好調だった人より優先される (D-034)
+
+    p1 (4席) と p2 (1席) に対し、p2 に投票しているのは a と b のみ。
+      a: 前月 1/5 → 合算当選率 (1+1)/(2+5) ≈ 0.29
+      b: 前月 4/5 → 合算当選率 (1+4)/(2+5) ≈ 0.71
+    保証フェーズが p2 を空けた配置（＝残席を a と b が直接争える配置）では、
+    合算当選率の低い a が必ず残席を取る。保証が b を p2 に置いた配置では
+    そもそも争いが発生しないため、検証の対象外とする。
+    """
+    practices = [
+        PracticeDay(id="p1", capacity=4, quotas={3: 0, 2: 0, 1: 4}),
+        PracticeDay(id="p2", capacity=1, quotas={3: 0, 2: 0, 1: 1}),
+    ]
+    members = [
+        Member(id="a", grade=1, prev_votes=5, prev_losses=4),  # 前月 1/5
+        Member(id="b", grade=1, prev_votes=5, prev_losses=1),  # 前月 4/5
+        Member(id="c", grade=1),
+        Member(id="d", grade=1),
+    ]
+    votes = {"a": {"p1", "p2"}, "b": {"p1", "p2"}, "c": {"p1"}, "d": {"p1"}}
+
+    contested = 0
+    for seed in range(100):
+        result = run_lottery(practices, members, votes, rescue_alpha=0.5, seed=seed)
+        wins = Counter(mid for _pid, mid, _via in result.assignments)
+        guaranteed_on_p2 = any(
+            pid == "p2" and via == "guaranteed" for pid, _mid, via in result.assignments
+        )
+        if not guaranteed_on_p2:
+            contested += 1
+            assert wins["a"] == 2, f"seed={seed}: 争える配置で a が残席を取れていない"
+            assert wins["b"] == 1, f"seed={seed}: 争える配置で b が残席を取った"
+    assert contested >= 30, f"争いが起きた配置が少なすぎる ({contested}回)"
+
+
+def test_prev_month_underdog_gets_second_seat_first() -> None:
+    """前月しっかり投票して1回以下だった人は、残枠配分の前に2席目を確保する (D-035)
+
+    a は前月4投票1当選。今月3日投票すれば、残枠配分に先立って2席目が
+    確保されるため、席がある限り必ず2回以上になる。
+    b (前月4投票3当選) は a の後になる。
+    """
+    practices = [
+        PracticeDay(id=f"p{i}", capacity=2, quotas={3: 0, 2: 0, 1: 2}) for i in range(3)
+    ]
+    members = [
+        Member(id="a", grade=1, prev_votes=4, prev_losses=3),  # 前月 1/4 (不遇)
+        Member(id="b", grade=1, prev_votes=4, prev_losses=1),  # 前月 3/4
+        Member(id="c", grade=1),
+        Member(id="d", grade=1),
+    ]
+    all_days = {f"p{i}" for i in range(3)}
+    votes = {m.id: set(all_days) for m in members}  # 6席を4人で分ける
+
+    for seed in range(30):
+        result = run_lottery(practices, members, votes, rescue_alpha=0.5, seed=seed)
+        wins = Counter(mid for _pid, mid, _via in result.assignments)
+        assert wins["a"] >= 2, f"seed={seed}: 前月不遇の a が2席目を確保できていない"
+
+
+def test_second_seat_requires_serious_votes_both_months() -> None:
+    """2席目の確保は「前月も今月も3日以上投票」した人に限る (D-035)
+
+    前月1日しか投票していない人は当選1回でも不遇ではないため対象外。
+    """
+    practices = [
+        PracticeDay(id=f"p{i}", capacity=2, quotas={3: 0, 2: 0, 1: 2}) for i in range(3)
+    ]
+    members = [
+        Member(id="casual", grade=1, prev_votes=1, prev_losses=0),  # 前月 1/1
+        Member(id="serious", grade=1, prev_votes=4, prev_losses=3),  # 前月 1/4
+        Member(id="c", grade=1),
+        Member(id="d", grade=1),
+    ]
+    votes = {m.id: {f"p{i}" for i in range(3)} for m in members}
+
+    serious_two = 0
+    for seed in range(30):
+        result = run_lottery(practices, members, votes, rescue_alpha=0.5, seed=seed)
+        wins = Counter(mid for _pid, mid, _via in result.assignments)
+        if wins["serious"] >= 2:
+            serious_two += 1
+    # serious は毎回2席以上、casual は優先確保の対象にならない
+    assert serious_two == 30

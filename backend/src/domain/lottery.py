@@ -38,6 +38,12 @@ class Member:
     grade: int  # 1-3
     is_manager: bool = False
     prev_losses: int = 0  # 前月落選数 (REQ-005.9 落選救済の入力)
+    prev_votes: int = 0  # 前月投票数 (D-034: 残枠配分の優先順位に前月を含める)
+
+    @property
+    def prev_wins(self) -> int:
+        # prev_votes を渡さず prev_losses だけ指定された場合に負にしない
+        return max(0, self.prev_votes - self.prev_losses)
 
 
 @dataclass(frozen=True)
@@ -115,12 +121,18 @@ def run_lottery(
         )
 
     def distribute(pool: list[Member], q: dict[str, int], via: str) -> None:
-        """残枠配分: 「当選数 ÷ 投票数」最小のメンバー群から重み付き抽選で1名ずつ割当"""
+        """残枠配分: 「当選数 ÷ 投票数」最小のメンバー群から重み付き抽選で1名ずつ割当。
+
+        当選率は前月と今月の合算で見る (D-034)。前月不遇だった人は合算の
+        当選率が低くなり、今月の残枠配分で構造的に先頭グループへ入る。
+        α (同率タイブレークの重み) だけでは順位に届かず、前月の不遇が
+        翌月に反映されなかったため。前月データがない人は今月だけで比べる。
+        """
         while True:
             candidates = [m for m in pool if assignable_days(m, q)]
             if not candidates:
                 return
-            ratio = lambda m: wins[m.id] / len(votes[m.id])  # noqa: E731
+            ratio = lambda m: (wins[m.id] + m.prev_wins) / (len(votes[m.id]) + m.prev_votes)  # noqa: E731
             min_ratio = min(ratio(m) for m in candidates)
             lowest = [m for m in candidates if ratio(m) == min_ratio]
             m = weighted_pick(lowest)
@@ -224,6 +236,38 @@ def run_lottery(
             take = min(borrowed, quota[g][pid])
             quota[g][pid] -= take
             borrowed -= take
+
+    # ---------- Phase 1.5: 前月不遇者への2席目の優先確保 (D-035) ----------
+    # 「しっかり投票したのに月1回」が2か月続くのを防ぐため、
+    # 前月3日以上投票して当選1回以下だった人には、残枠配分に先立って
+    # 2席目を確保する。今月も3日以上投票している人に限る
+    # （投票が少ない人の当選が少ないのは不遇ではないため）。
+    # 席が足りない月は全員には行き渡らない（最低1回保証が常に優先）。
+    second_chance = [
+        m
+        for m in players
+        if m.prev_votes >= 3
+        and m.prev_wins <= 1
+        and len(votes[m.id]) >= 3
+        and wins[m.id] == 1
+    ]
+    for m in weighted_order(second_chance):
+        options = [
+            pid
+            for pid in sorted(votes[m.id])
+            if pid not in assigned[m.id] and sum(quota[g][pid] for g in GRADES) > 0
+        ]
+        if not options:
+            continue
+        pid = rng.choice(options)
+        assign(pid, m.id, VIA_DISTRIBUTION)
+        if quota[m.grade][pid] > 0:
+            quota[m.grade][pid] -= 1
+        else:
+            for g in GRADES:
+                if quota[g][pid] > 0:
+                    quota[g][pid] -= 1
+                    break
 
     # ---------- Phase 2: 残枠を学年ごとに配る ----------
     for grade in GRADES:

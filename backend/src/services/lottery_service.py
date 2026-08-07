@@ -73,14 +73,15 @@ class LotteryService:
 
         # 前月の落選数 (REQ-005.9)
         prev_pm = self.months.get_by_ym_gender(previous_year_month(pm.year_month), pm.gender)
-        prev_losses = self.repo.get_losses_by_month(prev_pm.id) if prev_pm else {}
+        prev_stats = self.repo.get_prev_stats_by_month(prev_pm.id) if prev_pm else {}
 
         members = [
             Member(
                 id=u.id,
                 grade=u.grade,
                 is_manager=u.is_manager,
-                prev_losses=prev_losses.get(u.id, 0),
+                prev_votes=prev_stats.get(u.id, (0, 0))[0],
+                prev_losses=prev_stats.get(u.id, (0, 0))[1],
             )
             for u in self.repo.list_members(pm.gender)
             if votes.get(u.id)

@@ -128,12 +128,13 @@ class LotteryRepository:
 
     # ---------- 月次実績 (落選救済の入力: REQ-005.9) ----------
 
-    def get_losses_by_month(self, pm_id: str) -> dict[str, int]:
+    def get_prev_stats_by_month(self, pm_id: str) -> dict[str, tuple[int, int]]:
+        """user_id -> (前月の投票数, 前月の落選数) (REQ-005.9 / D-034)"""
         stmt = select(MonthlyMemberResult).where(
             MonthlyMemberResult.practice_month_id == pm_id,
             MonthlyMemberResult.is_deleted.is_(False),
         )
-        return {r.user_id: r.losses_count for r in self.db.scalars(stmt)}
+        return {r.user_id: (r.votes_count, r.losses_count) for r in self.db.scalars(stmt)}
 
     def upsert_monthly_results(
         self, pm_id: str, results: dict[str, tuple[int, int, int]]
