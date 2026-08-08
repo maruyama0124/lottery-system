@@ -419,3 +419,43 @@ def test_grade_restricted_practice_blocks_votes(client, make_user) -> None:
     )
     assert res.status_code == 201
     assert res.json()["allowed_grades"] is None
+
+
+def test_restricted_day_ignores_existing_votes(client, make_user) -> None:
+    """限定を後付けした場合、対象外学年の既存投票は集計・抽選の入力から除外される (D-037)"""
+    _rep, rep_token = make_user(role="representative", gender="male")
+    pm = create_month(client, rep_token, practices=1)
+    practice = pm["practices"][0]
+
+    # 2年生が投票してから、この日を1年限定に変更する
+    _u2, token2 = make_user(grade=2, gender="male")
+    res = client.put(
+        f"/api/v1/practice-months/{pm['id']}/votes/me",
+        json={"practice_ids": [practice["id"]]},
+        headers=auth_header(token2),
+    )
+    assert res.status_code == 204
+
+    res = client.put(
+        f"/api/v1/practices/{practice['id']}",
+        json={
+            "practice_date": practice["practice_date"],
+            "starts_at": practice["starts_at"],
+            "ends_at": practice["ends_at"],
+            "location": practice["location"],
+            "capacity": practice["capacity"],
+            "allowed_grades": [1],
+        },
+        headers=auth_header(rep_token),
+    )
+    assert res.status_code < 300, res.text
+
+    # 投票状況の集計で2年の投票が数えられない
+    res = client.get(
+        f"/api/v1/practice-months/{pm['id']}/vote-summary",
+        headers=auth_header(rep_token),
+    )
+    assert res.status_code == 200, res.text
+    day = next(p for p in res.json()["practices"] if p["practice_id"] == practice["id"])
+    grade2 = next(g for g in day["grades"] if g["grade"] == 2)
+    assert grade2["voters"] == 0

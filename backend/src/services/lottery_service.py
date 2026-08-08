@@ -71,6 +71,24 @@ class LotteryService:
         for v in self.repo.list_votes_for_practices([p.id for p in practices]):
             votes[v.user_id].add(v.practice_id)
 
+        users = self.repo.list_members(pm.gender)
+
+        # 学年限定の日 (D-037) は、対象外学年の既存投票も抽選の入力から除外する。
+        # 限定を後付けした月でも「枠より保証が強い」動き (D-029) で対象外学年が
+        # 入り込まないようにするための防波堤。マネージャーは制限しない
+        restricted = {p.id: set(p.allowed_grades) for p in practices if p.allowed_grades}
+        if restricted:
+            by_id = {u.id: u for u in users}
+            for uid, pids in votes.items():
+                u = by_id.get(uid)
+                if u is None or u.is_manager:
+                    continue
+                votes[uid] = {
+                    pid
+                    for pid in pids
+                    if pid not in restricted or u.grade in restricted[pid]
+                }
+
         # 前月の落選数 (REQ-005.9)
         prev_pm = self.months.get_by_ym_gender(previous_year_month(pm.year_month), pm.gender)
         prev_stats = self.repo.get_prev_stats_by_month(prev_pm.id) if prev_pm else {}
@@ -83,7 +101,7 @@ class LotteryService:
                 prev_votes=prev_stats.get(u.id, (0, 0))[0],
                 prev_losses=prev_stats.get(u.id, (0, 0))[1],
             )
-            for u in self.repo.list_members(pm.gender)
+            for u in users
             if votes.get(u.id)
         ]
         return practice_days, members, dict(votes)

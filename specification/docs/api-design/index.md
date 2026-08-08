@@ -11,7 +11,7 @@ derived_by:
 - ui-design/index.md
 sync_hash: 488df8023147
 dependency_hashes:
-  requirements/index.md: 99e581c81fb0
+  requirements/index.md: e9f59b0c62f2
   database-design/index.md: b603fc756c5e
 ---
 
