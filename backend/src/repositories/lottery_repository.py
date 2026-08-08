@@ -123,7 +123,12 @@ class LotteryRepository:
         return list(self.db.scalars(stmt))
 
     def list_members(self, gender: str) -> list[User]:
-        stmt = select(User).where(User.gender == gender, User.is_deleted.is_(False))
+        # 閲覧専用アカウント (D-039) は抽選・結果・参加表の対象にしない
+        stmt = select(User).where(
+            User.gender == gender,
+            User.is_deleted.is_(False),
+            User.is_observer.is_(False),
+        )
         return list(self.db.scalars(stmt))
 
     # ---------- 月次実績 (落選救済の入力: REQ-005.9) ----------

@@ -30,7 +30,7 @@
 - バックエンド: `docker compose -f backend/docker-compose.yaml up -d` (API: localhost:8010, Swagger: /api/v1/docs)
 - バックエンドテスト: `docker compose -f backend/docker-compose.yaml exec api pytest -q`
 - フロントエンド: `cd frontend && npx next dev` (localhost:3000。`.env.local` の API_URL=http://localhost:8010)
-- 初期代表アカウント: rep-male@example.com / rep-female@example.com (パスワードはシード参照)
+- 初期代表アカウント (開発用): rep-male@example.com / rep-female@example.com。`python -m src.db.seed --with-dev-reps` で作成（本番では作らない: D-040）
 
 ## Mermaid 日本語ルール
 - 日本語を含むラベルは必ずダブルクォートで囲む

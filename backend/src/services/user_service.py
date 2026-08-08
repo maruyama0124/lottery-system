@@ -17,7 +17,8 @@ CSV_HEADERS = ["名前", "学年", "性別", "区分", "権限"]
 def _roster_stmt(
     grade: int | None, is_manager: bool | None, gender: str | None, q: str | None
 ):
-    stmt = select(User).where(User.is_deleted.is_(False))
+    # 閲覧専用アカウント (D-039) は名簿・追加候補のどこにも出さない
+    stmt = select(User).where(User.is_deleted.is_(False), User.is_observer.is_(False))
     if grade is not None:
         stmt = stmt.where(User.grade == grade)
     if is_manager is not None:
@@ -87,7 +88,15 @@ class UserService:
         return target
 
     def update_role(self, rep: User, user_id: str, role: str) -> None:
-        target = self._get_target_in_scope(rep, user_id)
+        """代表権限の付与・剥奪 (REQ-007.2)。
+
+        名簿系と同様に男女全体を対象とする (D-040)。立ち上げ時に最初の代表が
+        両性別の代表を任命できるようにするため。退会 (deactivate) は従来どおり
+        担当性別のみ
+        """
+        target = self.users.get_by_id(user_id)
+        if target is None or target.is_deleted:
+            raise NotFoundError("メンバーが見つかりません")
         target.role = role
         self.db.flush()
 

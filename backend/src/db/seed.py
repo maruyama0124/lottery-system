@@ -1,10 +1,12 @@
 """初期データ投入 (DB設計書 §5)
 
 - lottery_settings: 男女2行 (rescue_alpha = 0.5)
-- 初期代表アカウント: 男子代表・女子代表 各1名 (開発用)
+- 初期代表アカウント (開発用): `--with-dev-reps` を付けたときだけ作成する。
+  本番はダミーの代表を作らず、最初の代表は LINE 登録後に SQL で
+  role を付与する運用 (D-040)
 
 冪等: 既存データがあればスキップする。
-実行: docker compose -f backend/docker-compose.yaml exec api python -m src.db.seed
+実行: docker compose -f backend/docker-compose.yaml exec api python -m src.db.seed [--with-dev-reps]
 """
 from decimal import Decimal
 
@@ -73,10 +75,16 @@ def seed_representatives(db: Session) -> None:
 
 
 def main() -> None:
+    import sys
+
     db = SessionLocal()
     try:
         seed_lottery_settings(db)
-        seed_representatives(db)
+        # 本番にダミーの代表を作らないよう、明示したときだけ作成する (D-040)
+        if "--with-dev-reps" in sys.argv:
+            seed_representatives(db)
+        else:
+            print("初期代表: スキップ (--with-dev-reps 指定時のみ作成)")
         db.commit()
         print("シード完了")
     except Exception:

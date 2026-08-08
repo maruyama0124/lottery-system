@@ -53,6 +53,9 @@ class User(Base, TimestampMixin):
     grade: Mapped[int] = mapped_column(nullable=False)
     gender: Mapped[str] = mapped_column(String(10), nullable=False)
     is_manager: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # 閲覧専用 (D-039)。開発者・OB など現役でない人。ログインして全画面を見られるが、
+    # 投票できず、名簿・抽選・参加表のどこにも出ない
+    is_observer: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     role: Mapped[str] = mapped_column(String(20), nullable=False, default="member")
     is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 

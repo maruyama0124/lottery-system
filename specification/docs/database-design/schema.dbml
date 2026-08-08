@@ -15,6 +15,7 @@ Table users {
   grade integer [not null, note: '1-3 (CHECK)']
   gender varchar(10) [not null, note: 'male / female (CHECK)']
   is_manager boolean [not null, default: false, note: '定員外・全参加']
+  is_observer boolean [not null, default: false, note: '閲覧専用 (D-039)。投票・抽選・名簿の対象外']
   role varchar(20) [not null, default: 'member', note: 'member / representative']
   email_verified_at timestamptz [null, note: 'NULL = メール未確認 (D-012)。代表のみ使用']
   verification_code_hash varchar(255) [null, note: '6桁コードの bcrypt ハッシュ']

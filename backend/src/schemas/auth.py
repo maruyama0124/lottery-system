@@ -25,6 +25,7 @@ class UserProfile(BaseModel):
     grade: int
     gender: str
     is_manager: bool
+    is_observer: bool  # 閲覧専用 (D-039)
     role: str
     created_at: datetime
     updated_at: datetime

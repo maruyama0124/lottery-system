@@ -9,9 +9,9 @@ depends_on:
 - database-design/index.md
 derived_by:
 - ui-design/index.md
-sync_hash: bc7aad8c646a
+sync_hash: 84144bff5420
 dependency_hashes:
-  requirements/index.md: 6fb2fc897094
+  requirements/index.md: 7caa6550dd8f
   database-design/index.md: b603fc756c5e
 ---
 
@@ -119,7 +119,7 @@ graph LR
 | PUT | /users/me | 自分のプロフィール更新 | member | REQ-002.2 |
 | GET | /users | 名簿一覧（検索・絞り込み。男女全体） | 代表 | REQ-007.1, REQ-007.1.1 |
 | GET | /users/export | 名簿CSVエクスポート（絞り込み反映） | 代表 | REQ-007.1.2 |
-| PUT | /users/{userId}/role | 代表権限の付与・剥奪 | 代表 | REQ-007.2 |
+| PUT | /users/{userId}/role | 代表権限の付与・剥奪（男女全体: D-040） | 代表 | REQ-007.2 |
 | DELETE | /users/{userId} | メンバー無効化（論理削除） | 代表 | REQ-007.3 |
 
 ### 月別練習 (practice-months / practices)

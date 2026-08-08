@@ -105,7 +105,7 @@ function LotterySettingsSection() {
 // ---------- セクション2/3 共通: メンバー選択 ----------
 
 function memberLabel(u: UserProfile): string {
-  return `${u.name}（${u.grade}年）`;
+  return `${u.name}（${u.grade}年・${u.gender === "male" ? "男" : "女"}）`;
 }
 
 // ---------- セクション2: 代表権限の引き継ぎ ----------
@@ -270,8 +270,10 @@ export default function AdminSettingsPage() {
   }
 
   const members = (roster?.items ?? []).filter(
-    (u) => u.role === "member" && u.gender === user.gender && u.id !== user.id,
+    (u) => u.role === "member" && u.id !== user.id,
   );
+  // 権限付与は男女全体 (D-040)。無効化は担当性別のみ (NFR-002.4)
+  const sameGender = members.filter((u) => u.gender === user.gender);
 
   return (
     <>
@@ -286,7 +288,7 @@ export default function AdminSettingsPage() {
         ) : (
           <>
             <TransferSection members={members} onChanged={() => mutateRoster()} />
-            <DeactivateSection members={members} onChanged={() => mutateRoster()} />
+            <DeactivateSection members={sameGender} onChanged={() => mutateRoster()} />
           </>
         )}
 

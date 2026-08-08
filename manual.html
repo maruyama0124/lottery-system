@@ -325,7 +325,10 @@
     font-weight: bold;
     font-size: 12px;
   }
-  .menu-list { background: #fff; border: 1px solid var(--gray-light); border-radius: 12px; overflow: hidden; }
+  /* overflow: hidden で角丸にすると右上の番号バッジが切れるため、子の角を個別に丸める */
+  .menu-list { background: #fff; border: 1px solid var(--gray-light); border-radius: 12px; }
+  .menu-list .mi:first-child { border-radius: 12px 12px 0 0; }
+  .menu-list .mi:last-child { border-radius: 0 0 12px 12px; }
   .menu-list .mi {
     display: flex; align-items: center; gap: 8px;
     padding: 10px 12px;
@@ -756,10 +759,12 @@
               <strong style="font-size:12px;">9/2(水) 第一体育館</strong>
               <span style="font-size:10px;color:var(--gray);">18:00〜21:00</span>
             </div>
-            <div class="stack-bar has-mark"><span class="mark">1</span>
-              <i style="width:30%;background:var(--a-brand);"></i>
-              <i style="width:34%;background:#0ea5e9;"></i>
-              <i style="width:36%;background:#10b981;"></i>
+            <div class="has-mark"><span class="mark">1</span>
+              <div class="stack-bar">
+                <i style="width:30%;background:var(--a-brand);"></i>
+                <i style="width:34%;background:#0ea5e9;"></i>
+                <i style="width:36%;background:#10b981;"></i>
+              </div>
             </div>
             <div class="legend">
               <span class="lg"><span class="sw" style="background:var(--a-brand);"></span>3年 13人</span>

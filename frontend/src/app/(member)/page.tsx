@@ -52,7 +52,8 @@ export default function MemberPage() {
   // 男女どちらの予定を見るか (D-038)。既定は自分の性別
   const [viewGender, setViewGender] = useState<"male" | "female" | null>(null);
   const gender = viewGender ?? user?.gender ?? null;
-  const ownView = !!user && gender === user.gender;
+  // 閲覧専用 (D-039) は自分の性別でも読み取り表示にする
+  const ownView = !!user && gender === user.gender && !user.is_observer;
   // 過去の月も選べる (既定は最新月)
   const [selectedMonthId, setSelectedMonthId] = useState<string | null>(null);
 

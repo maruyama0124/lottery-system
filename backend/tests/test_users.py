@@ -65,8 +65,8 @@ def test_roster_csv_export(client, make_user) -> None:
     assert filtered.count("1年") == 1
 
 
-def test_role_update_and_gender_scope(client, make_user) -> None:
-    """権限移譲 (REQ-007.2)。操作系は担当性別のみ (NFR-002.4)"""
+def test_role_update_works_across_genders(client, make_user) -> None:
+    """権限移譲 (REQ-007.2)。D-040: 立ち上げのため男女全体に付与できる"""
     _rep_id, rep_token = make_user(role="representative", gender="male")
     male_id, _ = make_user(gender="male")
     female_id, _ = make_user(gender="female")
@@ -78,12 +78,12 @@ def test_role_update_and_gender_scope(client, make_user) -> None:
     )
     assert ok.status_code == 204
 
-    ng = client.put(
+    ok2 = client.put(
         f"/api/v1/users/{female_id}/role",
         json={"role": "representative"},
         headers=auth_header(rep_token),
     )
-    assert ng.status_code == 403  # 男子代表は女子を操作できない
+    assert ok2.status_code == 204  # 女子代表の任命も可能 (D-040)
 
 
 def test_deactivate_user(client, make_user) -> None:

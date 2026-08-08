@@ -36,6 +36,9 @@ class VoteService:
         # 閲覧は異性の月も可 (D-038) だが、投票は自分の性別グループに限る
         if pm.gender != user.gender:
             raise ForbiddenError("自分の性別グループ以外には投票できません")
+        # 閲覧専用アカウント (D-039) は投票できない
+        if user.is_observer:
+            raise ForbiddenError("閲覧専用アカウントは投票できません")
         now = utcnow()
         if now < pm.vote_starts_at:
             raise ConflictError("投票受付はまだ開始されていません")

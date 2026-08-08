@@ -56,6 +56,8 @@ export interface UserProfile {
   faculty_department: string;
   student_number: string;
   is_manager: boolean;
+  /** 閲覧専用 (D-039)。投票・抽選・名簿の対象外 */
+  is_observer: boolean;
   role: Role;
   created_at: string;
   updated_at: string;

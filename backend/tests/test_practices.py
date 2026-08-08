@@ -472,3 +472,31 @@ def test_restricted_day_ignores_existing_votes(client, make_user) -> None:
     day = next(p for p in res.json()["practices"] if p["practice_id"] == practice["id"])
     grade2 = next(g for g in day["grades"] if g["grade"] == 2)
     assert grade2["voters"] == 0
+
+
+def test_observer_cannot_vote_and_hidden_from_roster(client, make_user, db_session) -> None:
+    """D-039: 閲覧専用アカウントは投票できず名簿にも出ないが、閲覧はできる"""
+    _rep, rep_token = make_user(role="representative", gender="male")
+    pm = create_month(client, rep_token, practices=1)
+
+    uid, token = make_user(gender="male")
+    from src.db.models import User
+
+    db_session.get(User, uid).is_observer = True
+    db_session.flush()
+
+    res = client.put(
+        f"/api/v1/practice-months/{pm['id']}/votes/me",
+        json={"practice_ids": [pm["practices"][0]["id"]]},
+        headers=auth_header(token),
+    )
+    assert res.status_code == 403
+
+    roster = client.get("/api/v1/users?per_page=200", headers=auth_header(rep_token))
+    assert roster.status_code == 200
+    assert uid not in {u["id"] for u in roster.json()["items"]}
+
+    detail = client.get(
+        f"/api/v1/practice-months/{pm['id']}", headers=auth_header(token)
+    )
+    assert detail.status_code == 200
