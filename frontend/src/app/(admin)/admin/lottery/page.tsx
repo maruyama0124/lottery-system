@@ -149,7 +149,9 @@ export default function AdminLotteryPage() {
   const { data: months, error: monthsError } = useApi<PracticeMonth[]>(
     user ? "/v1/practice-months" : null,
   );
-  const monthId = months?.[0]?.id ?? null;
+  // 過去の月も選べるようにする (既定は最新月)
+  const [selectedMonthId, setSelectedMonthId] = useState<string | null>(null);
+  const monthId = selectedMonthId ?? months?.[0]?.id ?? null;
 
   const {
     data: summary,
@@ -245,7 +247,7 @@ export default function AdminLotteryPage() {
     }
   };
 
-  const month = months?.[0];
+  const month = months?.find((m) => m.id === monthId);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -255,6 +257,26 @@ export default function AdminLotteryPage() {
         {monthsError && <ErrorMessage message="対象月の取得に失敗しました" />}
         {months && months.length === 0 && (
           <p className="py-8 text-center text-sm text-gray-500">対象の月がありません</p>
+        )}
+
+        {/* 月の切り替え */}
+        {months && months.length > 1 && (
+          <select
+            value={monthId ?? ""}
+            onChange={(e) => {
+              setSelectedMonthId(e.target.value);
+              setLastExecution(null);
+              setExecError(null);
+              setSaved(false);
+            }}
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm font-bold text-gray-900 focus:border-brand-600 focus:outline-none"
+          >
+            {months.map((m) => (
+              <option key={m.id} value={m.id}>
+                {formatYearMonth(m.year_month)}
+              </option>
+            ))}
+          </select>
         )}
 
         {month && (

@@ -61,20 +61,33 @@ def test_create_month_duplicate_409_and_member_403(client, make_user) -> None:
     assert ng.status_code == 403
 
 
-def test_member_sees_only_own_gender(client, make_user) -> None:
-    """REQ-004.1: 自分の性別グループの練習のみ表示"""
+def test_member_can_view_but_not_vote_other_gender(client, make_user) -> None:
+    """D-038: 既定は自性別のみ。gender 指定で他方も閲覧できるが、投票はできない"""
     _mrep, male_rep_token = make_user(role="representative", gender="male")
     pm_male = create_month(client, male_rep_token)
 
     _member_f, female_token = make_user(gender="female")
     listing = client.get("/api/v1/practice-months", headers=auth_header(female_token))
     assert listing.status_code == 200
-    assert listing.json() == []  # 女子には男子の月が見えない
+    assert listing.json() == []  # 既定は自分の性別のみ
+
+    cross = client.get(
+        "/api/v1/practice-months?gender=male", headers=auth_header(female_token)
+    )
+    assert cross.status_code == 200
+    assert [m["id"] for m in cross.json()] == [pm_male["id"]]
 
     detail = client.get(
         f"/api/v1/practice-months/{pm_male['id']}", headers=auth_header(female_token)
     )
-    assert detail.status_code == 404
+    assert detail.status_code == 200  # 閲覧は可
+
+    ng = client.put(
+        f"/api/v1/practice-months/{pm_male['id']}/votes/me",
+        json={"practice_ids": [pm_male["practices"][0]["id"]]},
+        headers=auth_header(female_token),
+    )
+    assert ng.status_code == 403  # 投票は不可
 
 
 def test_rep_gender_scope_on_update(client, make_user) -> None:

@@ -9,9 +9,9 @@ depends_on:
 - database-design/index.md
 derived_by:
 - ui-design/index.md
-sync_hash: 488df8023147
+sync_hash: bc7aad8c646a
 dependency_hashes:
-  requirements/index.md: e9f59b0c62f2
+  requirements/index.md: 6fb2fc897094
   database-design/index.md: b603fc756c5e
 ---
 
@@ -35,7 +35,7 @@ FastAPI で実装する RESTful API。フロントエンド (Next.js) から HTT
 | member | 自分のプロフィール・投票・自分の抽選結果の操作のみ |
 | representative（代表） | member の全権限 + 担当性別の日程管理・抽選実行・結果微調整 + 名簿閲覧（男女全体: REQ-007.1）+ 設定変更 |
 
-- **性別スコープ** (NFR-002.4): 代表の操作系 API（日程・抽選・微調整）はトークンの `gender` と対象リソースの `gender` が一致しない場合 `403` を返す。名簿系 (`GET /users`, `GET /users/export`) のみ男女全体を返す
+- **性別スコープ** (NFR-002.4): 代表の操作系 API（日程・抽選・微調整）はトークンの `gender` と対象リソースの `gender` が一致しない場合 `403` を返す。名簿系 (`GET /users`, `GET /users/export`) のみ男女全体を返す。月別練習の閲覧系（一覧・詳細・公開後の参加表）は性別を問わず閲覧できる (D-038)。投票は自分の性別グループのみ (403)
 
 ## 3. 共通仕様
 
@@ -126,7 +126,7 @@ graph LR
 
 | メソッド | パス | 概要 | 権限 | 要件 |
 |----------|------|------|------|------|
-| GET | /practice-months | 月別練習の一覧（自性別。`?year_month=` 絞り込み） | member | REQ-004.1 |
+| GET | /practice-months | 月別練習の一覧（既定は自性別。`?gender=` で他方も閲覧可 (D-038)。`?year_month=` 絞り込み） | member | REQ-004.1 |
 | POST | /practice-months | 月別練習単位の作成（投票期間含む） | 代表 | REQ-003, REQ-003.3 |
 | GET | /practice-months/{pmId} | 詳細（練習日一覧含む） | member | REQ-004.1 |
 | PUT | /practice-months/{pmId} | 投票期間・枠比率等の更新 | 代表 | REQ-003.3, REQ-005.5 |

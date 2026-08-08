@@ -39,8 +39,16 @@ def main() -> None:
 
         total = 0
         for m in members:
-            n = rng.randint(1, len(practice_ids))
-            chosen = rng.sample(practice_ids, n)
+            # 学年限定の日 (D-037) には対象学年しか投票しない (マネージャーは制限なし)
+            votable = [
+                p.id
+                for p in practices
+                if m.is_manager or p.allowed_grades is None or m.grade in p.allowed_grades
+            ]
+            if not votable:
+                continue
+            n = rng.randint(1, len(votable))
+            chosen = rng.sample(votable, n)
             for pid in chosen:
                 db.add(Vote(id=generate_id("vot"), user_id=m.id, practice_id=pid))
                 total += 1

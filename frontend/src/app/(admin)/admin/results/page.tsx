@@ -34,6 +34,11 @@ function shortDate(dateStr: string): string {
   return `${d.getMonth() + 1}/${d.getDate()}`;
 }
 
+function formatYearMonth(ym: string): string {
+  const [y, m] = ym.split("-");
+  return `${y}年${Number(m)}月`;
+}
+
 type Tab = "practice" | "member" | "matrix";
 
 export default function AdminResultsPage() {
@@ -42,7 +47,9 @@ export default function AdminResultsPage() {
   const { data: months, error: monthsError } = useApi<PracticeMonth[]>(
     user ? "/v1/practice-months" : null,
   );
-  const monthId = months?.[0]?.id ?? null;
+  // 過去の月の結果も見られるようにする (既定は最新月)
+  const [selectedMonthId, setSelectedMonthId] = useState<string | null>(null);
+  const monthId = selectedMonthId ?? months?.[0]?.id ?? null;
 
   const { data: pm, mutate: mutatePm } = useApi<PracticeMonthDetail>(
     monthId ? `/v1/practice-months/${monthId}` : null,
@@ -396,6 +403,21 @@ export default function AdminResultsPage() {
         )}
         {actionError && <ErrorMessage message={actionError} />}
 
+        {/* 月の切り替え */}
+        {months && months.length > 1 && (
+          <select
+            value={monthId ?? ""}
+            onChange={(e) => setSelectedMonthId(e.target.value)}
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm font-bold text-gray-900 focus:border-brand-600 focus:outline-none"
+          >
+            {months.map((m) => (
+              <option key={m.id} value={m.id}>
+                {formatYearMonth(m.year_month)}
+              </option>
+            ))}
+          </select>
+        )}
+
         {/* 公開状態バナー */}
         {pm &&
           (published ? (
@@ -748,12 +770,12 @@ export default function AdminResultsPage() {
                                   )}
                                   {/* 今月と前月の当選/投票。外す人を選ぶ判断材料 */}
                                   {!m.is_manager && (
-                                    <span className="ml-1 text-[9px] text-gray-400">
+                                    <span className="ml-1 text-[9px] font-bold text-gray-600">
                                       {m.wins_count}/{m.votes_count}
                                     </span>
                                   )}
                                   {!m.is_manager && m.prev_votes_count > 0 && (
-                                    <span className="ml-1 text-[9px] text-gray-300">
+                                    <span className="ml-1 text-[9px] text-gray-500">
                                       先月{m.prev_wins_count}/{m.prev_votes_count}
                                     </span>
                                   )}

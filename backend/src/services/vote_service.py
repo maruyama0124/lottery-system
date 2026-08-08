@@ -2,7 +2,7 @@
 from sqlalchemy.orm import Session
 
 from src.core.datetime_utils import utcnow
-from src.core.errors import AppError, ConflictError
+from src.core.errors import AppError, ConflictError, ForbiddenError
 from src.db.models import User
 from src.repositories.practice_repository import PracticeRepository
 from src.repositories.vote_repository import VoteRepository
@@ -33,6 +33,9 @@ class VoteService:
     def update_my_votes(self, user: User, pm_id: str, practice_ids: list[str]) -> None:
         """投票の全置換 (REQ-004.2)。受付期間外は 409 (REQ-004.3)"""
         pm = self.practice_service.get_month_for(user, pm_id)
+        # 閲覧は異性の月も可 (D-038) だが、投票は自分の性別グループに限る
+        if pm.gender != user.gender:
+            raise ForbiddenError("自分の性別グループ以外には投票できません")
         now = utcnow()
         if now < pm.vote_starts_at:
             raise ConflictError("投票受付はまだ開始されていません")

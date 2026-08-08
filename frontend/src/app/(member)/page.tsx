@@ -40,28 +40,48 @@ function formatTime(t: string): string {
   return `${Number(h)}:${m}`;
 }
 
+/** "2026-09" → "2026年9月" */
+function formatYearMonth(ym: string): string {
+  const [y, m] = ym.split("-");
+  return `${y}年${Number(m)}月`;
+}
+
 export default function MemberPage() {
   const { user, isLoading: authLoading } = useRequireAuth();
+
+  // 男女どちらの予定を見るか (D-038)。既定は自分の性別
+  const [viewGender, setViewGender] = useState<"male" | "female" | null>(null);
+  const gender = viewGender ?? user?.gender ?? null;
+  const ownView = !!user && gender === user.gender;
+  // 過去の月も選べる (既定は最新月)
+  const [selectedMonthId, setSelectedMonthId] = useState<string | null>(null);
 
   const {
     data: months,
     error: monthsError,
     isLoading: monthsLoading,
     mutate: mutateMonths,
-  } = useApi<PracticeMonth[]>("/v1/practice-months");
+  } = useApi<PracticeMonth[]>(
+    user && gender ? `/v1/practice-months?gender=${gender}` : null,
+  );
 
-  const currentMonth = months?.[0];
+  const currentMonth =
+    months?.find((m) => m.id === selectedMonthId) ?? months?.[0];
 
   const { data: detail } = useApi<PracticeMonthDetail>(
     currentMonth ? `/v1/practice-months/${currentMonth.id}` : null,
   );
   const { data: voteStatus, mutate: mutateVoteStatus } = useApi<VoteStatus>(
-    currentMonth ? `/v1/practice-months/${currentMonth.id}/votes/me` : null,
+    ownView && currentMonth
+      ? `/v1/practice-months/${currentMonth.id}/votes/me`
+      : null,
   );
   const { data: myResults } = useApi<MyResults>(
-    currentMonth ? `/v1/practice-months/${currentMonth.id}/results/me` : null,
+    ownView && currentMonth
+      ? `/v1/practice-months/${currentMonth.id}/results/me`
+      : null,
   );
-  // 参加表は公開後のみ取得できる (公開前は 404 が返る)
+  // 参加表は公開後のみ取得できる (公開前は 404 が返る)。異性の月も閲覧可 (D-038)
   const { data: participation } = useApi<ParticipationTableData>(
     currentMonth?.status === "published"
       ? `/v1/practice-months/${currentMonth.id}/participation`
@@ -77,8 +97,14 @@ export default function MemberPage() {
   // 結果公開後の表示切り替え。既定は自分の参加日
   const [resultTab, setResultTab] = useState<"mine" | "all">("mine");
 
-  const editable = voteStatus?.editable ?? false;
+  const editable = ownView && (voteStatus?.editable ?? false);
   const published = currentMonth?.status === "published";
+
+  const switchView = () => {
+    setLocalSelection(null);
+    setSaved(false);
+    setSubmitError(null);
+  };
 
   const toggle = (practiceId: string) => {
     if (!editable) return;
@@ -133,6 +159,44 @@ export default function MemberPage() {
           />
         )}
 
+        {/* 男女の切り替えと月の切り替え (D-038) */}
+        <div className="flex items-center gap-2">
+          <div className="flex shrink-0 rounded-full border-2 border-gray-200 bg-white p-0.5">
+            {(["male", "female"] as const).map((g) => (
+              <button
+                key={g}
+                type="button"
+                onClick={() => {
+                  setViewGender(g);
+                  setSelectedMonthId(null);
+                  switchView();
+                }}
+                className={`rounded-full px-3 py-1.5 text-xs font-bold ${
+                  gender === g ? "bg-brand-600 text-white" : "text-gray-500"
+                }`}
+              >
+                {g === "male" ? "男子" : "女子"}
+              </button>
+            ))}
+          </div>
+          {months && months.length > 1 && (
+            <select
+              value={currentMonth?.id ?? ""}
+              onChange={(e) => {
+                setSelectedMonthId(e.target.value);
+                switchView();
+              }}
+              className="min-w-0 flex-1 rounded-full border-2 border-gray-200 bg-white px-3 py-1.5 text-sm font-bold text-gray-700 focus:outline-none"
+            >
+              {months.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {formatYearMonth(m.year_month)}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+
         {!monthsError && !currentMonth && (
           <Card>
             <div className="py-6 text-center">
@@ -144,9 +208,50 @@ export default function MemberPage() {
           </Card>
         )}
 
+        {/* 異性の月 — 閲覧のみ (D-038)。日程一覧と、公開後は参加表を見せる */}
+        {currentMonth && !ownView && (
+          <>
+            <Card>
+              <p className="font-bold text-gray-900">
+                {gender === "male" ? "男子" : "女子"}の練習日程
+              </p>
+              <p className="mt-0.5 text-sm text-gray-500">閲覧のみ（投票はできません）</p>
+            </Card>
+            <Card>
+              {detail && detail.practices.length > 0 ? (
+                <ul className="divide-y divide-gray-100">
+                  {detail.practices.map((p) => (
+                    <li key={p.id} className="flex items-baseline gap-3 py-2.5">
+                      <span className="w-20 shrink-0 font-bold text-gray-900">
+                        {formatDate(p.practice_date)}
+                      </span>
+                      <span className="shrink-0 text-sm font-semibold text-gray-700">
+                        {formatTime(p.starts_at)}〜{formatTime(p.ends_at)}
+                      </span>
+                      <span className="truncate text-sm text-gray-500">{p.location}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="py-4 text-center text-sm text-gray-500">
+                  練習日が登録されていません
+                </p>
+              )}
+            </Card>
+            {published && participation && (
+              <ParticipationTable
+                data={participation}
+                currentUserId={user.id}
+                currentUserGrade={user.grade}
+                currentUserIsManager={user.is_manager}
+              />
+            )}
+          </>
+        )}
+
         {/* 結果公開後 — 自分の参加日と全員の参加表をタブで切り替える (D-025)。
             縦に並べると参加表まで毎回スクロールすることになるため */}
-        {currentMonth && published && (
+        {currentMonth && ownView && published && (
           <>
             <div className="flex gap-2">
               {(
@@ -215,7 +320,7 @@ export default function MemberPage() {
         )}
 
         {/* 締切後・結果未公開 — 抽選待ち */}
-        {currentMonth && !published && !editable && (
+        {currentMonth && ownView && !published && !editable && (
           <Card>
             <div className="py-6 text-center">
               <p className="font-bold text-gray-700">抽選結果を待っています</p>

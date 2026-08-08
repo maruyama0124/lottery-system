@@ -47,8 +47,10 @@ def list_practice_months(
     user: CurrentUser,
     db: DbDep,
     year_month: Annotated[str | None, Query(pattern=r"^\d{4}-\d{2}$")] = None,
+    gender: Annotated[str | None, Query(pattern=r"^(male|female)$")] = None,
 ) -> list[PracticeMonthResponse]:
-    months = PracticeService(db).list_months(user, year_month)
+    """既定は自分の性別。gender 指定で他方の予定も閲覧できる (D-038)"""
+    months = PracticeService(db).list_months(user, year_month, gender)
     return [PracticeMonthResponse.model_validate(pm) for pm in months]
 
 

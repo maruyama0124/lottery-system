@@ -21,9 +21,9 @@ class PracticeService:
     # ---------- 取得 ----------
 
     def get_month_for(self, user: User, pm_id: str) -> PracticeMonth:
-        """自分の性別グループの月のみ参照可能 (REQ-004.1)"""
+        """閲覧は性別を問わず可 (D-038)。投票などの書き込みは呼び出し側で性別を確認する"""
         pm = self.months.get(pm_id)
-        if pm is None or pm.gender != user.gender:
+        if pm is None:
             raise NotFoundError("月別練習が見つかりません")
         return pm
 
@@ -36,8 +36,11 @@ class PracticeService:
             raise ForbiddenError("担当性別以外の月別練習は操作できません")
         return pm
 
-    def list_months(self, user: User, year_month: str | None) -> list[PracticeMonth]:
-        return self.months.list_by_gender(user.gender, year_month)
+    def list_months(
+        self, user: User, year_month: str | None, gender: str | None = None
+    ) -> list[PracticeMonth]:
+        """既定は自分の性別。gender を指定すると他方の月も閲覧できる (D-038)"""
+        return self.months.list_by_gender(gender or user.gender, year_month)
 
     # ---------- 作成・更新 (代表) ----------
 

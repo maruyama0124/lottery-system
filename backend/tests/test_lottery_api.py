@@ -391,19 +391,25 @@ def test_participation_table_is_visible_to_members_after_publish(client, make_us
             assert set(row["practice_ids"]) <= {p["id"] for p in body["practices"]}
 
 
-def test_participation_table_excludes_other_gender(client, make_user) -> None:
-    """参加表は自分の性別グループのみ (NFR-002.4)"""
+def test_participation_table_visible_to_other_gender_after_publish(client, make_user) -> None:
+    """D-038: 公開後の参加表は異性のメンバーも閲覧できる（公開前は 404 のまま）"""
     rep_token, pm, member_tokens = setup_month_with_votes(client, make_user)
     client.post(
         f"/api/v1/practice-months/{pm['id']}/lottery",
         json={"confirm_rerun": False},
         headers=auth_header(rep_token),
     )
-    client.post(f"/api/v1/practice-months/{pm['id']}/publish", headers=auth_header(rep_token))
 
     _uid, female_token = make_user(gender="female", grade=1)
+    before = client.get(
+        f"/api/v1/practice-months/{pm['id']}/participation",
+        headers=auth_header(female_token),
+    )
+    assert before.status_code == 404  # 未公開は誰にも見えない
+
+    client.post(f"/api/v1/practice-months/{pm['id']}/publish", headers=auth_header(rep_token))
     res = client.get(
         f"/api/v1/practice-months/{pm['id']}/participation",
         headers=auth_header(female_token),
     )
-    assert res.status_code in (403, 404)
+    assert res.status_code == 200

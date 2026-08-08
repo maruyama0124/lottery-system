@@ -105,7 +105,10 @@ class Practice(Base, TimestampMixin):
     location: Mapped[str] = mapped_column(String(255), nullable=False)
     capacity: Mapped[int] = mapped_column(nullable=False)  # プレイヤー定員 (REQ-005.2)
     # 参加できる学年 (D-037)。NULL は全学年。例: [1] は1年限定の練習日
-    allowed_grades: Mapped[list[int] | None] = mapped_column(JSONB, nullable=True)
+    # none_as_null: Python の None を JSON の null ではなく SQL の NULL として保存する
+    allowed_grades: Mapped[list[int] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
     # 日別・学年別の参加人数枠 (D-015)。抽選前に代表が設定する。未設定なら NULL
     quota_grade1: Mapped[int | None] = mapped_column(nullable=True)
     quota_grade2: Mapped[int | None] = mapped_column(nullable=True)
