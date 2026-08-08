@@ -118,7 +118,11 @@ class LotteryService:
                 month_voters[grade] += 1
 
         suggestions = self._suggest_quotas(
-            [(p.capacity, v) for p, v in zip(practices, voters_per_day)], month_voters
+            [
+                (p.capacity, v, set(p.allowed_grades or GRADES))
+                for p, v in zip(practices, voters_per_day)
+            ],
+            month_voters,
         )
 
         summaries: list[PracticeVoteSummary] = []
@@ -136,6 +140,7 @@ class LotteryService:
                     ends_at=p.ends_at.strftime("%H:%M"),
                     location=p.location,
                     capacity=p.capacity,
+                    allowed_grades=p.allowed_grades,
                     grades=[
                         GradeVoteSummary(
                             grade=g,
@@ -162,7 +167,7 @@ class LotteryService:
 
     @staticmethod
     def _suggest_quotas(
-        days: list[tuple[int, dict[int, int]]],  # (定員, 学年 -> その日の投票者数)
+        days: list[tuple[int, dict[int, int], set[int]]],  # (定員, 学年->投票者数, 参加できる学年)
         month_voters: dict[int, int],  # 学年 -> 月内に1回でも投票した人数 (現在は未使用)
     ) -> list[dict[int, int]]:
         """日ごとの枠の初期値を提案する (D-031)。日ごとに完結し、月をまたぐ按分はしない。
@@ -181,15 +186,20 @@ class LotteryService:
         代表は画面で自由に増減できる。
         """
         result: list[dict[int, int]] = []
-        for capacity, voters in days:
-            shares = LotteryService.base_shares(capacity)
+        for capacity, voters, allowed in days:
+            # 学年限定の日 (D-037) は、参加できる学年の中だけで等分・配分する
+            in_play = [g for g in PRIORITY_GRADES if g in allowed] or list(PRIORITY_GRADES)
+            base, extra = divmod(capacity, len(in_play))
+            shares = {g: 0 for g in GRADES}
+            for i, g in enumerate(in_play):
+                shares[g] = base + (1 if i < extra else 0)
             quotas = {g: min(voters.get(g, 0), shares[g]) for g in GRADES}
             free = capacity - sum(quotas.values())
-            for g in PRIORITY_GRADES:
+            for g in in_play:
                 take = min(max(0, voters.get(g, 0) - quotas[g]), free)
                 quotas[g] += take
                 free -= take
-            quotas[PRIORITY_GRADES[-1]] += free  # 誰も埋められない席
+            quotas[in_play[-1]] += free  # 誰も埋められない席
             result.append(quotas)
         return result
 
@@ -388,6 +398,12 @@ class LotteryService:
         for a in assignments:
             wins[a.user_id].append(a.practice_id)
 
+        # 前月の当選/投票。微調整で誰を動かすかの判断材料 (公開済みの実績のみ)
+        prev_pm = self.months.get_by_ym_gender(
+            previous_year_month(pm.year_month), pm.gender
+        )
+        prev = self.repo.get_month_wins_votes(prev_pm.id) if prev_pm else {}
+
         by_member = [
             MemberResult(
                 user_id=uid,
@@ -396,6 +412,8 @@ class LotteryService:
                 is_manager=users[uid].is_manager,
                 votes_count=len(votes[uid]),
                 wins_count=len(wins.get(uid, [])),
+                prev_wins_count=prev.get(uid, (0, 0))[0],
+                prev_votes_count=prev.get(uid, (0, 0))[1],
                 practice_ids=sorted(wins.get(uid, [])),
                 voted_practice_ids=sorted(votes[uid]),
             )

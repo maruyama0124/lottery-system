@@ -242,6 +242,32 @@ export default function MemberPage() {
             <div className="space-y-2">
               {detail?.practices.map((practice) => {
                 const selected = selectedIds.includes(practice.id);
+                // 学年限定の日 (D-037)。対象外なら選べない。マネージャーは制限なし
+                const votable =
+                  user.is_manager ||
+                  !practice.allowed_grades ||
+                  practice.allowed_grades.includes(user.grade);
+                if (!votable) {
+                  return (
+                    <div
+                      key={practice.id}
+                      className="flex w-full items-center gap-2.5 rounded-2xl border-2 border-transparent bg-white px-3 py-2.5 opacity-60"
+                    >
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-gray-100 text-transparent">
+                        ✓
+                      </span>
+                      <span className="w-20 shrink-0 font-bold text-gray-400">
+                        {formatDate(practice.practice_date)}
+                      </span>
+                      <span className="shrink-0 text-sm font-semibold text-gray-400">
+                        {formatTime(practice.starts_at)}〜{formatTime(practice.ends_at)}
+                      </span>
+                      <span className="ml-auto shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold text-gray-500">
+                        {[...practice.allowed_grades!].sort().join("・")}年限定
+                      </span>
+                    </div>
+                  );
+                }
                 return (
                   <button
                     key={practice.id}

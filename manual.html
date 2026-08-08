@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>クエーさん 説明書（代表向け）</title>
+<style>
+  :root {
+    /* メンバー画面の配色（モルテンの白・赤・緑） */
+    --m-brand: #248876;
+    --m-brand-dark: #1d6e60;
+    --m-brand-bg: #f0fbf8;
+    --m-brand-light: #d8f3ec;
+    --m-accent: #d6473f;
+    /* 管理画面の配色（ミカサの青・黄） */
+    --a-brand: #1e3fa0;
+    --a-brand-dark: #183485;
+    --a-brand-bg: #eef2fb;
+    --a-brand-light: #d9e1f6;
+    --a-accent: #f7c600;
+    --ink: #1f2937;
+    --gray: #6b7280;
+    --gray-light: #e5e7eb;
+    --paper: #ffffff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 70px; -webkit-text-size-adjust: 100%; }
+  a, summary { -webkit-tap-highlight-color: rgba(36,136,118,0.15); }
+  body {
+    font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
+    color: var(--ink);
+    background: #fafaf8;
+    line-height: 1.85;
+  }
+
+  /* ---------- 全体レイアウト ---------- */
+  .hero {
+    background: var(--m-brand-bg);
+    border-bottom: 3px solid var(--m-brand);
+    padding: 36px 16px 30px;
+    text-align: center;
+  }
+  .hero h1 { font-size: 22px; color: var(--m-brand-dark); margin-top: 12px; }
+  .hero p.sub { color: var(--gray); font-size: 13px; margin-top: 6px; }
+
+  nav.toc {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: rgba(255,255,255,0.97);
+    border-bottom: 1px solid var(--gray-light);
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  nav.toc::-webkit-scrollbar { display: none; }
+  nav.toc .inner { max-width: 900px; margin: 0 auto; padding: 0 12px; display: flex; gap: 2px; }
+  nav.toc a {
+    display: inline-block;
+    padding: 13px 10px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--gray);
+    text-decoration: none;
+    border-bottom: 3px solid transparent;
+  }
+  nav.toc a.active { color: var(--m-brand-dark); border-bottom-color: var(--m-brand); }
+
+  main { max-width: 900px; margin: 0 auto; padding: 16px 16px 64px; }
+
+  section.chapter { margin-top: 44px; }
+  section.chapter:first-child { margin-top: 24px; }
+  .chapter > h2 {
+    font-size: 18px;
+    color: var(--m-brand-dark);
+    border-left: 6px solid var(--m-brand);
+    padding-left: 12px;
+    margin-bottom: 16px;
+  }
+  .chapter.admin-theme > h2 { color: var(--a-brand-dark); border-left-color: var(--a-brand); }
+  .chapter h3 { font-size: 15.5px; margin: 30px 0 10px; }
+  .chapter p.lead { font-size: 14px; color: #374151; margin-bottom: 12px; }
+
+  .note {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: 10px;
+    padding: 10px 13px;
+    font-size: 13px;
+    margin: 14px 0;
+  }
+  .note::before { content: "⚠ "; font-weight: bold; color: #a87f00; }
+
+  /* ---------- 月の流れ図 ---------- */
+  .flow { display: flex; flex-direction: column; margin: 16px 0; }
+  .flow .step {
+    background: var(--paper);
+    border: 1px solid var(--gray-light);
+    border-radius: 12px;
+    padding: 12px 14px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .flow .step + .step { margin-top: 22px; }
+  .flow .step + .step::after {
+    content: "▼";
+    position: absolute;
+    top: -20px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    color: #9ca3af;
+  }
+  .flow .step .num {
+    flex: none;
+    display: flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: var(--m-brand);
+    color: #fff;
+    font-size: 13px; font-weight: bold;
+  }
+  .flow .step.admin .num { background: var(--a-brand); }
+  .flow .step h4 { font-size: 14px; }
+  .flow .step p { font-size: 12px; color: var(--gray); line-height: 1.6; margin: 0; }
+  .flow .step .who {
+    margin-left: auto;
+    flex: none;
+    font-size: 10px; font-weight: bold;
+    padding: 2px 8px;
+    border-radius: 99px;
+  }
+  .who.rep { background: var(--a-brand-bg); color: var(--a-brand); }
+  .who.mem { background: var(--m-brand-bg); color: var(--m-brand-dark); }
+
+  /* ---------- スマホ画面モック ---------- */
+  .screen-block { margin: 20px 0 28px; }
+  .screens {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    justify-content: center;
+  }
+  .phone-wrap { width: 320px; max-width: 100%; }
+  .phone {
+    width: 100%;
+    border: 8px solid #111827;
+    border-radius: 28px;
+    overflow: hidden;
+    background: var(--m-brand-bg);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+    font-size: 13px;
+    position: relative;
+  }
+  .phone.admin { background: #f7f8fa; }
+  .phone .scr { padding: 14px 12px 16px; min-height: 300px; position: relative; }
+
+  /* 番号バッジ（画面上の注目ポイント） */
+  .mark {
+    position: absolute;
+    top: -8px; right: -8px;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: var(--m-accent);
+    color: #fff;
+    font-size: 12px; font-weight: bold;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.35);
+    z-index: 6;
+    line-height: 1;
+  }
+  .has-mark { position: relative; }
+
+  /* 画面の下の説明（番号と一言） */
+  .points { margin-top: 14px; }
+  .points .pt { display: flex; gap: 10px; align-items: baseline; margin-bottom: 8px; }
+  .points .pb {
+    flex: none;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: var(--m-accent);
+    color: #fff;
+    font-size: 12px; font-weight: bold;
+    display: flex; align-items: center; justify-content: center;
+    transform: translateY(3px);
+    line-height: 1;
+  }
+  .points .pt p { font-size: 13.5px; margin: 0; }
+  .points .pt p small { color: var(--gray); font-size: 12px; }
+
+  /* メンバー画面の部品 */
+  .m-header { display: flex; align-items: center; gap: 8px; padding: 4px 2px 12px; }
+  .m-header .ttl { font-weight: bold; color: var(--m-brand-dark); font-size: 14px; }
+  .m-header .nm { font-size: 11px; color: var(--gray); }
+  .card {
+    background: #fff;
+    border-radius: 18px;
+    padding: 14px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    margin-bottom: 10px;
+  }
+  .card .h { font-weight: bold; font-size: 13px; }
+  .card .s { font-size: 11px; color: var(--gray); margin-top: 2px; }
+  .day-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #fff;
+    border: 2px solid transparent;
+    border-radius: 14px;
+    padding: 9px 10px;
+    margin-bottom: 7px;
+  }
+  .day-btn.sel { border-color: var(--m-brand); background: var(--m-brand-bg); }
+  .day-btn .chk {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    border: 2px solid var(--gray-light);
+    flex: none;
+  }
+  .day-btn.sel .chk {
+    border: none;
+    background: var(--m-brand);
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: bold;
+  }
+  .day-btn .d { font-weight: bold; width: 58px; flex: none; font-size: 12.5px; }
+  .day-btn .t { font-size: 11px; color: #4b5563; font-weight: 600; flex: none; }
+  .day-btn .loc { font-size: 11px; color: var(--gray); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .submit-bar {
+    margin-top: 14px;
+    background: var(--m-brand);
+    color: #fff;
+    text-align: center;
+    font-weight: bold;
+    border-radius: 99px;
+    padding: 12px;
+    font-size: 14px;
+    box-shadow: 0 6px 14px rgba(36,136,118,0.35);
+  }
+  .seg { display: flex; gap: 6px; margin-bottom: 10px; }
+  .seg .tab {
+    flex: 1;
+    text-align: center;
+    border-radius: 99px;
+    padding: 8px 0;
+    font-size: 12px;
+    font-weight: bold;
+    background: #fff;
+    color: var(--gray);
+    border: 2px solid var(--gray-light);
+  }
+  .seg .tab.on { background: var(--m-brand); color: #fff; border-color: var(--m-brand); }
+  .res-row { display: flex; align-items: baseline; gap: 8px; padding: 8px 2px; border-bottom: 1px solid #f3f4f6; }
+  .res-row:last-child { border-bottom: none; }
+  .res-row .d { color: var(--m-accent); font-weight: bold; width: 58px; flex: none; font-size: 12.5px; }
+  .res-row .t { font-size: 11px; font-weight: 600; color: #4b5563; flex: none; }
+  .res-row .loc { font-size: 11px; color: var(--gray); }
+
+  /* 参加表・一覧表モック */
+  .pt-table { width: 100%; border-collapse: collapse; font-size: 10.5px; background: #fff; }
+  .pt-table th, .pt-table td { border-bottom: 1px solid #f3f4f6; padding: 4px 3px; text-align: center; }
+  .pt-table th { color: var(--gray); font-size: 10px; }
+  .pt-table td.nm { text-align: left; font-weight: 600; white-space: nowrap; }
+  .pt-table .o { color: var(--m-brand); font-weight: bold; }
+  .pt-table .dot { color: #d1d5db; }
+  .pt-table tr.me { background: var(--m-brand-bg); }
+
+  /* 管理画面の部品 */
+  .a-header {
+    background: #fff;
+    border-bottom: 1px solid var(--gray-light);
+    padding: 10px 12px;
+    font-weight: bold;
+    font-size: 14px;
+    color: var(--a-brand-dark);
+  }
+  .a-card {
+    background: #fff;
+    border: 1px solid var(--gray-light);
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 10px;
+  }
+  .a-card .h6 { font-size: 11px; font-weight: bold; color: var(--gray); margin-bottom: 8px; }
+  .steps5 { display: flex; align-items: flex-start; }
+  .steps5 .st { flex: 1; text-align: center; }
+  .steps5 .c {
+    width: 26px; height: 26px;
+    margin: 0 auto;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: bold;
+  }
+  .steps5 .done .c { background: var(--a-brand); color: #fff; }
+  .steps5 .now .c { background: #fff; color: var(--a-brand); border: 2px solid var(--a-brand); box-shadow: 0 0 0 4px var(--a-brand-bg); }
+  .steps5 .todo .c { background: var(--gray-light); color: #9ca3af; }
+  .steps5 .lb { font-size: 9px; margin-top: 4px; color: var(--gray); }
+  .steps5 .done .lb, .steps5 .now .lb { color: var(--a-brand); font-weight: bold; }
+  .steps5 .ln { height: 2px; width: 14px; margin-top: 13px; flex: none; background: var(--gray-light); }
+  .steps5 .ln.on { background: var(--a-brand); }
+  .vbar-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .vbar-row .d { font-size: 10.5px; color: #4b5563; width: 50px; flex: none; }
+  .vbar-row .bar { flex: 1; height: 9px; background: var(--gray-light); border-radius: 99px; overflow: hidden; }
+  .vbar-row .bar i { display: block; height: 100%; background: var(--a-brand); border-radius: 99px; }
+  .vbar-row .n { font-size: 10.5px; font-weight: 600; width: 34px; text-align: right; flex: none; }
+  .action-card {
+    background: var(--a-brand-bg);
+    border: 1px solid var(--a-brand-light);
+    border-radius: 12px;
+    padding: 12px;
+    font-size: 12px;
+    margin-bottom: 10px;
+  }
+  .action-card .btn {
+    margin-top: 8px;
+    background: var(--a-brand);
+    color: #fff;
+    text-align: center;
+    border-radius: 8px;
+    padding: 9px;
+    font-weight: bold;
+    font-size: 12px;
+  }
+  .menu-list { background: #fff; border: 1px solid var(--gray-light); border-radius: 12px; overflow: hidden; }
+  .menu-list .mi {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 12px;
+    border-bottom: 1px solid #f3f4f6;
+    font-size: 12.5px; font-weight: 600;
+  }
+  .menu-list .mi:last-child { border-bottom: none; }
+  .menu-list .mi .ar { margin-left: auto; color: #9ca3af; }
+
+  /* フォームモック */
+  .f-label { font-size: 9.5px; font-weight: bold; color: var(--gray); display: block; margin-bottom: 2px; }
+  .f-box {
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    padding: 7px 9px;
+    font-size: 11.5px;
+    background: #fff;
+  }
+  .f-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .f-dashed {
+    border: 2px dashed var(--a-brand-light);
+    color: var(--a-brand);
+    text-align: center;
+    font-size: 11.5px;
+    font-weight: 600;
+    border-radius: 8px;
+    padding: 8px;
+  }
+  .a-btn {
+    background: var(--a-brand);
+    color: #fff;
+    text-align: center;
+    font-weight: bold;
+    font-size: 12px;
+    border-radius: 8px;
+    padding: 10px;
+  }
+  .a-btn.dark { background: #111827; }
+  .a-btn.big { font-size: 14px; border-radius: 12px; padding: 12px; box-shadow: 0 6px 14px rgba(30,63,160,0.3); }
+
+  /* 抽選画面のモック */
+  .stack-bar { display: flex; height: 11px; border-radius: 99px; overflow: hidden; background: #f3f4f6; margin: 6px 0 4px; }
+  .stack-bar i { display: block; height: 100%; }
+  .legend { display: flex; gap: 8px; font-size: 9.5px; color: var(--gray); flex-wrap: wrap; }
+  .legend .lg { display: inline-flex; align-items: center; gap: 3px; }
+  .legend .sw { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+  .quota-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-top: 8px; }
+  .quota-grid label { font-size: 9.5px; font-weight: bold; color: var(--gray); display: block; margin-bottom: 2px; }
+  .quota-grid .qi {
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    text-align: center;
+    padding: 6px 0;
+    font-size: 13px;
+    background: #fff;
+  }
+  .qsum { font-size: 10.5px; font-weight: bold; margin-top: 6px; }
+  .qsum.ok { color: #15803d; }
+
+  /* 結果画面のモック */
+  .banner-y { background: #fffbeb; border: 1px solid #fcd34d; border-radius: 10px; padding: 8px 10px; font-size: 11px; font-weight: 600; color: #92400e; margin-bottom: 10px; }
+  .tab3 { display: flex; background: var(--gray-light); border-radius: 8px; padding: 3px; margin-bottom: 10px; }
+  .tab3 .t { flex: 1; text-align: center; font-size: 11px; font-weight: 600; color: var(--gray); padding: 6px 0; border-radius: 6px; }
+  .tab3 .t.on { background: var(--a-brand); color: #fff; font-weight: bold; }
+
+  /* ---------- 抽選のしくみ ---------- */
+  .lottery-steps { counter-reset: ls; margin: 16px 0; }
+  .lottery-steps .ls {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    background: #fff;
+    border: 1px solid var(--gray-light);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+  }
+  .lottery-steps .ls::before {
+    counter-increment: ls;
+    content: counter(ls);
+    flex: none;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: var(--m-brand);
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: bold;
+    font-size: 13px;
+  }
+  .lottery-steps .ls p { font-size: 13.5px; margin: 0; }
+  .lottery-steps .ls p small { display: block; color: var(--gray); font-size: 12px; }
+  .promise {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 14px 0;
+  }
+  .promise .pr {
+    flex: 1 1 200px;
+    background: var(--m-brand-bg);
+    border: 1px solid var(--m-brand-light);
+    border-radius: 12px;
+    padding: 12px;
+    font-size: 13px;
+    font-weight: bold;
+    color: var(--m-brand-dark);
+    text-align: center;
+  }
+
+  /* ---------- FAQ ---------- */
+  details.faq {
+    background: #fff;
+    border: 1px solid var(--gray-light);
+    border-radius: 12px;
+    margin-bottom: 8px;
+    overflow: hidden;
+  }
+  details.faq summary {
+    cursor: pointer;
+    padding: 13px 38px 13px 14px;
+    font-weight: bold;
+    font-size: 13.5px;
+    list-style: none;
+    position: relative;
+  }
+  details.faq summary::-webkit-details-marker { display: none; }
+  details.faq summary::after {
+    content: "＋";
+    position: absolute;
+    right: 14px; top: 11px;
+    color: var(--m-brand);
+    font-weight: bold;
+  }
+  details.faq[open] summary::after { content: "－"; }
+  details.faq .a { padding: 0 14px 13px; font-size: 13.5px; color: #374151; }
+
+  footer { text-align: center; color: #9ca3af; font-size: 12px; padding: 26px 0 44px; }
+
+  @media (min-width: 720px) {
+    .hero { padding: 44px 20px 36px; }
+    .hero h1 { font-size: 25px; }
+    main { padding: 24px 20px 80px; }
+    .chapter > h2 { font-size: 20px; }
+    /* 広い画面では「画面＋説明」を横並びにする */
+    .screen-block { display: flex; gap: 28px; align-items: flex-start; justify-content: center; }
+    .screen-block .points { margin-top: 8px; max-width: 360px; }
+    .flow { flex-direction: row; flex-wrap: wrap; gap: 8px; }
+    .flow .step { flex: 1 1 155px; display: block; }
+    .flow .step + .step { margin-top: 0; }
+    .flow .step + .step::after { content: none; }
+    .flow .step .num { margin-bottom: 6px; }
+    .flow .step .who { position: absolute; top: 12px; right: 12px; margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <svg width="100" height="100" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="クエーさん">
+    <defs>
+      <clipPath id="hero-ball"><circle cx="60" cy="56" r="34"/></clipPath>
+      <clipPath id="hero-front"><rect x="0" y="70" width="120" height="50"/></clipPath>
+    </defs>
+    <ellipse cx="60" cy="72" rx="52" ry="13" stroke="#d6473f" stroke-width="5" fill="none" transform="rotate(-16 60 72)"/>
+    <g clip-path="url(#hero-ball)">
+      <circle cx="60" cy="56" r="34" fill="#ffffff"/>
+      <path d="M10 44 Q60 14 110 44 L110 30 Q60 0 10 30 Z" fill="#2f9e8b"/>
+      <path d="M10 80 Q60 50 110 80 L110 94 Q60 64 10 94 Z" fill="#d6473f"/>
+      <path d="M10 44 Q60 14 110 44 M10 30 Q60 0 110 30 M10 80 Q60 50 110 80 M10 94 Q60 64 110 94" stroke="#1f2937" stroke-width="1.2" fill="none" opacity="0.35"/>
+    </g>
+    <circle cx="60" cy="56" r="34" stroke="#1f2937" stroke-width="2" fill="none"/>
+    <g clip-path="url(#hero-front)">
+      <ellipse cx="60" cy="72" rx="52" ry="13" stroke="#d6473f" stroke-width="5" fill="none" transform="rotate(-16 60 72)"/>
+    </g>
+    <g>
+      <circle cx="47" cy="55" r="6" fill="#1f2937"/><circle cx="73" cy="55" r="6" fill="#1f2937"/>
+      <circle cx="49" cy="52.5" r="2.2" fill="#ffffff"/><circle cx="75" cy="52.5" r="2.2" fill="#ffffff"/>
+      <circle cx="37" cy="63" r="4" fill="#fb7185" opacity="0.65"/><circle cx="83" cy="63" r="4" fill="#fb7185" opacity="0.65"/>
+      <path d="M53 67 q7 7 14 0" stroke="#1f2937" stroke-width="3" stroke-linecap="round" fill="none"/>
+    </g>
+    <path d="M100 22 l2.2 5.8 5.8 2.2 -5.8 2.2 -2.2 5.8 -2.2 -5.8 -5.8 -2.2 5.8 -2.2z" fill="#2f9e8b"/>
+    <path d="M18 30 l1.5 4 4 1.5 -4 1.5 -1.5 4 -1.5 -4 -4 -1.5 4 -1.5z" fill="#d6473f"/>
+  </svg>
+  <h1>練習抽選bot クエーさん 説明書</h1>
+  <p class="sub">代表向け ｜ 投票から抽選・公開までの操作ガイド</p>
+</div>
+
+<nav class="toc" id="toc">
+  <div class="inner">
+    <a href="#flow">1か月の流れ</a>
+    <a href="#member">メンバーの画面</a>
+    <a href="#admin">代表の画面</a>
+    <a href="#lottery">抽選のしくみ</a>
+    <a href="#faq">よくある質問</a>
+  </div>
+</nav>
+
+<main>
+
+<!-- ==================== 1か月の流れ ==================== -->
+<section class="chapter" id="flow">
+  <h2>1. 1か月の流れ</h2>
+  <p class="lead">毎月この5ステップの繰り返し。代表がやるのは 1・3・4・5。アプリのインストールは不要で、全員 LINE のリンクから開くだけ。</p>
+
+  <div class="flow">
+    <div class="step admin">
+      <span class="num">1</span>
+      <div><h4>日程登録</h4><p>翌月の練習日と投票期間を登録</p></div>
+      <span class="who rep">代表</span>
+    </div>
+    <div class="step">
+      <span class="num">2</span>
+      <div><h4>投票受付</h4><p>メンバーが参加したい日を選んで送信</p></div>
+      <span class="who mem">メンバー</span>
+    </div>
+    <div class="step admin">
+      <span class="num">3</span>
+      <div><h4>抽選</h4><p>締切後、枠を確認してボタンで実行</p></div>
+      <span class="who rep">代表</span>
+    </div>
+    <div class="step admin">
+      <span class="num">4</span>
+      <div><h4>微調整</h4><p>必要なら参加者を入れ替え（不要ならスキップ）</p></div>
+      <span class="who rep">代表</span>
+    </div>
+    <div class="step admin">
+      <span class="num">5</span>
+      <div><h4>公開</h4><p>全メンバーに結果が表示される</p></div>
+      <span class="who rep">代表</span>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== メンバーの画面 ==================== -->
+<section class="chapter" id="member">
+  <h2>2. メンバーの画面</h2>
+  <p class="lead">画面は1枚だけ。時期によって「投票」→「抽選待ち」→「結果」に自動で切り替わる。</p>
+
+  <h3>投票する</h3>
+  <div class="screen-block">
+    <div class="phone-wrap">
+      <div class="phone">
+        <div class="scr">
+          <div class="m-header">
+            <svg width="34" height="34" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <ellipse cx="60" cy="72" rx="52" ry="13" stroke="#d6473f" stroke-width="5" fill="none" transform="rotate(-16 60 72)"/>
+              <circle cx="60" cy="56" r="34" fill="#ffffff" stroke="#1f2937" stroke-width="2"/>
+              <path d="M28 44 Q60 24 92 44 L94 34 Q60 12 26 34 Z" fill="#2f9e8b"/>
+              <path d="M28 72 Q60 56 92 72 L90 82 Q60 66 30 82 Z" fill="#d6473f"/>
+              <circle cx="47" cy="55" r="5" fill="#1f2937"/><circle cx="73" cy="55" r="5" fill="#1f2937"/>
+              <path d="M53 67 q7 7 14 0" stroke="#1f2937" stroke-width="3" stroke-linecap="round" fill="none"/>
+            </svg>
+            <div>
+              <div class="ttl">練習抽選bot クエーさん</div>
+              <div class="nm">山田 太郎 さん</div>
+            </div>
+          </div>
+          <div class="card has-mark"><span class="mark">3</span>
+            <div class="h">参加できる日を選択してください</div>
+            <div class="s">8/20(木)までに送信してください</div>
+          </div>
+          <div class="day-btn sel has-mark"><span class="mark">1</span><span class="chk">✓</span><span class="d">9/2(水)</span><span class="t">18:00〜21:00</span><span class="loc">第一体育館</span></div>
+          <div class="day-btn"><span class="chk"></span><span class="d">9/5(土)</span><span class="t">13:00〜17:00</span><span class="loc">第一体育館</span></div>
+          <div class="day-btn sel"><span class="chk">✓</span><span class="d">9/9(水)</span><span class="t">18:00〜21:00</span><span class="loc">第二体育館</span></div>
+          <div class="day-btn sel"><span class="chk">✓</span><span class="d">9/12(土)</span><span class="t">13:00〜17:00</span><span class="loc">第一体育館</span></div>
+          <div class="submit-bar has-mark"><span class="mark">2</span>3日を送信</div>
+        </div>
+      </div>
+    </div>
+    <div class="points">
+      <div class="pt"><span class="pb">1</span><p>参加したい日をタップ。緑になったら選択中</p></div>
+      <div class="pt"><span class="pb">2</span><p>このボタンで送信。<small>送信しないと投票にならない</small></p></div>
+      <div class="pt"><span class="pb">3</span><p>締切はここに表示。<small>締切までは何度でも選び直せる</small></p></div>
+    </div>
+  </div>
+
+  <h3>結果を見る（公開後）</h3>
+  <div class="screen-block">
+    <div class="phone-wrap">
+      <div class="phone">
+        <div class="scr">
+          <div class="m-header">
+            <div>
+              <div class="ttl">練習抽選bot クエーさん</div>
+              <div class="nm">山田 太郎 さん</div>
+            </div>
+          </div>
+          <div class="seg">
+            <div class="tab on has-mark"><span class="mark">1</span>自分の参加日</div>
+            <div class="tab has-mark"><span class="mark">2</span>練習参加表</div>
+          </div>
+          <div class="card">
+            <div class="h" style="margin-bottom:6px;">参加する練習 3日</div>
+            <div class="res-row"><span class="d">9/2(水)</span><span class="t">18:00〜21:00</span><span class="loc">第一体育館</span></div>
+            <div class="res-row"><span class="d">9/12(土)</span><span class="t">13:00〜17:00</span><span class="loc">第一体育館</span></div>
+            <div class="res-row"><span class="d">9/26(土)</span><span class="t">13:00〜17:00</span><span class="loc">第二体育館</span></div>
+          </div>
+          <div class="card" style="padding:8px;">
+            <table class="pt-table">
+              <tr><th style="text-align:left;">1年</th><th>9/2</th><th>9/5</th><th>9/9</th><th>9/12</th></tr>
+              <tr><td class="nm">佐藤</td><td class="o">〇</td><td class="dot">・</td><td class="o">〇</td><td class="dot">・</td></tr>
+              <tr class="me"><td class="nm">山田</td><td class="o">〇</td><td class="dot">・</td><td class="dot">・</td><td class="o">〇</td></tr>
+              <tr><td class="nm">鈴木</td><td class="dot">・</td><td class="o">〇</td><td class="o">〇</td><td class="dot">・</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="points">
+      <div class="pt"><span class="pb">1</span><p>自分が参加する日の一覧</p></div>
+      <div class="pt"><span class="pb">2</span><p>全員分の参加表。<small>学年タブで切り替え。自分の行には色が付く</small></p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 代表の画面 ==================== -->
+<section class="chapter admin-theme" id="admin">
+  <h2>3. 代表の画面</h2>
+  <p class="lead">メンバー画面の右上「管理画面」ボタンから入る。管理画面は青×黄色の配色。</p>
+
+  <h3>管理ホーム — 迷ったらここ</h3>
+  <div class="screen-block">
+    <div class="phone-wrap">
+      <div class="phone admin">
+        <div class="a-header">管理ホーム</div>
+        <div class="scr">
+          <div class="a-card has-mark"><span class="mark">1</span>
+            <div class="h6">今月の進行状況</div>
+            <div class="steps5">
+              <div class="st done"><div class="c">✓</div><div class="lb">日程登録</div></div>
+              <div class="ln on"></div>
+              <div class="st done"><div class="c">✓</div><div class="lb">投票受付</div></div>
+              <div class="ln on"></div>
+              <div class="st now"><div class="c">3</div><div class="lb">抽選</div></div>
+              <div class="ln"></div>
+              <div class="st todo"><div class="c">4</div><div class="lb">微調整</div></div>
+              <div class="ln"></div>
+              <div class="st todo"><div class="c">5</div><div class="lb">公開</div></div>
+            </div>
+          </div>
+          <div class="a-card has-mark"><span class="mark">2</span>
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+              <strong style="font-size:12px;">投票状況</strong>
+              <span style="font-size:10px;background:#f3f4f6;border-radius:99px;padding:1px 8px;color:var(--gray);">締切済み</span>
+            </div>
+            <div class="vbar-row"><span class="d">9/2(水)</span><div class="bar"><i style="width:88%"></i></div><span class="n">44票</span></div>
+            <div class="vbar-row"><span class="d">9/5(土)</span><div class="bar"><i style="width:100%"></i></div><span class="n">51票</span></div>
+            <div class="vbar-row"><span class="d">9/9(水)</span><div class="bar"><i style="width:70%"></i></div><span class="n">36票</span></div>
+          </div>
+          <div class="action-card has-mark"><span class="mark">3</span>
+            <strong>投票が締め切られました。抽選を実行しましょう</strong>
+            <div class="btn">抽選へ進む</div>
+          </div>
+          <div class="menu-list has-mark"><span class="mark">4</span>
+            <div class="mi">📅 練習日程の管理<span class="ar">›</span></div>
+            <div class="mi">🎲 抽選の実行<span class="ar">›</span></div>
+            <div class="mi">📋 結果の確認・微調整<span class="ar">›</span></div>
+            <div class="mi">⚙️ 設定<span class="ar">›</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="points">
+      <div class="pt"><span class="pb">1</span><p>今月がどこまで進んだか</p></div>
+      <div class="pt"><span class="pb">2</span><p>日ごとの票の集まり具合</p></div>
+      <div class="pt"><span class="pb">3</span><p><strong>次にやることのボタン。基本これを押していけばよい</strong></p></div>
+      <div class="pt"><span class="pb">4</span><p>各画面へのメニュー</p></div>
+    </div>
+  </div>
+
+  <h3>日程登録（毎月最初にやること）</h3>
+  <div class="screen-block">
+    <div class="phone-wrap">
+      <div class="phone admin">
+        <div class="a-header">練習日程管理</div>
+        <div class="scr">
+          <div class="a-card">
+            <div style="margin-bottom:8px;">
+              <span class="f-label">対象月</span>
+              <div class="f-box has-mark"><span class="mark">1</span>2026年10月</div>
+            </div>
+            <div class="f-grid2 has-mark" style="margin-bottom:8px;"><span class="mark">2</span>
+              <div><span class="f-label">投票開始日</span><div class="f-box">9/21</div></div>
+              <div><span class="f-label">投票締切日</span><div class="f-box">9/27</div></div>
+            </div>
+            <div style="border:1px solid var(--gray-light);border-radius:10px;padding:8px;margin-bottom:8px;">
+              <div class="f-grid2" style="margin-bottom:6px;">
+                <div><span class="f-label">日付</span><div class="f-box">10/3(土)</div></div>
+                <div><span class="f-label">時刻</span><div class="f-box">13:00〜17:00</div></div>
+              </div>
+              <div class="f-grid2">
+                <div><span class="f-label">場所</span><div class="f-box">第一体育館</div></div>
+                <div><span class="f-label">定員</span><div class="f-box">30</div></div>
+              </div>
+              <div style="margin-top:6px;" class="has-mark"><span class="mark">5</span>
+                <span class="f-label">参加できる学年</span>
+                <div style="display:flex;gap:6px;">
+                  <span style="flex:1;text-align:center;border:1px solid var(--a-brand);background:var(--a-brand-bg);color:var(--a-brand);border-radius:8px;padding:6px 0;font-size:11px;font-weight:bold;">3年</span>
+                  <span style="flex:1;text-align:center;border:1px solid var(--a-brand);background:var(--a-brand-bg);color:var(--a-brand);border-radius:8px;padding:6px 0;font-size:11px;font-weight:bold;">2年</span>
+                  <span style="flex:1;text-align:center;border:1px solid #d1d5db;background:#fff;color:#9ca3af;border-radius:8px;padding:6px 0;font-size:11px;font-weight:bold;">1年</span>
+                </div>
+              </div>
+              <div class="f-dashed has-mark" style="margin-top:8px;"><span class="mark">3</span>同じ内容で別日を追加</div>
+            </div>
+            <div class="f-dashed" style="margin-bottom:8px;">＋ 練習日を追加</div>
+            <div class="a-btn has-mark"><span class="mark">4</span>入力内容を確認</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="points">
+      <div class="pt"><span class="pb">1</span><p>「＋ 新しい月を作成」から対象月を選ぶ</p></div>
+      <div class="pt"><span class="pb">2</span><p>投票期間。<small>開始日の0:00〜締切日の23:59まで投票できる</small></p></div>
+      <div class="pt"><span class="pb">3</span><p>同じ体育館・時間の練習は複製して日付だけ変える</p></div>
+      <div class="pt"><span class="pb">4</span><p>確認画面を見てから作成。<small>あとから追加・変更・削除も自由</small></p></div>
+      <div class="pt"><span class="pb">5</span><p>参加できる学年を選べる。<small>外した学年はその日に投票できなくなる（例: 上級生限定の練習）</small></p></div>
+    </div>
+  </div>
+
+  <h3>抽選の実行（締切後）</h3>
+  <div class="screen-block">
+    <div class="phone-wrap">
+      <div class="phone admin">
+        <div class="a-header">抽選実行</div>
+        <div class="scr">
+          <div class="a-card">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;">
+              <strong style="font-size:12px;">9/2(水) 第一体育館</strong>
+              <span style="font-size:10px;color:var(--gray);">18:00〜21:00</span>
+            </div>
+            <div class="stack-bar has-mark"><span class="mark">1</span>
+              <i style="width:30%;background:var(--a-brand);"></i>
+              <i style="width:34%;background:#0ea5e9;"></i>
+              <i style="width:36%;background:#10b981;"></i>
+            </div>
+            <div class="legend">
+              <span class="lg"><span class="sw" style="background:var(--a-brand);"></span>3年 13人</span>
+              <span class="lg"><span class="sw" style="background:#0ea5e9;"></span>2年 15人</span>
+              <span class="lg"><span class="sw" style="background:#10b981;"></span>1年 16人</span>
+              <span style="margin-left:auto;font-weight:bold;">計 44人 / 定員 30名</span>
+            </div>
+            <div class="quota-grid has-mark"><span class="mark">2</span>
+              <div><label>3年（投票13）</label><div class="qi">10</div></div>
+              <div><label>2年（投票15）</label><div class="qi">10</div></div>
+              <div><label>1年（投票16）</label><div class="qi">10</div></div>
+            </div>
+            <div class="qsum ok">合計 30 / 定員 30 ✓</div>
+          </div>
+          <div class="a-btn dark has-mark"><span class="mark">3</span>参加人数を保存する</div>
+          <div class="a-btn big has-mark" style="margin-top:10px;"><span class="mark">4</span>🎲 抽選を実行する</div>
+        </div>
+      </div>
+    </div>
+    <div class="points">
+      <div class="pt"><span class="pb">1</span><p>その日に何年生が何人投票したか</p></div>
+      <div class="pt"><span class="pb">2</span><p>学年別の枠。<small>おすすめの値が最初から入っている。変えるなら合計＝定員に</small></p></div>
+      <div class="pt"><span class="pb">3</span><p>枠を保存</p></div>
+      <div class="pt"><span class="pb">4</span><p>抽選を実行。<small>公開前なら何度でもやり直せる</small></p></div>
+    </div>
+  </div>
+
+  <h3>結果の確認・微調整</h3>
+  <div class="screen-block">
+    <div class="phone-wrap">
+      <div class="phone admin">
+        <div class="a-header">結果・微調整</div>
+        <div class="scr">
+          <div class="banner-y">⚠ 結果は未公開です。微調整が終わったら公開してください</div>
+          <div class="tab3">
+            <div class="t on">一覧表</div>
+            <div class="t">練習日別</div>
+            <div class="t">メンバー別</div>
+          </div>
+          <div class="a-card" style="padding:6px 4px;">
+            <div style="display:flex;gap:4px;padding:2px 6px 8px;">
+              <span style="background:var(--a-brand);color:#fff;border-radius:99px;padding:3px 10px;font-size:10px;font-weight:bold;">すべて</span>
+              <span style="background:#f3f4f6;color:var(--gray);border-radius:99px;padding:3px 10px;font-size:10px;font-weight:bold;">3年</span>
+              <span style="background:#f3f4f6;color:var(--gray);border-radius:99px;padding:3px 10px;font-size:10px;font-weight:bold;">2年</span>
+              <span style="background:#f3f4f6;color:var(--gray);border-radius:99px;padding:3px 10px;font-size:10px;font-weight:bold;">1年</span>
+            </div>
+            <table class="pt-table">
+              <tr>
+                <th style="text-align:left;" class="has-mark"><span class="mark" style="top:-4px;left:-4px;right:auto;">3</span>名前</th>
+                <th class="has-mark"><span class="mark">2</span>9/2<br><span style="color:#15803d;">29/30</span></th>
+                <th>9/5<br><span style="color:#9ca3af;">30/30</span></th>
+                <th>9/9<br><span style="color:#dc2626;">31/30</span></th>
+                <th>9/12<br><span style="color:#15803d;">27/30</span></th>
+              </tr>
+              <tr><td class="nm">佐藤 <span style="color:#9ca3af;font-size:8.5px;">3/4</span> <span style="color:#c7ccd4;font-size:8.5px;">先月2/5</span></td><td style="color:var(--a-brand);font-weight:bold;" class="has-mark"><span class="mark">1</span>●</td><td style="color:#9ca3af;font-weight:bold;">〇</td><td style="color:var(--a-brand);font-weight:bold;">●</td><td class="dot">・</td></tr>
+              <tr><td class="nm">山田 <span style="color:#9ca3af;font-size:8.5px;">1/3</span> <span style="color:#c7ccd4;font-size:8.5px;">先月1/4</span></td><td style="color:#9ca3af;font-weight:bold;">〇</td><td class="dot">・</td><td style="color:var(--a-brand);font-weight:bold;">●</td><td style="color:#9ca3af;font-weight:bold;">〇</td></tr>
+              <tr style="background:#e0f2fe;"><td class="nm">鈴木 <span style="color:#9ca3af;font-size:8.5px;">2/2</span> <span style="color:#c7ccd4;font-size:8.5px;">先月3/3</span></td><td class="dot">・</td><td style="color:var(--a-brand);font-weight:bold;">●</td><td class="dot">・</td><td style="color:var(--a-brand);font-weight:bold;">●</td></tr>
+              <tr><td class="nm">高橋 <span style="color:#9ca3af;font-size:8.5px;">2/4</span> <span style="color:#c7ccd4;font-size:8.5px;">先月4/6</span></td><td style="color:var(--a-brand);font-weight:bold;">●</td><td style="color:#9ca3af;font-weight:bold;">〇</td><td style="color:#9ca3af;font-weight:bold;">〇</td><td style="color:var(--a-brand);font-weight:bold;">●</td></tr>
+            </table>
+          </div>
+          <div class="a-btn big has-mark"><span class="mark">4</span>結果を公開する</div>
+        </div>
+      </div>
+    </div>
+    <div class="points">
+      <div class="pt"><span class="pb">1</span><p>マスをタップで付け外し。<small><strong style="color:var(--a-brand);">●</strong>参加（タップで外す）／<strong style="color:#6b7280;">〇</strong>投票のみ（タップで追加）／・投票なし</small></p></div>
+      <div class="pt"><span class="pb">2</span><p>参加人数/定員。<small>赤=超過、緑=空きあり</small></p></div>
+      <div class="pt"><span class="pb">3</span><p>名前タップで行、日付タップで列が青くなる。<small>名前横の「3/4」は今月の当選/投票、「先月2/5」は前月の実績。今月も先月も多い人から外すと公平</small></p></div>
+      <div class="pt"><span class="pb">4</span><p>最後に公開。<small>公開して初めてメンバーに結果が見える</small></p></div>
+    </div>
+  </div>
+  <div class="note">公開後に参加者を変更したときは、本人への連絡も忘れずに。</div>
+
+  <h3>設定</h3>
+  <div class="points" style="margin-top:8px;">
+    <div class="pt"><span class="pb">・</span><p><strong>代表権限の引き継ぎ</strong> — 代交代のとき、次の代表に権限を付与</p></div>
+    <div class="pt"><span class="pb">・</span><p><strong>メンバーの無効化</strong> — 卒業・退会した人を抽選対象から外す。<small>取り消せないので注意</small></p></div>
+    <div class="pt"><span class="pb">・</span><p><strong>抽選設定（α）</strong> — 抽選の重み付け。<small>通常は変更不要</small></p></div>
+  </div>
+</section>
+
+<!-- ==================== 抽選のしくみ ==================== -->
+<section class="chapter" id="lottery">
+  <h2>4. 抽選のしくみ</h2>
+  <p class="lead">ただのくじ引きではなく、この順番で決まる。</p>
+
+  <div class="lottery-steps">
+    <div class="ls"><p>マネージャーは全参加<small>定員に数えない</small></p></div>
+    <div class="ls"><p>投票した人全員に、まず1日を確保<small>0回の人を出さないため。学年の枠を超えても席を作る</small></p></div>
+    <div class="ls"><p>前月あまり参加できなかった人に、2日目を確保<small>2か月連続の不遇を防ぐ</small></p></div>
+    <div class="ls"><p>残りの枠は、当選率が低い人から順に<small>同条件ならランダム</small></p></div>
+    <div class="ls"><p>学年で余った枠は、他学年に回す<small>空席を出さない</small></p></div>
+  </div>
+
+  <div class="promise">
+    <div class="pr">投票した人は<br>必ず1日以上参加できる</div>
+    <div class="pr">希望者がいる限り<br>空席は出ない</div>
+    <div class="pr">前月不遇だった人は<br>翌月優遇される</div>
+  </div>
+
+  <p class="lead">抽選のたびにシステムが結果を自動検査する。警告が出なければそのまま公開してよい。</p>
+</section>
+
+<!-- ==================== FAQ ==================== -->
+<section class="chapter" id="faq">
+  <h2>5. よくある質問</h2>
+
+  <details class="faq">
+    <summary>抽選をやり直したい</summary>
+    <div class="a">「抽選の実行」でもう一度実行ボタンを押す。確認の後、新しい結果に置き換わる。公開前ならメンバーには影響なし。</div>
+  </details>
+
+  <details class="faq">
+    <summary>「抽選を実行する」が押せない</summary>
+    <div class="a">枠が未保存の状態。各日の学年別人数の合計を定員に一致させて「参加人数を保存する」を押すと有効になる。</div>
+  </details>
+
+  <details class="faq">
+    <summary>投票の締切を延ばしたい</summary>
+    <div class="a">「練習日程の管理」で投票締切日を変更して保存。締切後でも、日付を先に延ばせば再び受付が始まる。</div>
+  </details>
+
+  <details class="faq">
+    <summary>公開した後に参加者を変更したい</summary>
+    <div class="a">「結果の確認・微調整」でいつでも変更できる。代わりの人は、その日に投票していて当選が少ない人（〇のマスで名前横の数字が小さい人）から選ぶと公平。変更したら本人に連絡を。</div>
+  </details>
+
+  <details class="faq">
+    <summary>練習が急に中止になった</summary>
+    <div class="a">「練習日程の管理」でその練習日を削除。抽選後は確認が出るがそのまま削除でき、その日の割当も一緒に消える。</div>
+  </details>
+
+  <details class="faq">
+    <summary>途中から入会した人がいる</summary>
+    <div class="a">LINE のリンクを共有するだけ。本人が初回に名前・学年を登録すれば投票できるようになる。代表側の作業はなし。</div>
+  </details>
+
+  <details class="faq">
+    <summary>卒業した人を消したい</summary>
+    <div class="a">「設定」の「メンバーの無効化」から。以降の抽選対象から外れる。取り消せないので対象に注意。</div>
+  </details>
+
+  <details class="faq">
+    <summary>代表を交代したい</summary>
+    <div class="a">「設定」の「代表権限の引き継ぎ」で次の代表を選んで付与。相手の画面に「管理画面」ボタンが現れる。</div>
+  </details>
+
+  <details class="faq">
+    <summary>抽選後に警告が表示された</summary>
+    <div class="a">自動検査で気になる点が見つかったサイン（例: 投票が少なく枠が埋まらない）。内容を読んで、必要なら微調整画面で手動調整する。</div>
+  </details>
+
+  <details class="faq">
+    <summary>画面が開かない・表示が遅い</summary>
+    <div class="a">LINE のトークからリンクを開き直す。しばらく使われていない時間帯の最初のアクセスは表示まで数十秒かかることがあるので少し待つ。直らなければ開発担当（丸山）へ。</div>
+  </details>
+</section>
+
+</main>
+
+<footer>練習抽選bot クエーさん ｜ 説明書</footer>
+
+<script>
+  // 目次のハイライト: 表示中の章に合わせて下線を移動する
+  const links = document.querySelectorAll("nav.toc a");
+  const sections = [...links].map((a) => document.querySelector(a.getAttribute("href")));
+  const highlight = () => {
+    const y = window.scrollY + 90;
+    let current = 0;
+    sections.forEach((s, i) => { if (s && s.offsetTop <= y) current = i; });
+    links.forEach((a, i) => a.classList.toggle("active", i === current));
+  };
+  window.addEventListener("scroll", highlight, { passive: true });
+  highlight();
+</script>
+
+</body>
+</html>

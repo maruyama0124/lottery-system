@@ -39,9 +39,9 @@ class VoteService:
         if now > pm.vote_ends_at:
             raise ConflictError("投票は締め切られました")
 
-        month_practice_ids = [p.id for p in self.practices.list_by_month(pm.id)]
+        month_practices = {p.id: p for p in self.practices.list_by_month(pm.id)}
         selected = set(practice_ids)
-        unknown = selected - set(month_practice_ids)
+        unknown = selected - set(month_practices)
         if unknown:
             raise AppError(
                 400,
@@ -49,4 +49,22 @@ class VoteService:
                 "この月に存在しない練習日が含まれています",
                 details=[{"field": "practice_ids", "reason": "unknown_practice"}],
             )
-        self.votes.replace_user_votes(user.id, month_practice_ids, selected)
+
+        # 学年限定の練習日 (D-037)。対象外の学年は投票できない。
+        # マネージャーは定員外の別枠のため制限しない
+        if not user.is_manager:
+            blocked = [
+                pid
+                for pid in selected
+                if month_practices[pid].allowed_grades is not None
+                and user.grade not in month_practices[pid].allowed_grades
+            ]
+            if blocked:
+                raise AppError(
+                    400,
+                    "VALIDATION_ERROR",
+                    "参加対象外の練習日が含まれています",
+                    details=[{"field": "practice_ids", "reason": "grade_not_allowed"}],
+                )
+
+        self.votes.replace_user_votes(user.id, list(month_practices), selected)

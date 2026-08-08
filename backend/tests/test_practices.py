@@ -352,3 +352,70 @@ def test_practice_date_must_be_inside_the_month(client, make_user) -> None:
         headers=auth_header(rep_token),
     )
     assert res.status_code == 400
+
+
+def test_grade_restricted_practice_blocks_votes(client, make_user) -> None:
+    """学年限定の練習日 (D-037): 対象外の学年は投票できず、マネージャーは制限されない"""
+    _rep, rep_token = make_user(role="representative", gender="male")
+    pm = create_month(client, rep_token, practices=1)
+
+    # 1年限定の練習日を追加
+    res = client.post(
+        f"/api/v1/practice-months/{pm['id']}/practices",
+        json={
+            "practice_date": "2026-08-20",
+            "starts_at": "18:00",
+            "ends_at": "21:00",
+            "location": "第一体育館",
+            "capacity": 30,
+            "allowed_grades": [1],
+        },
+        headers=auth_header(rep_token),
+    )
+    assert res.status_code == 201, res.text
+    restricted_id = res.json()["id"]
+    assert res.json()["allowed_grades"] == [1]
+
+    # 2年生は投票できない
+    _u2, token2 = make_user(grade=2, gender="male")
+    res = client.put(
+        f"/api/v1/practice-months/{pm['id']}/votes/me",
+        json={"practice_ids": [restricted_id]},
+        headers=auth_header(token2),
+    )
+    assert res.status_code == 400
+    assert res.json()["error"]["details"][0]["reason"] == "grade_not_allowed"
+
+    # 1年生は投票できる
+    _u1, token1 = make_user(grade=1, gender="male")
+    res = client.put(
+        f"/api/v1/practice-months/{pm['id']}/votes/me",
+        json={"practice_ids": [restricted_id]},
+        headers=auth_header(token1),
+    )
+    assert res.status_code == 204
+
+    # マネージャーは学年に関係なく投票できる (定員外の別枠)
+    _mgr, token_mgr = make_user(grade=3, gender="male", is_manager=True)
+    res = client.put(
+        f"/api/v1/practice-months/{pm['id']}/votes/me",
+        json={"practice_ids": [restricted_id]},
+        headers=auth_header(token_mgr),
+    )
+    assert res.status_code == 204
+
+    # 全学年 [1,2,3] を指定した場合は制限なし (None に正規化)
+    res = client.post(
+        f"/api/v1/practice-months/{pm['id']}/practices",
+        json={
+            "practice_date": "2026-08-21",
+            "starts_at": "18:00",
+            "ends_at": "21:00",
+            "location": "第一体育館",
+            "capacity": 30,
+            "allowed_grades": [3, 2, 1],
+        },
+        headers=auth_header(rep_token),
+    )
+    assert res.status_code == 201
+    assert res.json()["allowed_grades"] is None

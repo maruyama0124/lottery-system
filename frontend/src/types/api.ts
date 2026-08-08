@@ -87,6 +87,8 @@ export interface Practice {
   ends_at: string;
   location: string;
   capacity: number;
+  /** 参加できる学年 (D-037)。null は全学年 */
+  allowed_grades: number[] | null;
   vote_count: number;
 }
 
@@ -112,6 +114,8 @@ export interface PracticeCreateRequest {
   ends_at: string;
   location: string;
   capacity: number;
+  /** 参加できる学年。null は全学年 */
+  allowed_grades: number[] | null;
 }
 
 export interface PracticeMonthCreateRequest {
@@ -160,6 +164,8 @@ export interface PracticeVoteSummary {
   ends_at: string;
   location: string;
   capacity: number;
+  /** 参加できる学年 (D-037)。null は全学年 */
+  allowed_grades: number[] | null;
   /** 3年 → 1年の順 */
   grades: GradeVoteSummary[];
 }
@@ -229,6 +235,9 @@ export interface MemberResult {
   is_manager: boolean;
   votes_count: number;
   wins_count: number;
+  /** 前月の当選/投票。前月の公開実績が無ければ 0 */
+  prev_wins_count: number;
+  prev_votes_count: number;
   practice_ids: string[];
   /** 投票した練習日。微調整で「この人はこの日に来られるのか」を判断するために使う */
   voted_practice_ids: string[];

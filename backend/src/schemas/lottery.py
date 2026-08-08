@@ -49,6 +49,7 @@ class PracticeVoteSummary(BaseModel):
     ends_at: str
     location: str
     capacity: int
+    allowed_grades: list[int] | None = None  # None は全学年 (D-037)
     grades: list[GradeVoteSummary]  # 3年 → 1年の順
 
     @property
@@ -110,6 +111,8 @@ class MemberResult(BaseModel):
     is_manager: bool
     votes_count: int
     wins_count: int
+    prev_wins_count: int = 0  # 前月の当選数 (前月の公開実績が無ければ 0)
+    prev_votes_count: int = 0  # 前月の投票数
     practice_ids: list[str]  # 当選した練習日
     voted_practice_ids: list[str]  # 投票した練習日 (微調整時の判断材料)
 

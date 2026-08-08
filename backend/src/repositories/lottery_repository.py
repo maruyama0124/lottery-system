@@ -136,6 +136,14 @@ class LotteryRepository:
         )
         return {r.user_id: (r.votes_count, r.losses_count) for r in self.db.scalars(stmt)}
 
+    def get_month_wins_votes(self, pm_id: str) -> dict[str, tuple[int, int]]:
+        """user_id -> (当選数, 投票数)。結果一覧で前月実績を参考表示するためのもの"""
+        stmt = select(MonthlyMemberResult).where(
+            MonthlyMemberResult.practice_month_id == pm_id,
+            MonthlyMemberResult.is_deleted.is_(False),
+        )
+        return {r.user_id: (r.wins_count, r.votes_count) for r in self.db.scalars(stmt)}
+
     def upsert_monthly_results(
         self, pm_id: str, results: dict[str, tuple[int, int, int]]
     ) -> None:

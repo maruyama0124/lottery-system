@@ -58,12 +58,18 @@ export default function AdminResultsPage() {
     pm ? `/v1/users?per_page=200&gender=${pm.gender}` : null,
   );
 
-  const [tab, setTab] = useState<Tab>("practice");
+  // 既定は一覧表。全体を見ながらマスを直接タップして調整できるため
+  const [tab, setTab] = useState<Tab>("matrix");
   // メンバー別タブの学年絞り込み ("all" | "3" | "2" | "1" | "manager")
   const [memberGrade, setMemberGrade] = useState("all");
   // メンバー別タブで展開中の1名。その人の参加日をここで直接調整する
   const [openMemberId, setOpenMemberId] = useState<string | null>(null);
   const [openPracticeIds, setOpenPracticeIds] = useState<Set<string>>(new Set());
+  // 一覧表の行・列ハイライト。名前や日付をタップすると青くなり、もう一度で解除
+  const [pickedRow, setPickedRow] = useState<string | null>(null);
+  const [pickedCol, setPickedCol] = useState<string | null>(null);
+  // 一覧表の学年絞り込み ("all" | "3" | "2" | "1" | "manager")
+  const [matrixGrade, setMatrixGrade] = useState("all");
   const [addingFor, setAddingFor] = useState<string | null>(null);
   const [selectedUserId, setSelectedUserId] = useState("");
   const [capacityWarnings, setCapacityWarnings] = useState<Set<string>>(new Set());
@@ -71,12 +77,15 @@ export default function AdminResultsPage() {
   const [publishing, setPublishing] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  // メンバー別タブの絞り込み結果。マネージャーは学年に関係なく1つにまとめる
-  const filteredMembers = (results?.by_member ?? []).filter((m) => {
-    if (memberGrade === "all") return true;
-    if (memberGrade === "manager") return m.is_manager;
-    return !m.is_manager && String(m.grade) === memberGrade;
-  });
+  // 絞り込み。マネージャーは学年に関係なく1つにまとめる
+  const filterByGrade = (grade: string) =>
+    (results?.by_member ?? []).filter((m) => {
+      if (grade === "all") return true;
+      if (grade === "manager") return m.is_manager;
+      return !m.is_manager && String(m.grade) === grade;
+    });
+  const filteredMembers = filterByGrade(memberGrade);
+  const matrixMembers = filterByGrade(matrixGrade);
 
   const toggleOpen = (practiceId: string) => {
     setOpenPracticeIds((prev) => {
@@ -407,6 +416,16 @@ export default function AdminResultsPage() {
         {/* タブ切替 */}
         <div className="flex rounded-lg bg-gray-100 p-1">
           <button
+            onClick={() => setTab("matrix")}
+            className={`flex-1 rounded-md py-2 text-sm ${
+              tab === "matrix"
+                ? "bg-brand-600 font-bold text-white shadow-sm"
+                : "font-semibold text-gray-500"
+            }`}
+          >
+            一覧表
+          </button>
+          <button
             onClick={() => setTab("practice")}
             className={`flex-1 rounded-md py-2 text-sm ${
               tab === "practice"
@@ -425,16 +444,6 @@ export default function AdminResultsPage() {
             }`}
           >
             メンバー別
-          </button>
-          <button
-            onClick={() => setTab("matrix")}
-            className={`flex-1 rounded-md py-2 text-sm ${
-              tab === "matrix"
-                ? "bg-brand-600 font-bold text-white shadow-sm"
-                : "font-semibold text-gray-500"
-            }`}
-          >
-            一覧表
           </button>
         </div>
 
@@ -596,88 +605,223 @@ export default function AdminResultsPage() {
             {results.by_member.length === 0 ? (
               <p className="p-4 text-sm text-gray-500">結果がまだありません</p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse text-center text-xs">
-                  <thead>
-                    <tr className="border-b border-gray-200">
-                      <th className="sticky left-0 z-10 border-r border-gray-200 bg-gray-50 px-2 py-2 text-left font-bold whitespace-nowrap text-gray-600">
-                        名前
-                      </th>
-                      {results.by_practice.map((pr) => (
-                        <th
-                          key={pr.practice.id}
-                          className="min-w-[42px] px-1 py-2 font-bold text-gray-600"
-                        >
-                          {shortDate(pr.practice.practice_date)}
+              <>
+                {/* 学年の切り替え。人数が多い月は1学年ずつ見たほうが調整しやすい */}
+                <div className="flex gap-1.5 overflow-x-auto border-b border-gray-100 px-3 py-2">
+                  {[
+                    { key: "all", label: "すべて" },
+                    { key: "3", label: "3年" },
+                    { key: "2", label: "2年" },
+                    { key: "1", label: "1年" },
+                    { key: "manager", label: "マネージャー" },
+                  ]
+                    .filter(({ key }) => filterByGrade(key).length > 0)
+                    .map(({ key, label }) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => {
+                          setMatrixGrade(key);
+                          setPickedRow(null); // 絞り込みをまたぐと行の選択は無効になる
+                        }}
+                        className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ${
+                          matrixGrade === key
+                            ? "bg-brand-600 text-white"
+                            : "bg-gray-100 text-gray-600"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                </div>
+                {/* 全体を見ながらマスを直接タップして付け外しする調整画面 */}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 border-b border-gray-100 px-3 py-2 text-[11px] text-gray-500">
+                  <span>
+                    <span className="font-bold text-brand-600">●</span> 参加
+                    → タップで外す
+                  </span>
+                  <span>
+                    <span className="font-bold text-gray-400">〇</span> 投票のみ
+                    → タップで追加
+                  </span>
+                  <span>
+                    <span className="text-gray-300">・</span> 投票なし
+                  </span>
+                  <span className="text-gray-400">
+                    名前・日付をタップすると行・列に色が付きます
+                  </span>
+                </div>
+                <div className="max-h-[70vh] overflow-auto">
+                  <table className="w-full border-collapse text-center text-xs">
+                    <thead>
+                      <tr>
+                        <th className="sticky top-0 left-0 z-30 border-r border-b border-gray-200 bg-gray-50 px-2 py-1.5 text-left font-bold whitespace-nowrap text-gray-600">
+                          名前
                         </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {results.by_member.map((m, idx) => {
-                      const won = new Set(m.practice_ids);
-                      const gradeHeader =
-                        idx === 0 ||
-                        results.by_member[idx - 1].grade !== m.grade;
-                      return (
-                        <Fragment key={m.user_id}>
-                          {gradeHeader && (
-                            <tr className="bg-brand-50">
-                              <td className="sticky left-0 z-10 border-r border-gray-200 bg-brand-50 px-2 py-1 text-left text-[10px] font-bold text-brand-700">
-                                {m.grade}年
-                              </td>
+                        {results.by_practice.map((pr) => {
+                          const players = pr.participants.filter(
+                            (x) => !x.is_manager,
+                          ).length;
+                          const cap = pr.practice.capacity;
+                          const tone =
+                            players > cap
+                              ? "text-red-600"
+                              : players === cap
+                                ? "text-gray-400"
+                                : "text-green-700";
+                          const colPicked = pr.practice.id === pickedCol;
+                          return (
+                            <th
+                              key={pr.practice.id}
+                              className={`sticky top-0 z-20 min-w-[46px] border-b border-gray-200 p-0 ${
+                                colPicked ? "bg-sky-100" : "bg-gray-50"
+                              }`}
+                            >
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setPickedCol(colPicked ? null : pr.practice.id)
+                                }
+                                className={`w-full px-1 py-1 font-bold ${
+                                  colPicked ? "text-sky-800" : "text-gray-600"
+                                }`}
+                              >
+                                <div>{shortDate(pr.practice.practice_date)}</div>
+                                {/* 定員との差をここで常に見せる。超過は赤、空きありは緑 */}
+                                <div className={`text-[9px] leading-tight ${tone}`}>
+                                  {players}/{cap}
+                                </div>
+                              </button>
+                            </th>
+                          );
+                        })}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {matrixMembers.map((m, idx) => {
+                        // 学年見出しは全員表示のときだけ入れる
+                        const gradeHeader =
+                          matrixGrade === "all" &&
+                          (idx === 0 || matrixMembers[idx - 1].grade !== m.grade);
+                        const rowPicked = m.user_id === pickedRow;
+                        return (
+                          <Fragment key={m.user_id}>
+                            {gradeHeader && (
+                              <tr className="bg-brand-50">
+                                <td className="sticky left-0 z-10 border-r border-gray-200 bg-brand-50 px-2 py-1 text-left text-[10px] font-bold text-brand-700">
+                                  {m.grade}年
+                                </td>
+                                <td
+                                  colSpan={results.by_practice.length}
+                                  className="bg-brand-50"
+                                />
+                              </tr>
+                            )}
+                            <tr
+                              className={`border-b border-gray-100 ${
+                                rowPicked ? "bg-sky-50" : ""
+                              }`}
+                            >
                               <td
-                                colSpan={results.by_practice.length}
-                                className="bg-brand-50"
-                              />
-                            </tr>
-                          )}
-                          <tr className="border-b border-gray-100">
-                            <td className="sticky left-0 z-10 border-r border-gray-200 bg-white px-2 py-1.5 text-left font-semibold whitespace-nowrap text-gray-800">
-                              {m.name}
-                              {m.is_manager && (
-                                <span className="ml-1 text-[9px] text-gray-400">
-                                  マネ
-                                </span>
-                              )}
-                            </td>
-                            {results.by_practice.map((pr) => (
-                              <td key={pr.practice.id} className="px-1 py-1.5">
-                                {won.has(pr.practice.id) ? (
-                                  <span className="font-bold text-brand-600">
-                                    〇
+                                className={`sticky left-0 z-10 border-r border-gray-200 p-0 ${
+                                  rowPicked ? "bg-sky-50" : "bg-white"
+                                }`}
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setPickedRow(rowPicked ? null : m.user_id)
+                                  }
+                                  className="w-full px-2 py-1 text-left whitespace-nowrap"
+                                >
+                                  <span
+                                    className={`font-semibold ${
+                                      rowPicked ? "text-sky-800" : "text-gray-800"
+                                    }`}
+                                  >
+                                    {m.name}
                                   </span>
-                                ) : (
-                                  <span className="text-gray-200">・</span>
-                                )}
+                                  {m.is_manager && (
+                                    <span className="ml-1 text-[9px] text-gray-400">
+                                      マネ
+                                    </span>
+                                  )}
+                                  {/* 今月と前月の当選/投票。外す人を選ぶ判断材料 */}
+                                  {!m.is_manager && (
+                                    <span className="ml-1 text-[9px] text-gray-400">
+                                      {m.wins_count}/{m.votes_count}
+                                    </span>
+                                  )}
+                                  {!m.is_manager && m.prev_votes_count > 0 && (
+                                    <span className="ml-1 text-[9px] text-gray-300">
+                                      先月{m.prev_wins_count}/{m.prev_votes_count}
+                                    </span>
+                                  )}
+                                </button>
                               </td>
-                            ))}
-                          </tr>
-                        </Fragment>
-                      );
-                    })}
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t-2 border-gray-300 bg-gray-50">
-                      <td className="sticky left-0 z-10 border-r border-gray-200 bg-gray-50 px-2 py-1.5 text-left font-bold whitespace-nowrap text-gray-600">
-                        合計
-                      </td>
-                      {results.by_practice.map((pr) => (
-                        <td
-                          key={pr.practice.id}
-                          className="px-1 py-1.5 font-bold text-gray-700"
-                        >
-                          {
-                            results.by_member.filter((m) =>
-                              m.practice_ids.includes(pr.practice.id),
-                            ).length
-                          }
-                        </td>
-                      ))}
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
+                              {results.by_practice.map((pr) => {
+                                const joining = pr.participants.find(
+                                  (x) => x.user_id === m.user_id,
+                                );
+                                const voted = m.voted_practice_ids.includes(
+                                  pr.practice.id,
+                                );
+                                const colPicked = pr.practice.id === pickedCol;
+                                // 行と列の交点はさらに濃くして、どこを見ているかを示す
+                                const cellBg =
+                                  rowPicked && colPicked
+                                    ? "bg-sky-200"
+                                    : colPicked
+                                      ? "bg-sky-50"
+                                      : "";
+                                const toggleCell = () => {
+                                  if (joining) {
+                                    handleDelete(joining.assignment_id, m.name);
+                                  } else if (
+                                    voted ||
+                                    window.confirm(
+                                      `${m.name}さんはこの日に投票していません。追加しますか？`,
+                                    )
+                                  ) {
+                                    handleAddFor(
+                                      pr.practice.id,
+                                      m.user_id,
+                                      m.name,
+                                    );
+                                  }
+                                };
+                                return (
+                                  <td key={pr.practice.id} className={`p-0 ${cellBg}`}>
+                                    <button
+                                      type="button"
+                                      onClick={toggleCell}
+                                      disabled={busy}
+                                      aria-label={`${m.name} ${shortDate(pr.practice.practice_date)}`}
+                                      className="block w-full px-1 py-2 disabled:opacity-50"
+                                    >
+                                      {joining ? (
+                                        <span className="font-bold text-brand-600">
+                                          ●
+                                        </span>
+                                      ) : voted ? (
+                                        <span className="font-bold text-gray-400">
+                                          〇
+                                        </span>
+                                      ) : (
+                                        <span className="text-gray-200">・</span>
+                                      )}
+                                    </button>
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          </Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </section>
         )}

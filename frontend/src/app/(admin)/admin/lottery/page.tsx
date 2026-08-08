@@ -65,7 +65,21 @@ function shareNote(
   capacity: number,
   quotas: Record<number, number>,
   voters: Record<number, number>,
+  allowed: number[] | null,
 ): string[] {
+  // 学年限定の日 (D-037) は等分の基準が違うため、限定の旨だけ示す
+  if (allowed && allowed.length < 3) {
+    const notes = [`${[...allowed].sort().join("・")}年限定の練習日です`];
+    const over = allowed.filter((g) => (quotas[g] ?? 0) > (voters[g] ?? 0));
+    if (over.length) {
+      const overText = over
+        .map((g) => `${g}年（投票${voters[g] ?? 0}人に枠${quotas[g] ?? 0}）`)
+        .join("・");
+      notes.push(`${overText} は投票を超えるぶんが空席になります`);
+    }
+    return notes;
+  }
+
   const base = baseShares(capacity);
   const grades = [3, 2, 1];
   const minus = grades.filter((g) => (quotas[g] ?? 0) < base[g]);
@@ -286,26 +300,32 @@ export default function AdminLotteryPage() {
                     <VoteBar practice={p} />
 
                     <div className="mt-3 grid grid-cols-3 gap-2">
-                      {p.grades.map((g) => (
-                        <div key={g.grade}>
-                          <label
-                            htmlFor={`${p.practice_id}-${g.grade}`}
-                            className="mb-1 block text-xs font-semibold text-gray-500"
-                          >
-                            {g.grade}年（投票{g.voters}）
-                          </label>
-                          <input
-                            id={`${p.practice_id}-${g.grade}`}
-                            type="number"
-                            min={0}
-                            value={draft[p.practice_id]?.[g.grade] ?? 0}
-                            onChange={(e) =>
-                              setQuota(p.practice_id, g.grade, Number(e.target.value))
-                            }
-                            className="w-full rounded-lg border border-gray-300 px-2 py-2 text-center text-sm text-gray-900 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600"
-                          />
-                        </div>
-                      ))}
+                      {p.grades.map((g) => {
+                        // 学年限定の日 (D-037)。対象外の学年は投票できないため入力も閉じる
+                        const inPlay =
+                          !p.allowed_grades || p.allowed_grades.includes(g.grade);
+                        return (
+                          <div key={g.grade}>
+                            <label
+                              htmlFor={`${p.practice_id}-${g.grade}`}
+                              className="mb-1 block text-xs font-semibold text-gray-500"
+                            >
+                              {g.grade}年（{inPlay ? `投票${g.voters}` : "対象外"}）
+                            </label>
+                            <input
+                              id={`${p.practice_id}-${g.grade}`}
+                              type="number"
+                              min={0}
+                              disabled={!inPlay}
+                              value={draft[p.practice_id]?.[g.grade] ?? 0}
+                              onChange={(e) =>
+                                setQuota(p.practice_id, g.grade, Number(e.target.value))
+                              }
+                              className="w-full rounded-lg border border-gray-300 px-2 py-2 text-center text-sm text-gray-900 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600 disabled:bg-gray-100 disabled:text-gray-400"
+                            />
+                          </div>
+                        );
+                      })}
                     </div>
 
                     <p
@@ -320,6 +340,7 @@ export default function AdminLotteryPage() {
                       p.capacity,
                       draft[p.practice_id] ?? {},
                       Object.fromEntries(p.grades.map((g) => [g.grade, g.voters])),
+                      p.allowed_grades,
                     ).map((note) => (
                       <p key={note} className="mt-1 text-xs text-gray-500">
                         {note}

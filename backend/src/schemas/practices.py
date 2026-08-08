@@ -16,6 +16,8 @@ class PracticeCreateRequest(BaseModel):
     ends_at: time
     location: str = Field(min_length=1, max_length=255)
     capacity: int = Field(ge=1)
+    # 参加できる学年 (D-037)。省略・全学年指定は None に正規化する
+    allowed_grades: list[int] | None = None
 
     @field_validator("starts_at", "ends_at")
     @classmethod
@@ -23,6 +25,18 @@ class PracticeCreateRequest(BaseModel):
         if value.minute not in ALLOWED_MINUTES or value.second or value.microsecond:
             raise ValueError("練習時刻は30分単位で指定してください (例: 18:00, 18:30)")
         return value
+
+    @field_validator("allowed_grades")
+    @classmethod
+    def _valid_grades(cls, value: list[int] | None) -> list[int] | None:
+        if value is None:
+            return None
+        grades = sorted(set(value))
+        if not grades:
+            raise ValueError("参加できる学年を1つ以上指定してください")
+        if any(g not in (1, 2, 3) for g in grades):
+            raise ValueError("学年は 1〜3 で指定してください")
+        return None if grades == [1, 2, 3] else grades
 
 
 class PracticeResponse(BaseModel):
@@ -34,6 +48,7 @@ class PracticeResponse(BaseModel):
     ends_at: time
     location: str
     capacity: int
+    allowed_grades: list[int] | None = None  # None は全学年 (D-037)
     vote_count: int = 0  # 現在の投票数 (一覧表示用)
 
     @field_serializer("starts_at", "ends_at")

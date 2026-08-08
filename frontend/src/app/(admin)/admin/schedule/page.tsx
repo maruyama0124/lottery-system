@@ -73,10 +73,21 @@ interface PracticeFormValues {
   ends_at: string;
   location: string;
   capacity: string;
+  /** 参加できる学年 (D-037)。全選択 = 制限なし */
+  allowed_grades: number[];
 }
 
+const ALL_GRADES = [3, 2, 1];
+
 function emptyPracticeForm(): PracticeFormValues {
-  return { practice_date: "", starts_at: "", ends_at: "", location: "", capacity: "20" };
+  return {
+    practice_date: "",
+    starts_at: "",
+    ends_at: "",
+    location: "",
+    capacity: "20",
+    allowed_grades: [...ALL_GRADES],
+  };
 }
 
 function practiceToForm(p: Practice): PracticeFormValues {
@@ -86,6 +97,7 @@ function practiceToForm(p: Practice): PracticeFormValues {
     ends_at: p.ends_at,
     location: p.location,
     capacity: String(p.capacity),
+    allowed_grades: p.allowed_grades ?? [...ALL_GRADES],
   };
 }
 
@@ -96,7 +108,16 @@ function formToRequest(v: PracticeFormValues): PracticeCreateRequest {
     ends_at: v.ends_at,
     location: v.location,
     capacity: Number(v.capacity),
+    allowed_grades:
+      v.allowed_grades.length === ALL_GRADES.length
+        ? null
+        : [...v.allowed_grades].sort(),
   };
+}
+
+/** [1,2] → "1・2年限定" */
+function gradeLimitLabel(grades: number[]): string {
+  return `${[...grades].sort().join("・")}年限定`;
 }
 
 /** 00:00〜23:30 を30分刻みで列挙 (D-014) */
@@ -137,7 +158,8 @@ function PracticeForm({
   const range = yearMonth && /^\d{4}-\d{2}$/.test(yearMonth) ? monthRange(yearMonth) : null;
   const dateInMonth = !range || (values.practice_date >= range[0] && values.practice_date <= range[1]);
   const valid =
-    values.practice_date && dateInMonth && values.starts_at && values.ends_at && values.location && Number(values.capacity) > 0;
+    values.practice_date && dateInMonth && values.starts_at && values.ends_at && values.location && Number(values.capacity) > 0 &&
+    values.allowed_grades.length > 0;
 
   const applySuggestion = (index: string) => {
     const s = suggestions?.[Number(index)];
@@ -233,6 +255,44 @@ function PracticeForm({
           onChange={(e) => onChange({ ...values, capacity: e.target.value })}
           className={inputClass}
         />
+      </div>
+      <div>
+        <label className={labelClass}>参加できる学年</label>
+        <div className="flex gap-2">
+          {ALL_GRADES.map((g) => {
+            const on = values.allowed_grades.includes(g);
+            return (
+              <button
+                key={g}
+                type="button"
+                onClick={() =>
+                  onChange({
+                    ...values,
+                    allowed_grades: on
+                      ? values.allowed_grades.filter((x) => x !== g)
+                      : [...values.allowed_grades, g],
+                  })
+                }
+                className={`flex-1 rounded-lg border py-2.5 text-sm font-bold ${
+                  on
+                    ? "border-brand-600 bg-brand-50 text-brand-700"
+                    : "border-gray-300 bg-white text-gray-400"
+                }`}
+              >
+                {g}年
+              </button>
+            );
+          })}
+        </div>
+        {values.allowed_grades.length === 0 ? (
+          <p className="mt-1 text-xs font-semibold text-red-600">
+            参加できる学年を1つ以上選んでください
+          </p>
+        ) : values.allowed_grades.length < ALL_GRADES.length ? (
+          <p className="mt-1 text-xs text-gray-500">
+            選んだ学年のメンバーだけが投票できます
+          </p>
+        ) : null}
       </div>
       {onSubmit && onCancel && (
         <div className="flex gap-2">
@@ -339,6 +399,11 @@ function PracticeCard({
           <div className="flex items-start justify-between">
             <p className="text-base font-bold text-gray-900">
               {formatPracticeDate(practice.practice_date)}
+              {practice.allowed_grades && (
+                <span className="ml-2 rounded bg-accent-100 px-1.5 py-0.5 align-middle text-[10px] font-bold text-accent-700">
+                  {gradeLimitLabel(practice.allowed_grades)}
+                </span>
+              )}
             </p>
             <div className="flex gap-2">
               {/* 同じ内容で別日を登録する導線 (D-014) */}
@@ -417,7 +482,9 @@ function NewMonthForm({
     voteStart &&
     voteEnd &&
     practices.every(
-      (p) => p.practice_date && p.starts_at && p.ends_at && p.location && Number(p.capacity) > 0,
+      (p) =>
+        p.practice_date && p.starts_at && p.ends_at && p.location &&
+        Number(p.capacity) > 0 && p.allowed_grades.length > 0,
     );
 
   const submit = async () => {
@@ -487,6 +554,11 @@ function NewMonthForm({
                 <div key={`${p.practice_date}-${i}`} className="p-3">
                   <p className="text-sm font-bold text-gray-900">
                     {formatPracticeDate(p.practice_date)} {p.location}
+                    {p.allowed_grades.length < ALL_GRADES.length && (
+                      <span className="ml-2 rounded bg-accent-100 px-1.5 py-0.5 text-[10px] font-bold text-accent-700">
+                        {gradeLimitLabel(p.allowed_grades)}
+                      </span>
+                    )}
                   </p>
                   <p className="mt-0.5 text-xs text-gray-600">
                     {p.starts_at}〜{p.ends_at} ／ 定員 {p.capacity}名
