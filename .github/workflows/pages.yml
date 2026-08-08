@@ -1,0 +1,37 @@
+# 説明書 (manual.html) を GitHub Pages で公開する。
+# main への push で manual.html が変わったときだけ再デプロイする。
+name: Deploy manual to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths: [manual.html]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build site (manual.html を index.html として配置)
+        run: |
+          mkdir -p _site
+          cp manual.html _site/index.html
+      - uses: actions/configure-pages@v4
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
