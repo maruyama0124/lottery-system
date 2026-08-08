@@ -91,6 +91,8 @@ export interface Practice {
   capacity: number;
   /** 参加できる学年 (D-037)。null は全学年 */
   allowed_grades: number[] | null;
+  /** 備考 (D-041)。「練習試合の予定」など */
+  note: string | null;
   vote_count: number;
 }
 
@@ -118,6 +120,8 @@ export interface PracticeCreateRequest {
   capacity: number;
   /** 参加できる学年。null は全学年 */
   allowed_grades: number[] | null;
+  /** 備考。null は記載なし */
+  note: string | null;
 }
 
 export interface PracticeMonthCreateRequest {

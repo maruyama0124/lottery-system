@@ -112,6 +112,8 @@ class Practice(Base, TimestampMixin):
     allowed_grades: Mapped[list[int] | None] = mapped_column(
         JSONB(none_as_null=True), nullable=True
     )
+    # 備考 (D-041)。「練習試合の予定」のような一言をメンバーにも見せる
+    note: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # 日別・学年別の参加人数枠 (D-015)。抽選前に代表が設定する。未設定なら NULL
     quota_grade1: Mapped[int | None] = mapped_column(nullable=True)
     quota_grade2: Mapped[int | None] = mapped_column(nullable=True)

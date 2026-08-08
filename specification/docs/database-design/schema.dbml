@@ -58,6 +58,7 @@ Table practices {
   location varchar(255) [not null]
   capacity integer [not null, note: 'プレイヤー定員 (> 0)。マネージャー含まず']
   allowed_grades jsonb [null, note: '参加できる学年の配列 (D-037)。NULL は全学年。例: [1]']
+  note varchar(255) [null, note: '備考 (D-041)。「練習試合の予定」など。メンバーにも表示']
   quota_grade1 integer [null, note: '1年の参加人数枠。抽選前に代表が設定 (D-015)']
   quota_grade2 integer [null, note: '2年の参加人数枠 (D-015)']
   quota_grade3 integer [null, note: '3年の参加人数枠。合計 = capacity (D-015)']

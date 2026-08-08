@@ -18,6 +18,16 @@ class PracticeCreateRequest(BaseModel):
     capacity: int = Field(ge=1)
     # 参加できる学年 (D-037)。省略・全学年指定は None に正規化する
     allowed_grades: list[int] | None = None
+    # 備考 (D-041)。空文字は None に正規化する
+    note: str | None = Field(default=None, max_length=255)
+
+    @field_validator("note")
+    @classmethod
+    def _strip_note(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
 
     @field_validator("starts_at", "ends_at")
     @classmethod
@@ -49,6 +59,7 @@ class PracticeResponse(BaseModel):
     location: str
     capacity: int
     allowed_grades: list[int] | None = None  # None は全学年 (D-037)
+    note: str | None = None  # 備考 (D-041)
     vote_count: int = 0  # 現在の投票数 (一覧表示用)
 
     @field_serializer("starts_at", "ends_at")

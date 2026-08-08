@@ -9,8 +9,9 @@ import type { ParticipationRow, ParticipationTable as TableData } from "@/types/
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"] as const;
 const MANAGER = "manager" as const;
+const SUMMARY = "summary" as const;
 
-type TabKey = number | typeof MANAGER;
+type TabKey = number | typeof MANAGER | typeof SUMMARY;
 
 /** "2026-08-24" → "8/24" と "月" に分ける（2行に積んで列幅を詰める） */
 function formatHead(dateStr: string): [string, string] {
@@ -35,15 +36,19 @@ export function ParticipationTable({
     .filter((r) => r.is_manager)
     .sort((a, b) => a.name.localeCompare(b.name, "ja"));
 
+  const gradeTabs = data.grades
+    .map((g) => ({
+      key: g.grade as TabKey,
+      label: `${g.grade}年`,
+      rows: g.rows.filter((r) => !r.is_manager),
+    }))
+    .filter((t) => t.rows.length > 0);
+
   const tabs: { key: TabKey; label: string; rows: ParticipationRow[] }[] = [
-    ...data.grades
-      .map((g) => ({
-        key: g.grade as TabKey,
-        label: `${g.grade}年`,
-        rows: g.rows.filter((r) => !r.is_manager),
-      }))
-      .filter((t) => t.rows.length > 0),
+    ...gradeTabs,
     ...(managers.length ? [{ key: MANAGER, label: "マネージャー", rows: managers }] : []),
+    // 日ごとの学年別人数を横断して見るタブ (D-041)
+    { key: SUMMARY, label: "集計", rows: [] },
   ];
 
   // 自分が含まれるタブを初期表示にすると、開いてすぐ自分の行が見つかる
@@ -78,21 +83,78 @@ export function ParticipationTable({
                 setPickedRow(null); // 学年をまたぐと行の選択は無効になる
               }}
               className={`whitespace-nowrap rounded-full px-3 py-2 text-sm font-bold transition-colors ${
-                t.key === MANAGER ? "shrink-0" : "flex-1"
+                t.key === MANAGER || t.key === SUMMARY ? "shrink-0" : "flex-1"
               } ${
                 isActive ? "bg-brand-600 text-white" : "border-2 border-gray-200 text-gray-500"
               }`}
             >
               {t.label}
-              <span className={`ml-1 text-xs ${isActive ? "opacity-80" : ""}`}>
-                {t.rows.length}
-              </span>
+              {t.key !== SUMMARY && (
+                <span className={`ml-1 text-xs ${isActive ? "opacity-80" : ""}`}>
+                  {t.rows.length}
+                </span>
+              )}
             </button>
           );
         })}
       </div>
 
+      {/* 集計タブ — 日ごとの学年別人数と備考 (D-041) */}
+      {active === SUMMARY && (
+        <div className="-mx-1 mt-3 overflow-x-auto">
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="text-xs font-bold text-gray-500">
+                <th className="pb-2 pr-2 text-left">日付</th>
+                {gradeTabs.map((t) => (
+                  <th key={String(t.key)} className="px-2 pb-2 text-right">
+                    {t.label}
+                  </th>
+                ))}
+                {managers.length > 0 && <th className="px-2 pb-2 text-right">マネ</th>}
+                <th className="px-2 pb-2 text-right">合計</th>
+                <th className="pb-2 pl-3 text-left">備考</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.practices.map((p) => {
+                const [md, wd] = formatHead(p.practice_date);
+                const counts = gradeTabs.map(
+                  (t) => t.rows.filter((r) => r.practice_ids.includes(p.id)).length,
+                );
+                const mgrCount = managers.filter((r) =>
+                  r.practice_ids.includes(p.id),
+                ).length;
+                const total = counts.reduce((a, b) => a + b, 0) + mgrCount;
+                return (
+                  <tr key={p.id} className="border-t border-gray-100">
+                    <td className="whitespace-nowrap py-2 pr-2 font-bold text-gray-800">
+                      {md}({wd})
+                    </td>
+                    {counts.map((n, i) => (
+                      <td key={i} className="px-2 py-2 text-right text-gray-700">
+                        {n}
+                      </td>
+                    ))}
+                    {managers.length > 0 && (
+                      <td className="px-2 py-2 text-right text-gray-700">{mgrCount}</td>
+                    )}
+                    <td className="px-2 py-2 text-right font-bold text-brand-700">
+                      {total}
+                    </td>
+                    <td className="py-2 pl-3 text-xs text-gray-500">
+                      {p.note ? `※ ${p.note}` : ""}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* 表だけを横スクロールさせる。ページ全体は横に動かさない */}
+      {active !== SUMMARY && (
       <div className="-mx-1 mt-3 overflow-x-auto">
         <table className="w-full border-collapse text-sm">
           <thead>
@@ -177,16 +239,45 @@ export function ParticipationTable({
               );
             })}
           </tbody>
+          {/* 表示中のグループの、日ごとの参加人数 */}
+          {current && current.rows.length > 0 && (
+            <tfoot>
+              <tr>
+                <td className="sticky left-0 border-t border-gray-200 bg-white py-1.5 pr-3 text-left text-xs font-bold text-gray-500">
+                  {current.label} 合計
+                </td>
+                {practiceIds.map((pid) => {
+                  const colPicked = pid === pickedCol;
+                  const count = current.rows.filter((r) =>
+                    r.practice_ids.includes(pid),
+                  ).length;
+                  return (
+                    <td
+                      key={pid}
+                      className={`border-t border-gray-200 py-1.5 text-center text-sm font-bold ${
+                        colPicked ? "bg-sky-50 text-sky-800" : "text-brand-700"
+                      }`}
+                    >
+                      {count}
+                    </td>
+                  );
+                })}
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
+      )}
 
-      {!current?.rows.length && (
+      {active !== SUMMARY && !current?.rows.length && (
         <p className="py-6 text-center text-sm text-gray-500">該当する参加者はいません</p>
       )}
 
-      <p className="mt-3 text-xs text-gray-400">
-        名前や日付をタップすると、その行・列に色が付きます
-      </p>
+      {active !== SUMMARY && (
+        <p className="mt-3 text-xs text-gray-400">
+          名前や日付をタップすると、その行・列に色が付きます
+        </p>
+      )}
     </section>
   );
 }

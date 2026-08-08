@@ -222,7 +222,7 @@ export default function MemberPage() {
               {detail && detail.practices.length > 0 ? (
                 <ul className="divide-y divide-gray-100">
                   {detail.practices.map((p) => (
-                    <li key={p.id} className="flex items-baseline gap-3 py-2.5">
+                    <li key={p.id} className="flex flex-wrap items-baseline gap-x-3 py-2.5">
                       <span className="w-20 shrink-0 font-bold text-gray-900">
                         {formatDate(p.practice_date)}
                       </span>
@@ -230,6 +230,9 @@ export default function MemberPage() {
                         {formatTime(p.starts_at)}〜{formatTime(p.ends_at)}
                       </span>
                       <span className="truncate text-sm text-gray-500">{p.location}</span>
+                      {p.note && (
+                        <span className="w-full text-xs text-gray-400">※ {p.note}</span>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -357,7 +360,7 @@ export default function MemberPage() {
                   return (
                     <div
                       key={practice.id}
-                      className="flex w-full items-center gap-2.5 rounded-2xl border-2 border-transparent bg-white px-3 py-2.5 opacity-60"
+                      className="flex w-full flex-wrap items-center gap-2.5 rounded-2xl border-2 border-transparent bg-white px-3 py-2.5 opacity-60"
                     >
                       <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-gray-100 text-transparent">
                         ✓
@@ -371,6 +374,11 @@ export default function MemberPage() {
                       <span className="ml-auto shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold text-gray-500">
                         {[...practice.allowed_grades!].sort().join("・")}年限定
                       </span>
+                      {practice.note && (
+                        <span className="w-full pl-[34px] text-xs text-gray-400">
+                          ※ {practice.note}
+                        </span>
+                      )}
                     </div>
                   );
                 }
@@ -379,7 +387,7 @@ export default function MemberPage() {
                     key={practice.id}
                     type="button"
                     onClick={() => toggle(practice.id)}
-                    className={`flex w-full items-center gap-2.5 rounded-2xl border-2 px-3 py-2.5 text-left transition-colors ${
+                    className={`flex w-full flex-wrap items-center gap-2.5 rounded-2xl border-2 px-3 py-2.5 text-left transition-colors ${
                       selected
                         ? "border-brand-500 bg-brand-50"
                         : "border-transparent bg-white"
@@ -403,6 +411,12 @@ export default function MemberPage() {
                     <span className="truncate text-sm text-gray-500">
                       {practice.location}
                     </span>
+                    {/* 備考 (D-041)。練習試合の予定などを投票前に知らせる */}
+                    {practice.note && (
+                      <span className="w-full pl-[34px] text-xs font-semibold text-accent-700">
+                        ※ {practice.note}
+                      </span>
+                    )}
                   </button>
                 );
               })}

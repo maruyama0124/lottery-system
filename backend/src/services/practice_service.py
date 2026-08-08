@@ -89,6 +89,7 @@ class PracticeService:
             location=data.location,
             capacity=data.capacity,
             allowed_grades=data.allowed_grades,
+            note=data.note,
         )
 
     def add_practice(self, rep: User, pm_id: str, data: PracticeCreateRequest) -> Practice:
@@ -114,6 +115,7 @@ class PracticeService:
         practice.location = data.location
         practice.capacity = data.capacity
         practice.allowed_grades = data.allowed_grades
+        practice.note = data.note
         self.db.flush()
 
     def delete_practice(self, rep: User, practice_id: str, force: bool) -> None:

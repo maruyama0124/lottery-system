@@ -75,6 +75,8 @@ interface PracticeFormValues {
   capacity: string;
   /** 参加できる学年 (D-037)。全選択 = 制限なし */
   allowed_grades: number[];
+  /** 備考 (D-041) */
+  note: string;
 }
 
 const ALL_GRADES = [3, 2, 1];
@@ -87,6 +89,7 @@ function emptyPracticeForm(): PracticeFormValues {
     location: "",
     capacity: "20",
     allowed_grades: [...ALL_GRADES],
+    note: "",
   };
 }
 
@@ -98,6 +101,7 @@ function practiceToForm(p: Practice): PracticeFormValues {
     location: p.location,
     capacity: String(p.capacity),
     allowed_grades: p.allowed_grades ?? [...ALL_GRADES],
+    note: p.note ?? "",
   };
 }
 
@@ -112,6 +116,7 @@ function formToRequest(v: PracticeFormValues): PracticeCreateRequest {
       v.allowed_grades.length === ALL_GRADES.length
         ? null
         : [...v.allowed_grades].sort(),
+    note: v.note.trim() || null,
   };
 }
 
@@ -294,6 +299,18 @@ function PracticeForm({
           </p>
         ) : null}
       </div>
+      <div>
+        <label className={labelClass}>備考（任意）</label>
+        <input
+          type="text"
+          maxLength={255}
+          value={values.note}
+          onChange={(e) => onChange({ ...values, note: e.target.value })}
+          placeholder="練習試合の予定"
+          className={inputClass}
+        />
+        <p className="mt-1 text-xs text-gray-500">メンバーの投票画面と参加表に表示されます</p>
+      </div>
       {onSubmit && onCancel && (
         <div className="flex gap-2">
           <button
@@ -450,6 +467,9 @@ function PracticeCard({
               <VoteIcon width={14} height={14} /> {practice.vote_count}票
             </span>
           </div>
+          {practice.note && (
+            <p className="mt-1 text-sm text-gray-500">※ {practice.note}</p>
+          )}
         </>
       )}
       {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
