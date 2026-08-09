@@ -19,6 +19,10 @@ __pycache__/
 *.xls
 *.csv
 
+# 就活用の個人メモ（ローカル限定）
+career.html
+algorithm.html
+
 # 環境変数（雛形の .env.example のみ許可）
 .env
 .env.*
