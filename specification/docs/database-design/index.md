@@ -2,15 +2,15 @@
 hide:
 - navigation
 doc_type: database-design
-version: 1.2.0
-last_updated: '2026-07-08'
+version: 1.3.0
+last_updated: '2026-09-18'
 depends_on:
 - requirements/index.md
 derived_by:
 - api-design/index.md
-sync_hash: b603fc756c5e
+sync_hash: 7866336d330d
 dependency_hashes:
-  requirements/index.md: 12ed8274b1ea
+  requirements/index.md: 818f4ba04f6b
 ---
 
 # DB設計書 — サークル練習参加抽選システム
@@ -44,18 +44,13 @@ erDiagram
 
     users {
         varchar id PK "usr_"
-        varchar line_user_id UK "メンバーの識別子"
-        varchar email UK "代表のログインID"
-        varchar password_hash
+        varchar line_user_id UK "本人の識別子"
         varchar name "本名"
         int grade "1-3"
         varchar gender "male / female"
         boolean is_manager
+        boolean is_observer "閲覧専用 (D-039)"
         varchar role "member / representative"
-        timestamptz email_verified_at "NULL = メール未確認"
-        varchar verification_code_hash
-        timestamptz verification_expires_at
-        int verification_attempts
         boolean is_deleted
     }
     practice_months {
@@ -123,24 +118,21 @@ erDiagram
 | カラム | 型 | 制約 | 説明 |
 |--------|----|------|------|
 | id | varchar(30) | PK | `usr_` + ULID |
-| line_user_id | varchar(50) | NULL 許容, UNIQUE | LINE のユーザーID。メンバーの本人特定に使う。代表は NULL (D-021) |
-| email | varchar(255) | NULL 許容, UNIQUE | 代表のログインID。メンバーは NULL (D-021) |
-| password_hash | varchar(255) | NULL 許容 | bcrypt ハッシュ。代表のみ保持 (D-021) |
+| line_user_id | varchar(50) | NULL 許容, UNIQUE | LINE のユーザーID。本人特定に使う。**最も機微な識別子のため API レスポンスにも画面にも出さない** (D-021 / NFR-002.2) |
 | name | varchar(100) | NOT NULL | 本名。LINE の表示名はニックネームが多いため別に入力させる (D-021) |
 | grade | integer | NOT NULL, CHECK (1〜3) | 学年 |
 | gender | varchar(10) | NOT NULL, CHECK (male / female) | 抽選グループの決定に使用 |
 | is_manager | boolean | NOT NULL, DEFAULT false | マネージャー区分（定員外・全参加） |
+| is_observer | boolean | NOT NULL, DEFAULT false | 閲覧専用（開発者・OB 等）。名簿・抽選・参加表のいずれにも出さず、投票もできない (D-039) |
 | role | varchar(20) | NOT NULL, DEFAULT 'member' | member / representative（代表。担当範囲は自分の gender） |
-| email_verified_at | timestamptz | NULL 許容 | NULL = メール未確認。確認済みになるまでログイン不可 (D-012)。代表のみ使用 |
-| verification_code_hash | varchar(255) | NULL 許容 | 6桁確認コードの bcrypt ハッシュ。平文では保持しない |
-| verification_expires_at | timestamptz | NULL 許容 | コードの有効期限（発行から15分） |
-| verification_attempts | integer | NOT NULL, DEFAULT 0 | 入力失敗回数。5回で無効化し再送を促す |
 | is_deleted | boolean | NOT NULL, DEFAULT false | 退会（論理削除） |
 | created_at / updated_at | timestamptz | NOT NULL | — |
 
-インデックス: `(gender, grade)`, `(role)` ／ 一意制約: `line_user_id`, `email`
+インデックス: `(gender, grade)`, `(role)` ／ 一意制約: `line_user_id`
 
-住所・電話番号・学部学科・学籍番号は Google フォームで収集・管理するため、本システムでは保持しない (D-021)。抽選に必要な氏名・学年・性別・マネージャー区分に限定している。
+住所・電話番号・メールアドレス・学部学科・学籍番号は本システムでは保持しない (D-021)。抽選に必要な氏名・学年・性別・マネージャー区分に限定している。
+
+**未使用のまま残っているカラム**: `email` / `password_hash` / `email_verified_at` / `verification_code_hash` / `verification_expires_at` / `verification_attempts`。メールアドレス + パスワードによる認証を廃止した (D-042) ため、いずれも書き込まれることはない。削除には本番への破壊的マイグレーションが必要なため、扱いは別途決める。
 
 ### practice_months — 月別抽選単位（月 × 性別）
 
@@ -271,7 +263,7 @@ erDiagram
 
 | 要件 | 対応するテーブル / カラム |
 |------|--------------------------|
-| REQ-001 (認証) | users.email, users.password_hash |
+| REQ-001 (認証) | users.line_user_id |
 | REQ-002 (プロフィール) | users の各プロフィールカラム |
 | REQ-003 (練習日程管理) | practice_months, practices (capacity, vote_starts_at, vote_ends_at) |
 | REQ-004 (投票) | votes, practice_months.status |

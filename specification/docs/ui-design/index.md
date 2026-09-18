@@ -2,16 +2,16 @@
 hide:
 - navigation
 doc_type: ui-design
-version: 1.1.0
-last_updated: '2026-07-08'
+version: 2.0.0
+last_updated: '2026-09-18'
 depends_on:
 - requirements/index.md
 - api-design/index.md
 derived_by: []
-sync_hash: bbac5fc60482
+sync_hash: c2645d2c6e53
 dependency_hashes:
-  requirements/index.md: 12ed8274b1ea
-  api-design/index.md: 84144bff5420
+  requirements/index.md: 818f4ba04f6b
+  api-design/index.md: ce99834c7d68
 ---
 
 # 画面設計書 — サークル練習参加抽選システム
@@ -22,67 +22,55 @@ dependency_hashes:
 
 | # | 画面ID | 画面名 | パス | 利用者 | 主な要件 |
 |---|--------|--------|------|--------|----------|
-| 1 | login | ログイン | /login | 全員 | REQ-001.2 |
-| 2 | register | 新規登録 | /register | 全員 | REQ-001.1, 002.1 |
-| 3 | home | ホーム | / | メンバー | REQ-004.4, 006.1 |
-| 4 | vote | 投票 | /vote | メンバー | REQ-004 |
-| 5 | my-results | 抽選結果 | /results | メンバー | REQ-006.1 |
-| 6 | profile | プロフィール編集 | /profile | メンバー | REQ-002.2 |
-| 7 | admin-home | 管理ホーム | /admin | 代表 | REQ-003, 005, 006.4 |
-| 8 | admin-schedule | 練習日程管理 | /admin/schedule | 代表 | REQ-003 |
-| 9 | admin-lottery | 抽選実行 | /admin/lottery | 代表 | REQ-005, 005.5, 005.12 |
-| 10 | admin-results | 結果確認・微調整 | /admin/results | 代表 | REQ-006.2〜4 |
-| 11 | admin-roster | 名簿 | /admin/roster | 代表 | REQ-007.1 |
-| 12 | admin-settings | 設定 | /admin/settings | 代表 | NFR-004.1, REQ-007.2〜3 |
-| 13 | verify | メールアドレス確認 | /verify | 全員 | REQ-001.5, 001.6 |
+| 1 | line-login | LINE ログイン / 初回登録 | /line | 全員 | REQ-001.1, 001.5, 002.1 |
+| 2 | home | ホーム（投票・結果を兼ねる） | / | メンバー | REQ-004, REQ-006.1 |
+| 3 | admin-home | 管理ホーム | /admin | 代表 | REQ-003, 005, 006.4 |
+| 4 | admin-schedule | 練習日程管理 | /admin/schedule | 代表 | REQ-003 |
+| 5 | admin-lottery | 抽選実行（枠設定を含む） | /admin/lottery | 代表 | REQ-005, 005.5, 005.12 |
+| 6 | admin-results | 結果確認・微調整 | /admin/results | 代表 | REQ-006.2〜4 |
+| 7 | admin-settings | 設定 | /admin/settings | 代表 | NFR-004.1, REQ-007.2〜3 |
 
-※ 13 は後から追加した画面。フロー上は register の直後に位置する（既存の番号を維持するため末尾に記載）
+メンバーがやることは「投票する」「結果を見る」の2つだけなので、投票画面・結果画面・プロフィール画面には分けず**ホーム1枚に集約**している。月の状態（投票受付中 / 締切後 / 公開後）で表示が切り替わる。
+
+廃止した画面: login・register・verify（LINE ログインに一本化。D-042）、profile（本人によるプロフィール編集は行わない。REQ-002.2）、admin-roster（名簿機能の廃止。D-026）
 
 ## 2. 画面遷移図
 
 ```mermaid
 stateDiagram-v2
-    [*] --> login
-    login --> register: 新規登録
-    register --> verify: 登録完了 (メール未確認)
-    verify --> home: 確認完了 (member)
-    verify --> admin_home: 確認完了 (代表)
-    login --> verify: 403 EMAIL_NOT_VERIFIED
-    login --> home: ログイン成功 (member)
-    login --> admin_home: ログイン成功 (代表)
+    [*] --> line_login
+    line_login --> line_register: 未登録 (初回のみ)
+    line_register --> home: 登録完了
+    line_login --> home: 登録済み (member)
+    line_login --> admin_home: 登録済み (代表)
 
     state "メンバー画面" as member {
-        home --> vote: 投票する
-        home --> my_results: 参加日を確認
-        home --> profile: プロフィール
-        vote --> home: 投票完了
-        my_results --> home
-        profile --> home
+        home --> home: 投票する / 結果を見る
     }
 
     state "管理画面 (代表)" as admin {
         admin_home --> admin_schedule: 日程管理
         admin_home --> admin_lottery: 抽選実行
         admin_home --> admin_results: 結果・微調整
-        admin_home --> admin_roster: 名簿
         admin_home --> admin_settings: 設定
         admin_schedule --> admin_home
         admin_lottery --> admin_results: 抽選完了
         admin_results --> admin_home: 公開完了
-        admin_roster --> admin_home
         admin_settings --> admin_home
     }
 
     note right of admin: 代表はメンバー画面にも遷移可能\n(自分も投票・参加するため)
 ```
 
+未ログインで保護対象のパスを開くと `/line` へリダイレクトする。LINE アプリ内ブラウザで開かれた場合はログイン済みのため、画面を出さずにそのまま通過する。
+
 ## 3. 共通レイアウト
 
 | レイアウト | 適用画面 | 構成 |
 |------------|----------|------|
-| auth | login, register, verify | ロゴ + 中央カード。ヘッダーなし |
-| default (member) | home, vote, my-results, profile | sticky ヘッダー（タイトル）+ コンテンツ + 下部タブバー（ホーム/投票/結果/プロフィール） |
-| default (admin) | admin-* | sticky ヘッダー（タイトル + 「管理」バッジ）+ コンテンツ + 下部タブバー（ホーム/日程/抽選/結果/名簿） |
+| auth | line-login | ロゴ + 中央カード。ヘッダーなし |
+| default (member) | home | sticky ヘッダー（タイトル）+ コンテンツ。タブバーは持たない（画面が1枚のため） |
+| default (admin) | admin-* | sticky ヘッダー（タイトル + 「管理」バッジ）+ コンテンツ + 下部タブバー（ホーム/日程/抽選/結果） |
 
 共通ルール:
 
@@ -96,59 +84,30 @@ stateDiagram-v2
 
 ## 4. 各画面詳細
 
-### 4.1 login — ログイン
+### 4.1 line-login — LINE ログイン / 初回登録
 
-- メールアドレス + パスワードでログイン (REQ-001.2)。エラー時はカード上部にメッセージ表示
-- API: `POST /auth/login` → 成功時にロールで遷移先を分岐（member → home / representative → admin-home）
-- **403 `EMAIL_NOT_VERIFIED`** の場合はエラー表示ではなく verify 画面へ遷移し、確認コードの入力を促す（D-012）
-- 状態: default / loading / error
+- LIFF の Endpoint URL にこの画面を指定する。LINE アプリ内で開かれた場合はログイン済みのため、画面を出さずにそのまま通過する (D-021)
+- 外部ブラウザで開かれた場合は LINE の認可画面へ遷移する
+- 未登録なら初回登録フォームを表示する。入力は**本名・学年・性別・マネージャー区分の4項目のみ**（REQ-002.1）。LINE の表示名を「◯◯さん」と出して、誰として登録されるかを分かるようにする
+- 本名を求める理由を画面に明記する（代表が抽選結果を確認するため）
+- API: `POST /api/auth/line`（BFF 経由で `POST /auth/line/login`）、`POST /api/auth/line/register`
+- 状態: loading / register / error
 
-<iframe src="snippets/login-mobile.html" width="100%" height="700px" frameborder="0" style="border: none; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></iframe>
+### 4.2 home — ホーム（メンバー）
 
-### 4.2 register — 新規登録
+投票画面・結果画面に分けず、月の状態で表示を切り替える1枚の画面。
 
-- プロフィール9項目を含む登録フォーム (REQ-001.1, REQ-002.1)。学年は1〜3年のみ
-- **パスワードは2回入力**させ、不一致なら送信前にエラー表示する (REQ-001.7 / D-014)
-- API: `POST /auth/register` → 成功時は自動ログインせず **verify 画面へ遷移**（登録直後はメール未確認のため: D-011）
-- 状態: default / loading / error
-
-<iframe src="snippets/register-mobile.html" width="100%" height="900px" frameborder="0" style="border: none; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></iframe>
-
-### 4.3 home — ホーム（メンバー）
-
-- 今月の投票状況カード（投票済み/未投票・締切カウントダウン）と次の参加練習カード
-- API: `GET /practice-months`, `GET .../votes/me`, `GET .../results/me`
-- 状態: default / empty（練習未登録月）/ loading
+- **投票受付中**: 練習日カードをタップで複数選択 → 下部固定の「この内容で投票する」で全置換投票 (REQ-004.2)。締切を常時表示する。備考のある日は投票前に見えるよう本文に出す (D-041)。学年限定の日は選択不可のグレー表示＋「◯年限定」ラベル (D-037)
+- **締切後・結果未公開**: 「抽選結果を待っています」を表示する (REQ-006.4)
+- **公開後**: 「自分の参加日」と「全員の参加表」をタブで切り替える (D-025)。既定は自分の参加日 (REQ-006.1)
+- 閲覧専用アカウント (D-039) には「閲覧のみ（投票はできません）」を表示し、投票操作を出さない
+- 代表には管理画面への導線を出す
+- API: `GET /practice-months`, `GET /practice-months/{pmId}`, `GET/PUT .../votes/me`（409 = 締切後）, `GET .../results/me`, `GET .../participation`
+- 状態: voting / voted / closed / published / observer / loading / error
 
 <iframe src="snippets/home-mobile.html" width="100%" height="750px" frameborder="0" style="border: none; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></iframe>
 
-### 4.4 vote — 投票
-
-- 練習日カードをタップで複数選択 → 下部固定の「この内容で投票する」で全置換投票 (REQ-004.2)
-- 締切バナー常時表示。締切後は選択不可 + 「締切済み」表示 (REQ-004.3)
-- API: `GET /practice-months/{pmId}`, `PUT .../votes/me`（409 = 締切後）
-- 状態: default / voted / closed / loading / error
-
-<iframe src="snippets/vote-mobile.html" width="100%" height="850px" frameborder="0" style="border: none; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></iframe>
-
-### 4.5 my-results — 抽選結果（メンバー）
-
-- 自分の参加日をカードリストで表示（日付・時間・場所）(REQ-006.1)
-- 未公開時は「結果はまだ公開されていません」(REQ-006.4)
-- API: `GET .../results/me`（404 = 未公開）
-- 状態: default / unpublished / empty / loading
-
-<iframe src="snippets/my-results-mobile.html" width="100%" height="750px" frameborder="0" style="border: none; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></iframe>
-
-### 4.6 profile — プロフィール編集
-
-- 本人が編集可能な項目のみ（メールアドレスは表示のみ）。ログアウトボタンを含む
-- API: `GET /users/me`, `PUT /users/me`
-- 状態: default / saving / error
-
-<iframe src="snippets/profile-mobile.html" width="100%" height="850px" frameborder="0" style="border: none; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></iframe>
-
-### 4.7 admin-home — 管理ホーム（代表）
+### 4.3 admin-home — 管理ホーム（代表）
 
 - 月次ステータスのステップ表示（日程登録 → 投票受付 → 抽選 → 微調整 → 公開）で「次にやること」を明示
 - 投票進捗カード（投票済み人数/対象人数）と各管理機能への導線
@@ -157,7 +116,7 @@ stateDiagram-v2
 
 <iframe src="snippets/admin-home-mobile.html" width="100%" height="800px" frameborder="0" style="border: none; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></iframe>
 
-### 4.8 admin-schedule — 練習日程管理（代表）
+### 4.4 admin-schedule — 練習日程管理（代表）
 
 - 投票受付期間の設定 + 練習日行（日付・時間・場所・定員）の追加・編集・削除 (REQ-003)
 - **投票期間は日付のみ入力**（開始日0:00〜締切日23:59。時刻は入力させない）(REQ-003.3 / D-014)
@@ -171,7 +130,7 @@ stateDiagram-v2
 
 <iframe src="snippets/admin-schedule-mobile.html" width="100%" height="850px" frameborder="0" style="border: none; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></iframe>
 
-### 4.9 admin-lottery — 抽選実行（代表）
+### 4.5 admin-lottery — 抽選実行（代表）
 
 - **練習日ごとに、学年別の投票状況を積み上げ棒グラフで表示**し、その下で1年・2年・3年の参加人数を入力する (REQ-005.5 / D-015)
 - 初期値はシステムの提案値（投票状況から自動算出）。代表は自由に増減できる (REQ-005.5.1)
@@ -183,7 +142,7 @@ stateDiagram-v2
 
 <iframe src="snippets/admin-lottery-mobile.html" width="100%" height="850px" frameborder="0" style="border: none; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></iframe>
 
-### 4.10 admin-results — 結果確認・微調整（代表）
+### 4.6 admin-results — 結果確認・微調整（代表）
 
 - 練習日別/メンバー別のタブ切替 (REQ-006.2)。参加者行には割当由来バッジ（3年確定/保証/配分/手動 等）
 - 参加者の追加・削除で微調整 (REQ-006.3)。定員超過時は警告色のインジケーター
@@ -193,17 +152,7 @@ stateDiagram-v2
 
 <iframe src="snippets/admin-results-mobile.html" width="100%" height="900px" frameborder="0" style="border: none; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></iframe>
 
-### 4.11 admin-roster — 名簿（代表）
-
-- 検索（名前・学籍番号）+ 学年/マネージャーフィルタ (REQ-007.1.1)。男女全体を表示 (D-008)
-- メンバーカードはタップで全項目（住所・電話番号等）を展開表示（スマホで表を横スクロールさせない）
-- CSVエクスポートボタン（絞り込み結果を反映）(REQ-007.1.2)
-- API: `GET /users`, `GET /users/export`
-- 状態: default / empty / loading
-
-<iframe src="snippets/admin-roster-mobile.html" width="100%" height="850px" frameborder="0" style="border: none; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></iframe>
-
-### 4.12 admin-settings — 設定（代表）
+### 4.7 admin-settings — 設定（代表）
 
 - 落選救済係数 α の編集 (NFR-004.1)
 - 代表権限の移譲（メンバー選択 → 確認ダイアログ）(REQ-007.2)、メンバー無効化 (REQ-007.3)
@@ -212,32 +161,20 @@ stateDiagram-v2
 
 <iframe src="snippets/admin-settings-mobile.html" width="100%" height="800px" frameborder="0" style="border: none; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></iframe>
 
-### 4.13 verify — メールアドレス確認
-
-- 登録後に届いた6桁コードを入力して登録を完了する (REQ-001.5)。宛先メールアドレスを画面上部に表示する
-- 入力欄は `inputmode="numeric"` / `maxlength=6`。スマホで数字キーボードが開くようにする（D-009・D-012 でリンク方式ではなくコード方式を選んだ理由に対応）
-- 「コードを再送する」で新しいコードを発行 (REQ-001.6)。有効期限15分・失敗5回で無効化である旨を画面に明示する
-- API: `POST /auth/verify`, `POST /auth/verify/resend` → 確認完了時にトークンが発行されるため、**login 画面へは戻さずそのままホーム（代表は管理ホーム）へ遷移**する (D-014)
-- エラー表示: `INVALID_CODE`（コード誤り）/ `CODE_EXPIRED`（期限切れ→再送を促す）/ `CODE_LOCKED`（失敗上限→再送を促す）
-- 状態: default / loading / error / resent
-
-<iframe src="snippets/verify-mobile.html" width="100%" height="700px" frameborder="0" style="border: none; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></iframe>
-
 ## 5. 要件トレーサビリティ
 
 | 要件 | 対応画面 |
 |------|----------|
-| REQ-001 (認証) | login, register, verify, profile (ログアウト) |
-| REQ-001.5〜6 (メール確認・再送) | verify |
-| REQ-002 (プロフィール) | register, profile |
+| REQ-001 (認証) | line-login |
+| REQ-002 (プロフィール) | line-login（初回登録のみ。編集画面は持たない） |
 | REQ-003 (練習日程管理) | admin-schedule |
-| REQ-004 (投票) | home, vote |
+| REQ-004 (投票) | home |
 | REQ-005 (抽選) | admin-lottery |
-| REQ-005.5 (枠比率・期待値) | admin-lottery（スライダー + 期待値表示） |
-| REQ-006.1 (本人結果) | home, my-results |
+| REQ-005.5 (学年別枠の設定・提案値) | admin-lottery（投票状況の表示 + 枠の入力） |
+| REQ-006.1 (本人結果) | home |
 | REQ-006.2〜3 (代表の結果確認・微調整) | admin-results |
-| REQ-006.4 (公開制御) | admin-results（公開ボタン）, my-results（未公開表示） |
-| REQ-007.1 (名簿) | admin-roster |
+| REQ-006.4 (公開制御) | admin-results（公開ボタン）, home（未公開表示） |
+| REQ-006.5 (参加表) | home（全員の参加表タブ: D-025） |
 | REQ-007.2〜3 (権限・退会) | admin-settings |
-| NFR-004.1 (設定変更) | admin-lottery（枠比率）, admin-settings（α） |
+| NFR-004.1 (設定変更) | admin-settings（α） |
 | D-009 (モバイルファースト) | 全画面 |

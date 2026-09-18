@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 
-export function useRequireAuth(redirectTo = "/login") {
+export function useRequireAuth(redirectTo = "/line") {
   const { user, isLoading } = useAuth();
   const router = useRouter();
 

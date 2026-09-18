@@ -24,14 +24,6 @@ class Settings(BaseSettings):
     # LINE ログイン (D-021)。ID トークンの検証時に client_id として送る
     line_channel_id: str = ""
 
-    # メール送信 (D-012: Resend)
-    resend_api_key: str = ""  # 未設定時は送信せずログ出力 (開発用)
-    mail_from: str = "onboarding@resend.dev"
-
-    # メールアドレス確認 (D-012)
-    verification_code_expires_minutes: int = 15
-    verification_max_attempts: int = 5
-
     port: int = 8000
 
     @property

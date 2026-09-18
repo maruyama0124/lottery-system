@@ -3,3 +3,6 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .venv/
+
+# 抽選シミュレーション用の作業ディレクトリ (本番データの実名を含むため追跡しない)
+.simulation/

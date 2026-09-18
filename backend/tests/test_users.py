@@ -87,7 +87,7 @@ def test_role_update_works_across_genders(client, make_user) -> None:
 
 
 def test_deactivate_user(client, make_user) -> None:
-    """退会 (REQ-007.3): 論理削除され、名簿から消えログインも不可"""
+    """退会 (REQ-007.3): 論理削除され、名簿から消えアクセスもできなくなる"""
     _rep_id, rep_token = make_user(role="representative", gender="male")
     target_id, _target_token = make_user(gender="male")
 
@@ -97,8 +97,6 @@ def test_deactivate_user(client, make_user) -> None:
     roster = client.get("/api/v1/users", headers=auth_header(rep_token)).json()
     assert target_id not in {u["id"] for u in roster["items"]}
 
-    login = client.post(
-        "/api/v1/auth/login",
-        json={"email": "user2@example.com", "password": "password123"},
-    )
-    assert login.status_code == 401
+    # 論理削除されたユーザーのトークンは通らなくなる
+    me = client.get("/api/v1/users/me", headers=auth_header(_target_token))
+    assert me.status_code == 401

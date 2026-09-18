@@ -1,19 +1,10 @@
-"""認証系スキーマ (openapi.yaml: RegisterRequest / LoginRequest / TokenResponse 等)"""
+"""認証系スキーマ (openapi.yaml: LineLoginRequest / TokenResponse 等)"""
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 Gender = Literal["male", "female"]
-
-
-class RegisterRequest(BaseModel):
-    email: EmailStr
-    password: str = Field(min_length=8)
-    name: str = Field(min_length=1, max_length=100)
-    grade: int = Field(ge=1, le=3)
-    gender: Gender
-    is_manager: bool
 
 
 class UserProfile(BaseModel):
@@ -29,11 +20,6 @@ class UserProfile(BaseModel):
     role: str
     created_at: datetime
     updated_at: datetime
-
-
-class LoginRequest(BaseModel):
-    email: EmailStr
-    password: str
 
 
 class TokenResponse(BaseModel):
@@ -64,25 +50,3 @@ class LineRegisterRequest(BaseModel):
     grade: int = Field(ge=1, le=3)
     gender: Gender
     is_manager: bool = False
-
-
-class VerifyEmailRequest(BaseModel):
-    """メールアドレス確認 (REQ-001.5)"""
-
-    email: EmailStr
-    code: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
-
-
-class ResendVerificationRequest(BaseModel):
-    """確認コードの再送 (REQ-001.6)"""
-
-    email: EmailStr
-
-
-class PasswordResetRequest(BaseModel):
-    email: EmailStr
-
-
-class PasswordResetConfirm(BaseModel):
-    token: str
-    new_password: str = Field(min_length=8)

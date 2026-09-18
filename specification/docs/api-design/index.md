@@ -2,17 +2,17 @@
 hide:
 - navigation
 doc_type: api-design
-version: 1.0.0
-last_updated: '2026-07-08'
+version: 2.0.0
+last_updated: '2026-09-18'
 depends_on:
 - requirements/index.md
 - database-design/index.md
 derived_by:
 - ui-design/index.md
-sync_hash: 84144bff5420
+sync_hash: ce99834c7d68
 dependency_hashes:
-  requirements/index.md: 12ed8274b1ea
-  database-design/index.md: b603fc756c5e
+  requirements/index.md: 818f4ba04f6b
+  database-design/index.md: 7866336d330d
 ---
 
 # API設計書 — サークル練習参加抽選システム
@@ -25,9 +25,8 @@ FastAPI で実装する RESTful API。フロントエンド (Next.js) から HTT
 
 - **認証方式**: JWT Bearer Token（`Authorization: Bearer <token>`）
 - ログイン成功時にアクセストークンを発行。以降のリクエストはすべてトークン必須（`/auth/*` の一部を除く）
-- **メンバーは LINE ログイン**（D-021）: LIFF が発行した ID トークンを `POST /auth/line/login` に送る。サーバーは LINE の検証エンドポイント（`https://api.line.me/oauth2/v2.1/verify`）に `id_token` と `client_id`（チャネルID）を送って検証し、応答の `sub` を LINE ユーザーIDとして本人を特定する。**クライアントから送られたユーザーIDは信用しない**（詐称を防ぐため）
-- **代表はメールアドレスとパスワード**: `POST /auth/login`。メンバーは `password_hash` を持たないため、この経路は代表のみが通る
-- **メールアドレス確認**: 代表アカウントは6桁の確認コードを `POST /auth/verify` に送るまでログインできない（403 `EMAIL_NOT_VERIFIED`）。コードの有効期限は15分、入力失敗5回で無効化（D-011 / D-012）
+- **ログインは LINE のみ**（D-021 / D-042）: LIFF が発行した ID トークンを `POST /auth/line/login` に送る。サーバーは LINE の検証エンドポイント（`https://api.line.me/oauth2/v2.1/verify`）に `id_token` と `client_id`（チャネルID）を送って検証し、応答の `sub` を LINE ユーザーIDとして本人を特定する。**クライアントから送られたユーザーIDは信用しない**（詐称を防ぐため）
+- **代表も同じ経路**: 代表専用のログイン手段は設けない。メンバーとして LINE ログインしたうえで代表権限を付与する（D-042）
 - **ロール**:
 
 | ロール | 権限 |
@@ -54,8 +53,8 @@ FastAPI で実装する RESTful API。フロントエンド (Next.js) から HTT
 {
   "error": {
     "code": "VALIDATION_ERROR",
-    "message": "パスワードは8文字以上で入力してください",
-    "details": [{ "field": "password", "reason": "min_length" }]
+    "message": "入力内容に誤りがあります",
+    "details": [{ "field": "grade", "reason": "less_than_equal" }]
   }
 }
 ```
@@ -73,10 +72,9 @@ FastAPI で実装する RESTful API。フロントエンド (Next.js) から HTT
 ```mermaid
 graph LR
     subgraph AUTH["認証"]
-        A1["POST /auth/register"]
-        A2["POST /auth/verify"]
-        A3["POST /auth/login"]
-        A4["POST /auth/password-reset"]
+        A1["POST /auth/line/login"]
+        A2["POST /auth/line/register"]
+        A3["POST /auth/logout"]
     end
     subgraph USERS["メンバー"]
         U1["GET/PUT /users/me"]
@@ -103,13 +101,7 @@ graph LR
 |----------|------|------|------|------|
 | POST | /auth/line/login | LINE ログイン（LIFF の ID トークンを検証。未登録なら `registered: false`） | 不要 | REQ-001.1, REQ-001.6 |
 | POST | /auth/line/register | 初回登録（本名・学年・性別を受け取り会員作成。JWT を発行） | 不要 | REQ-001.5 |
-| POST | /auth/register | アカウント登録（代表用。登録直後はメール未確認） | 不要 | REQ-002.1 |
-| POST | /auth/verify | メールアドレス確認（6桁コード。成功時に JWT を発行） | 不要 | REQ-001.5 |
-| POST | /auth/verify/resend | 確認コードの再送 | 不要 | REQ-001.6 |
-| POST | /auth/login | ログイン（代表用。JWT発行。未確認は 403） | 不要 | REQ-001.2 |
-| POST | /auth/logout | ログアウト | member | REQ-001.3 |
-| POST | /auth/password-reset/request | リセットメール送信 | 不要 | REQ-001.4 |
-| POST | /auth/password-reset/confirm | 新パスワード設定 | 不要 | REQ-001.4 |
+| POST | /auth/logout | ログアウト（Cookie を破棄。呼び出す画面は未提供） | member | REQ-001.3 |
 
 ### メンバー (users)
 
@@ -179,7 +171,7 @@ graph LR
 
 | 要件 | 対応エンドポイント |
 |------|--------------------|
-| REQ-001 (認証) | POST /auth/register, /auth/verify, /auth/verify/resend, /auth/login, /auth/logout, /auth/password-reset/* |
+| REQ-001 (認証) | POST /auth/line/login, /auth/line/register, /auth/logout |
 | REQ-002 (プロフィール) | GET/PUT /users/me |
 | REQ-003 (練習日程管理) | POST/PUT /practice-months, POST/PUT/DELETE /practices, GET /practices/suggestions |
 | REQ-004 (投票) | GET /practice-months, GET/PUT /practice-months/{pmId}/votes/me |

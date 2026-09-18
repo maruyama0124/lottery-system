@@ -2,6 +2,11 @@
 
 実データ相当の構成 (male: 3年12・2年22・1年45、月6練習・定員30) で、
 落選記録を翌月へ引き継ぎながら6か月連鎖させる。
+
+
+実行:
+    docker compose -f backend/docker-compose.yaml run --rm --no-deps api \
+        python -m scripts.sim.alpha_sim
 """
 import random
 from collections import defaultdict

@@ -27,4 +27,4 @@ algorithm.html
 .env
 .env.*
 !.env.example
-backend/import_members.py
+backend/scripts/dev/import_members.py

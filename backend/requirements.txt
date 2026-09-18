@@ -10,10 +10,9 @@ alembic>=1.13
 # 設定・認証
 pydantic-settings>=2.2
 PyJWT>=2.8
-bcrypt>=4.1
-email-validator>=2.1
+bcrypt>=4.1  # src/db/seed.py の開発用代表アカウント作成でのみ使用
 
-# メール送信 (Resend の HTTP API 呼び出し)
+# LINE の ID トークン検証 (HTTP API 呼び出し)
 httpx>=0.27
 
 # ID 生成 (プレフィックス付き ULID)

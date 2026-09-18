@@ -4,7 +4,8 @@
 再実行時は既存投票を消してから入れ直す (冪等)。
 
 実行:
-    python import_votes_random.py 2026-08 male [seed]
+    docker compose -f backend/docker-compose.yaml run --rm api \
+        python -m scripts.dev.import_votes_random 2026-08 male [seed]
 """
 import random
 import sys

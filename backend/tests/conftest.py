@@ -43,16 +43,6 @@ def db_session(test_engine) -> Session:
     session.close()
 
 
-@pytest.fixture(autouse=True)
-def _no_outbound_mail(monkeypatch):
-    """テストから実際にメールを送らない。
-
-    RESEND_API_KEY を設定した環境では、登録のたびに外部APIを叩いてしまうため
-    送信関数そのものを無効化する（確認コードの検証は test_auth.py で個別に差し替える）。
-    """
-    monkeypatch.setattr("src.core.mailer.send_email", lambda **_kwargs: None)
-
-
 @pytest.fixture()
 def client(db_session: Session) -> TestClient:
     app = create_app()
@@ -66,8 +56,12 @@ def client(db_session: Session) -> TestClient:
 
 
 @pytest.fixture()
-def make_user(client: TestClient, db_session: Session):
-    """テスト用ユーザー作成ヘルパー。(user_id, token) を返す"""
+def make_user(db_session: Session):
+    """テスト用ユーザー作成ヘルパー。(user_id, token) を返す
+
+    ログイン経路は LINE のみ (D-042) のため、ユーザーは直接作成し
+    アクセストークンも直接発行する。LINE ログイン自体は test_auth.py で検証する。
+    """
     counter = {"n": 0}
 
     def _make(
@@ -76,38 +70,26 @@ def make_user(client: TestClient, db_session: Session):
         gender: str = "male",
         grade: int = 2,
         is_manager: bool = False,
-        password: str = "password123",
+        is_observer: bool = False,
     ) -> tuple[str, str]:
-        counter["n"] += 1
-        email = f"user{counter['n']}@example.com"
-        res = client.post(
-            "/api/v1/auth/register",
-            json={
-                "email": email,
-                "password": password,
-                "name": f"テスト 太郎{counter['n']}",
-                "grade": grade,
-                "gender": gender,
-                "is_manager": is_manager,
-            },
-        )
-        assert res.status_code == 201, res.text
-        user_id = res.json()["id"]
-
-        from src.core.datetime_utils import utcnow
+        from src.core.ids import generate_id
+        from src.core.security import create_access_token
         from src.db.models import User
 
-        user = db_session.get(User, user_id)
-        # 登録直後は未確認でログインできない (D-011)。
-        # 確認フロー自体は test_auth.py で検証するため、ここでは直接確認済みにする
-        user.email_verified_at = utcnow()
-        if role != "member":
-            user.role = role
+        counter["n"] += 1
+        user = User(
+            id=generate_id("usr"),
+            line_user_id=f"U{counter['n']:032d}",
+            name=f"テスト 太郎{counter['n']}",
+            grade=grade,
+            gender=gender,
+            is_manager=is_manager,
+            is_observer=is_observer,
+            role=role,
+        )
+        db_session.add(user)
         db_session.flush()
-        token = client.post(
-            "/api/v1/auth/login", json={"email": email, "password": password}
-        ).json()["access_token"]
-        return user_id, token
+        return user.id, create_access_token(user.id, user.role, user.gender)
 
     return _make
 

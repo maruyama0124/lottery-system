@@ -1,4 +1,9 @@
-"""ランダムな条件を大量に生成し、最低1回保証と定員充足が破れないか検証する"""
+"""ランダムな条件を大量に生成し、最低1回保証と定員充足が破れないか検証する
+
+実行:
+    docker compose -f backend/docker-compose.yaml run --rm --no-deps api \
+        python -m scripts.sim.fuzz
+"""
 import random
 from collections import Counter, defaultdict
 from src.domain.lottery import Member, PracticeDay, run_lottery
