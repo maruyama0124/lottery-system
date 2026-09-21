@@ -1,11 +1,18 @@
-# 説明書 (manual.html) を GitHub Pages で公開する。
-# main への push で manual.html が変わったときだけ再デプロイする。
-name: Deploy manual to GitHub Pages
+# GitHub Pages に2つを公開する
+#   /       … 説明書 (manual.html)
+#   /docs/  … 設計書 (MkDocs で specification/docs をビルド)
+# main への push で、どちらかに関係するファイルが変わったときだけ再デプロイする。
+name: Deploy manual and docs to GitHub Pages
 
 on:
   push:
     branches: [main]
-    paths: [manual.html]
+    paths:
+      - manual.html
+      - specification/docs/**
+      - specification/mkdocs.yaml
+      - specification/requirements.txt
+      - .github/workflows/pages.yml
   workflow_dispatch:
 
 permissions:
@@ -25,10 +32,22 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - name: Build site (manual.html を index.html として配置)
-        run: |
-          mkdir -p _site
-          cp manual.html _site/index.html
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: specification/requirements.txt
+
+      - name: Install MkDocs
+        run: pip install -r specification/requirements.txt
+
+      - name: Build docs (specification/docs → _site/docs)
+        run: mkdocs build --config-file specification/mkdocs.yaml --site-dir ../_site/docs --strict
+
+      - name: Place manual.html as index.html
+        run: cp manual.html _site/index.html
+
       - uses: actions/configure-pages@v4
       - uses: actions/upload-pages-artifact@v3
         with:
