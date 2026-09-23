@@ -205,7 +205,8 @@ export interface ParticipationRow {
   user_id: string;
   name: string;
   is_manager: boolean;
-  practice_ids: string[];
+  has_voted: boolean; // 未投票者も行に並ぶ (D-043)
+  practice_ids: string[]; // 参加する練習日。参加しない人は空
 }
 
 export interface ParticipationGradeSection {

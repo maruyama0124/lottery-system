@@ -152,7 +152,8 @@ class ParticipationRow(BaseModel):
     user_id: str
     name: str
     is_manager: bool
-    practice_ids: list[str]  # 参加する練習日
+    has_voted: bool  # 月内に1日でも投票したか。未投票者も行に並ぶため (D-043)
+    practice_ids: list[str]  # 参加する練習日。参加しない人は空
 
 
 class ParticipationGradeSection(BaseModel):

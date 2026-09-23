@@ -389,16 +389,22 @@ def test_participation_table_is_visible_to_members_after_publish(client, make_us
     body = res.json()
 
     assert len(body["practices"]) == 2
-    # 1年3名・2年2名・3年1名が投票している (代表は投票していない)
+    # 1年3名・2年2名・3年1名が投票し、代表(3年)は投票していない。
+    # 未投票の代表も行に並ぶ (D-043) ため 3年は2名
     assert {g["grade"] for g in body["grades"]} == {1, 2, 3}
     counts = {g["grade"]: len(g["rows"]) for g in body["grades"]}
-    assert counts == {1: 3, 2: 2, 3: 1}
+    assert counts == {1: 3, 2: 2, 3: 2}
 
-    # 全員が全日当選しているため、各行が2日ぶんの practice_id を持つ
+    # 投票した全員が全日当選しているため、各行が2日ぶんの practice_id を持つ。
+    # 未投票の行は has_voted=False で practice_ids が空
     for section in body["grades"]:
         for row in section["rows"]:
-            assert len(row["practice_ids"]) == 2
-            assert set(row["practice_ids"]) <= {p["id"] for p in body["practices"]}
+            if row["has_voted"]:
+                assert len(row["practice_ids"]) == 2
+                assert set(row["practice_ids"]) <= {p["id"] for p in body["practices"]}
+            else:
+                assert row["practice_ids"] == []
+    assert sum(1 for g in body["grades"] for r in g["rows"] if not r["has_voted"]) == 1
 
 
 def test_participation_table_visible_to_other_gender_after_publish(client, make_user) -> None:

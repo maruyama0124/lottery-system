@@ -8,10 +8,10 @@ depends_on:
 - requirements/index.md
 - api-design/index.md
 derived_by: []
-sync_hash: 5dc5caa051ee
+sync_hash: 7d63bb13b393
 dependency_hashes:
-  requirements/index.md: 8bc6806d02e6
-  api-design/index.md: b9754d8bcd7a
+  requirements/index.md: 5b26c78684a4
+  api-design/index.md: 6769467c3797
 ---
 
 # 画面設計書 — サークル練習参加抽選システム
@@ -99,7 +99,7 @@ stateDiagram-v2
 
 - **投票受付中**: 練習日カードをタップで複数選択 → 下部固定の「この内容で投票する」で全置換投票 (REQ-004.2)。締切を常時表示する。備考のある日は投票前に見えるよう本文に出す (D-041)。学年限定の日は選択不可のグレー表示＋「◯年限定」ラベル (D-037)
 - **締切後・結果未公開**: 「抽選結果を待っています」を表示する (REQ-006.4)
-- **公開後**: 「自分の参加日」と「全員の参加表」をタブで切り替える (D-025)。既定は自分の参加日 (REQ-006.1)
+- **公開後**: 「自分の参加日」と「全員の参加表」をタブで切り替える (D-025)。既定は自分の参加日 (REQ-006.1)。参加表には参加しない人・未投票の人も並ぶ（マスは全て空欄: D-043）
 - 閲覧専用アカウント (D-039) には「閲覧のみ（投票はできません）」を表示し、投票操作を出さない
 - 代表には管理画面への導線を出す
 - API: `GET /practice-months`, `GET /practice-months/{pmId}`, `GET/PUT .../votes/me`（409 = 締切後）, `GET .../results/me`, `GET .../participation`

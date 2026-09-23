@@ -9,9 +9,9 @@ depends_on:
 - database-design/index.md
 derived_by:
 - ui-design/index.md
-sync_hash: b9754d8bcd7a
+sync_hash: 6769467c3797
 dependency_hashes:
-  requirements/index.md: 8bc6806d02e6
+  requirements/index.md: 5b26c78684a4
   database-design/index.md: 7866336d330d
 ---
 
@@ -145,7 +145,7 @@ graph LR
 | POST | /practice-months/{pmId}/lottery | 抽選の一括実行（再実行含む。枠未設定なら409） | 代表 | REQ-005, REQ-005.12 |
 | GET | /practice-months/{pmId}/executions | 抽選実行履歴 | 代表 | REQ-005.11 |
 | GET | /practice-months/{pmId}/results/me | 自分の当選結果（公開後のみ） | member | REQ-006.1 |
-| GET | /practice-months/{pmId}/participation | 練習参加表（学年別。公開後のみ） | member | REQ-006.5 |
+| GET | /practice-months/{pmId}/participation | 練習参加表（学年別。全メンバーを並べ、未投票は `has_voted = false`。公開後のみ: D-043） | member | REQ-006.5 |
 | GET | /practice-months/{pmId}/results | 全結果（練習日別・メンバー別） | 代表 | REQ-006.2 |
 | POST | /practices/{practiceId}/assignments | 参加者の手動追加 | 代表 | REQ-006.3 |
 | DELETE | /assignments/{assignmentId} | 参加者の手動削除 | 代表 | REQ-006.3 |

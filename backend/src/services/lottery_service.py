@@ -344,7 +344,7 @@ class LotteryService:
         """月の練習参加表 (REQ-006.5 / D-025)
 
         メンバーも閲覧できる。誰がどの日に来るかを一覧するためのもので、
-        氏名・学年・マネージャー区分のみを返す（本システムはそれ以外を持たない）。
+        氏名・学年・マネージャー区分・投票有無のみを返す（本システムはそれ以外を持たない）。
         微調整中の結果が見えると混乱するため、公開後のみ取得できる。
         """
         pm = self.practice_service.get_month_for(user, pm_id)
@@ -354,21 +354,26 @@ class LotteryService:
         practices = self.practices.list_by_month(pm.id)
         users = {u.id: u for u in self.repo.list_members(pm.gender)}
 
+        practice_ids = [p.id for p in practices]
         joined: dict[str, list[str]] = defaultdict(list)
-        for a in self.repo.list_assignments([p.id for p in practices]):
+        for a in self.repo.list_assignments(practice_ids):
             joined[a.user_id].append(a.practice_id)
+        voters = {v.user_id for v in self.repo.list_votes_for_practices(practice_ids)}
 
+        # かつての Excel の参加表と同じく、参加しない人・投票しなかった人も含めて
+        # 全メンバーを並べる (D-043)。参加しない人は practice_ids が空になる
         sections = []
         for grade in GRADES:
             rows = [
                 ParticipationRow(
                     user_id=uid,
-                    name=users[uid].name,
-                    is_manager=users[uid].is_manager,
-                    practice_ids=sorted(pids),
+                    name=u.name,
+                    is_manager=u.is_manager,
+                    has_voted=uid in voters,
+                    practice_ids=sorted(joined.get(uid, [])),
                 )
-                for uid, pids in joined.items()
-                if uid in users and users[uid].grade == grade
+                for uid, u in users.items()
+                if u.grade == grade
             ]
             # マネージャーは全日参加のため先頭に固め、あとは氏名順
             rows.sort(key=lambda r: (not r.is_manager, r.name))
