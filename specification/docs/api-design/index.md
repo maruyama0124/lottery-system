@@ -2,16 +2,16 @@
 hide:
 - navigation
 doc_type: api-design
-version: 2.0.0
-last_updated: '2026-09-18'
+version: 2.1.0
+last_updated: '2026-09-24'
 depends_on:
 - requirements/index.md
 - database-design/index.md
 derived_by:
 - ui-design/index.md
-sync_hash: ce99834c7d68
+sync_hash: b9754d8bcd7a
 dependency_hashes:
-  requirements/index.md: 818f4ba04f6b
+  requirements/index.md: 8bc6806d02e6
   database-design/index.md: 7866336d330d
 ---
 
@@ -152,6 +152,7 @@ graph LR
 | POST | /practice-months/{pmId}/publish | 結果の公開 | 代表 | REQ-006.4 |
 
 - 未公開 (`status != published`) の `/results/me` は `404` を返す (REQ-006.4)
+- `GET /results` の `by_member` は性別グループの**全メンバー**を返す。未投票者も `votes_count = 0` で含める（誰が投票していないかを結果画面で把握するため: D-043）
 - 抽選の再実行時は既存の有効な実行が `is_active = false` になり、割当が置き換わる (REQ-005.12)
 
 ### 設定 (settings)

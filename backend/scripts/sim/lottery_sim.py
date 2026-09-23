@@ -16,6 +16,7 @@ from src.domain.lottery import GRADES, Member, PracticeDay, run_lottery
 from src.services.lottery_service import LotteryService
 
 SEED = 20261017  # 再現性のため固定。本番は secrets で毎回ランダム
+FORCE_SUGGEST = True  # True なら DB に保存済みの枠も無視して按分提案値で回す
 
 # データは追跡対象外の .simulation/ に置く (実名を含むため)
 DATA = Path(__file__).resolve().parents[2] / ".simulation" / "data.json"
@@ -84,7 +85,7 @@ def simulate(gender: str) -> None:
     quota_source = []
     for p, sug in zip(practices, suggested):
         db_quotas = {3: p["quota_grade3"], 2: p["quota_grade2"], 1: p["quota_grade1"]}
-        if any(db_quotas[g] is None for g in GRADES):
+        if FORCE_SUGGEST or any(db_quotas[g] is None for g in GRADES):
             quotas, src = sug, "按分提案値"
         else:
             quotas, src = db_quotas, "DB設定値"

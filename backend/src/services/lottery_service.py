@@ -422,6 +422,8 @@ class LotteryService:
         )
         prev = self.repo.get_month_wins_votes(prev_pm.id) if prev_pm else {}
 
+        # 未投票のメンバーも含めて全員を並べる (D-043)。未投票者は votes_count = 0 で並び、
+        # 代表が「誰が投票していないか」を結果画面で把握できる
         by_member = [
             MemberResult(
                 user_id=uid,
@@ -435,8 +437,7 @@ class LotteryService:
                 practice_ids=sorted(wins.get(uid, [])),
                 voted_practice_ids=sorted(votes[uid]),
             )
-            for uid in sorted(votes, key=lambda u: (-users[u].grade, users[u].name))
-            if uid in users
+            for uid in sorted(users, key=lambda u: (-users[u].grade, users[u].name))
         ]
         return FullResults(by_practice=by_practice, by_member=by_member)
 

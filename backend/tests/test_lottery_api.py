@@ -162,6 +162,16 @@ def test_lottery_execute_and_results_flow(client, make_user) -> None:
     for member in body["by_member"]:
         assert member["wins_count"] == member["votes_count"]
 
+    # 未投票のメンバーもメンバー別一覧に載る (D-043)。投票0・当選0で並ぶ
+    idle_id, _idle_token = make_user(gender="male", grade=1)
+    body2 = client.get(
+        f"/api/v1/practice-months/{pm['id']}/results", headers=auth_header(rep_token)
+    ).json()
+    idle = next(m for m in body2["by_member"] if m["user_id"] == idle_id)
+    assert idle["votes_count"] == 0 and idle["wins_count"] == 0
+    assert idle["voted_practice_ids"] == [] and idle["practice_ids"] == []
+    assert len(body2["by_member"]) == len(body["by_member"]) + 1
+
     # メンバー: 公開前は404 (REQ-006.4)
     me = client.get(
         f"/api/v1/practice-months/{pm['id']}/results/me",

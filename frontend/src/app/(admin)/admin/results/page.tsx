@@ -541,6 +541,11 @@ export default function AdminResultsPage() {
                         マネ
                       </span>
                     )}
+                    {m.votes_count === 0 && (
+                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
+                        未投票
+                      </span>
+                    )}
                     <span className="text-sm text-gray-500">
                       投票{m.votes_count} →{" "}
                       <span
@@ -624,8 +629,8 @@ export default function AdminResultsPage() {
 
         {results && tab === "matrix" && (
           <section className="rounded-xl border border-gray-200 bg-white shadow-sm">
-            {results.by_member.length === 0 ? (
-              <p className="p-4 text-sm text-gray-500">結果がまだありません</p>
+            {results.by_practice.length === 0 ? (
+              <p className="p-4 text-sm text-gray-500">練習日がまだありません</p>
             ) : (
               <>
                 {/* 学年の切り替え。人数が多い月は1学年ずつ見たほうが調整しやすい */}
@@ -766,6 +771,11 @@ export default function AdminResultsPage() {
                                   {m.is_manager && (
                                     <span className="ml-1 text-[9px] text-gray-400">
                                       マネ
+                                    </span>
+                                  )}
+                                  {m.votes_count === 0 && (
+                                    <span className="ml-1 text-[9px] font-bold text-amber-700">
+                                      未投票
                                     </span>
                                   )}
                                   {/* 今月と前月の当選/投票。外す人を選ぶ判断材料 */}

@@ -2,16 +2,16 @@
 hide:
 - navigation
 doc_type: ui-design
-version: 2.0.0
-last_updated: '2026-09-18'
+version: 2.1.0
+last_updated: '2026-09-24'
 depends_on:
 - requirements/index.md
 - api-design/index.md
 derived_by: []
-sync_hash: c2645d2c6e53
+sync_hash: 5dc5caa051ee
 dependency_hashes:
-  requirements/index.md: 818f4ba04f6b
-  api-design/index.md: ce99834c7d68
+  requirements/index.md: 8bc6806d02e6
+  api-design/index.md: b9754d8bcd7a
 ---
 
 # 画面設計書 — サークル練習参加抽選システム
@@ -145,6 +145,7 @@ stateDiagram-v2
 ### 4.6 admin-results — 結果確認・微調整（代表）
 
 - 練習日別/メンバー別のタブ切替 (REQ-006.2)。参加者行には割当由来バッジ（3年確定/保証/配分/手動 等）
+- メンバー別・表の両タブには**未投票のメンバーも並ぶ**。「未投票」バッジを付け、投票0・当選0で表示する。表タブでは全マスが「・」になる (D-043)
 - 参加者の追加・削除で微調整 (REQ-006.3)。定員超過時は警告色のインジケーター
 - 未公開バナー + 「結果を公開する」ボタン (REQ-006.4)
 - API: `GET .../results`, `POST /practices/{id}/assignments`, `DELETE /assignments/{id}`, `POST .../publish`

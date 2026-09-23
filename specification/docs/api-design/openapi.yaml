@@ -1074,6 +1074,7 @@ components:
                   $ref: '#/components/schemas/Participant'
         by_member:
           type: array
+          description: 性別グループの全メンバー（未投票者も含む: D-043）。3年→1年、氏名順
           items:
             type: object
             properties:
@@ -1086,6 +1087,12 @@ components:
               practice_ids:
                 type: array
                 items: { type: string }
+              prev_wins_count: { type: integer, description: 前月の当選数（前月の公開実績が無ければ 0） }
+              prev_votes_count: { type: integer, description: 前月の投票数 }
+              voted_practice_ids:
+                type: array
+                items: { type: string }
+                description: 投票した練習日。未投票者は空配列
 
     Participant:
       type: object
