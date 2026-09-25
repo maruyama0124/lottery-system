@@ -125,11 +125,18 @@ function gradeLimitLabel(grades: number[]): string {
   return `${[...grades].sort().join("・")}年限定`;
 }
 
-/** 00:00〜23:30 を30分刻みで列挙 (D-014) */
-const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${pad(Math.floor(i / 2))}:${i % 2 === 0 ? "00" : "30"}`;
-});
+// 時刻は数字を直接打つ（電話番号用キーボード）。「1830」と打つと「18:30」に整形する。
+// 30分単位の制限 (D-014) はそのままで、サーバー側でも検証している
+function formatTimeInput(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 4);
+  return digits.length > 2 ? `${digits.slice(0, 2)}:${digits.slice(2)}` : digits;
+}
+
+/** 有効な時刻 (HH:MM で 30分単位) か */
+const isTime = (v: string) => /^([01]\d|2[0-3]):(00|30)$/.test(v);
+
+/** 4桁まで打ち終わっているのに有効でない (例: 18:15) */
+const timeLooksWrong = (v: string) => v.length === 5 && !isTime(v);
 
 /** 対象月の初日と末日 (date 入力の min/max 用) */
 function monthRange(yearMonth: string): [string, string] {
@@ -163,7 +170,7 @@ function PracticeForm({
   const range = yearMonth && /^\d{4}-\d{2}$/.test(yearMonth) ? monthRange(yearMonth) : null;
   const dateInMonth = !range || (values.practice_date >= range[0] && values.practice_date <= range[1]);
   const valid =
-    values.practice_date && dateInMonth && values.starts_at && values.ends_at && values.location && Number(values.capacity) > 0 &&
+    values.practice_date && dateInMonth && isTime(values.starts_at) && isTime(values.ends_at) && values.location && Number(values.capacity) > 0 &&
     values.allowed_grades.length > 0;
 
   const applySuggestion = (index: string) => {
@@ -212,33 +219,31 @@ function PracticeForm({
       <div className="grid grid-cols-2 gap-3">
         <div className="min-w-0">
           <label className={labelClass}>開始時刻</label>
-          <select
+          <input
+            type="text"
+            inputMode="numeric"
+            placeholder="1830"
             value={values.starts_at}
-            onChange={(e) => onChange({ ...values, starts_at: e.target.value })}
+            onChange={(e) => onChange({ ...values, starts_at: formatTimeInput(e.target.value) })}
             className={inputClass}
-          >
-            <option value="">--:--</option>
-            {TIME_OPTIONS.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
+          />
+          {timeLooksWrong(values.starts_at) && (
+            <p className="mt-1 text-xs font-semibold text-red-600">30分単位で入力してください</p>
+          )}
         </div>
         <div className="min-w-0">
           <label className={labelClass}>終了時刻</label>
-          <select
+          <input
+            type="text"
+            inputMode="numeric"
+            placeholder="2130"
             value={values.ends_at}
-            onChange={(e) => onChange({ ...values, ends_at: e.target.value })}
+            onChange={(e) => onChange({ ...values, ends_at: formatTimeInput(e.target.value) })}
             className={inputClass}
-          >
-            <option value="">--:--</option>
-            {TIME_OPTIONS.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
+          />
+          {timeLooksWrong(values.ends_at) && (
+            <p className="mt-1 text-xs font-semibold text-red-600">30分単位で入力してください</p>
+          )}
         </div>
       </div>
       <div>
@@ -504,7 +509,7 @@ function NewMonthForm({
     voteEnd &&
     practices.every(
       (p) =>
-        p.practice_date && p.starts_at && p.ends_at && p.location &&
+        p.practice_date && isTime(p.starts_at) && isTime(p.ends_at) && p.location &&
         Number(p.capacity) > 0 && p.allowed_grades.length > 0,
     );
 
