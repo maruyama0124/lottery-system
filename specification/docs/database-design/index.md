@@ -2,15 +2,15 @@
 hide:
 - navigation
 doc_type: database-design
-version: 1.3.0
-last_updated: '2026-09-18'
+version: 1.4.0
+last_updated: '2026-09-25'
 depends_on:
 - requirements/index.md
 derived_by:
 - api-design/index.md
-sync_hash: 7866336d330d
+sync_hash: '269413516489'
 dependency_hashes:
-  requirements/index.md: 5b26c78684a4
+  requirements/index.md: 13f64cc9d35f
 ---
 
 # DB設計書 — サークル練習参加抽選システム
@@ -95,6 +95,7 @@ erDiagram
         varchar user_id FK
         varchar lottery_execution_id FK "手動時 NULL"
         varchar assigned_via
+        varchar publish_state "pending / published / removing"
     }
     monthly_member_results {
         varchar id PK "mmr_"
@@ -207,6 +208,7 @@ erDiagram
 | user_id | varchar(30) | NOT NULL, FK → users | — |
 | lottery_execution_id | varchar(30) | NULL, FK → lottery_executions | 代表の手動調整 (REQ-006.3) 時は NULL |
 | assigned_via | varchar(20) | NOT NULL | manager / grade3 / guaranteed / distribution / overflow / manual |
+| publish_state | varchar(20) | NOT NULL, DEFAULT 'pending' | pending (追加予定) / published (公開済み) / removing (削除予定)。公開後の微調整を再公開まで保留する (D-044) |
 | is_deleted | boolean | NOT NULL, DEFAULT false | 微調整での取消に使用 |
 | created_at / updated_at | timestamptz | NOT NULL | — |
 

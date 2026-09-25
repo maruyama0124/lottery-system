@@ -646,7 +646,7 @@ paths:
     post:
       tags: [lottery]
       summary: 結果の公開（代表のみ）
-      description: REQ-006.4。公開後にメンバーが /results/me を閲覧できる。月次実績 (monthly_member_results) もこの時点で確定
+      description: REQ-006.4。公開後にメンバーが /results/me を閲覧できる。月次実績 (monthly_member_results) もこの時点で確定。公開済みの月に実行すると再公開となり、保留中の微調整 (publish_state = pending / removing) を確定してメンバーへ反映する (D-044)
       parameters:
         - $ref: '#/components/parameters/PmId'
       responses:
@@ -1105,6 +1105,10 @@ components:
         assigned_via:
           type: string
           enum: [manager, grade3, guaranteed, distribution, overflow, manual]
+        publish_state:
+          type: string
+          enum: [pending, published, removing]
+          description: 公開状態 (D-044)。pending = 追加予定 / published = 公開済み / removing = 削除予定。メンバーには published と removing だけが見える
 
     AssignmentCreateRequest:
       type: object

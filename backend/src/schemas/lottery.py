@@ -90,6 +90,9 @@ class MyResults(BaseModel):
     assignments: list[MyResultItem]
 
 
+PublishState = Literal["pending", "published", "removing"]
+
+
 class Participant(BaseModel):
     assignment_id: str
     user_id: str
@@ -97,6 +100,9 @@ class Participant(BaseModel):
     grade: int
     is_manager: bool
     assigned_via: AssignedVia
+    # 公開後の微調整は再公開までメンバーに見えない (D-044)。
+    # pending = 追加予定 / published = 公開済み / removing = 削除予定
+    publish_state: PublishState
 
 
 class PracticeResults(BaseModel):

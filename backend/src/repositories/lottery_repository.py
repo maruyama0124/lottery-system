@@ -73,12 +73,21 @@ class LotteryRepository:
         a = self.db.get(Assignment, assignment_id)
         return a if a and not a.is_deleted else None
 
-    def list_assignments(self, practice_ids: list[str]) -> list[Assignment]:
+    def list_assignments(
+        self, practice_ids: list[str], *, visible_only: bool = False
+    ) -> list[Assignment]:
+        """practice_ids の割当を返す。
+
+        visible_only=True はメンバー向けの参照用で、公開済みの行だけを返す (D-044)。
+        公開後に外した行 (removing) は再公開までメンバーには見えたままなので含める。
+        """
         if not practice_ids:
             return []
         stmt = select(Assignment).where(
             Assignment.practice_id.in_(practice_ids), Assignment.is_deleted.is_(False)
         )
+        if visible_only:
+            stmt = stmt.where(Assignment.publish_state.in_(["published", "removing"]))
         return list(self.db.scalars(stmt))
 
     def delete_assignments_for_practices(self, practice_ids: list[str]) -> None:
@@ -99,6 +108,7 @@ class LotteryRepository:
                 existing.is_deleted = False
                 existing.assigned_via = via
                 existing.lottery_execution_id = execution_id
+                existing.publish_state = "pending"
                 self.db.flush()
                 return existing
         a = Assignment(

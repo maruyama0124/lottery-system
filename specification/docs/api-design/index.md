@@ -2,17 +2,17 @@
 hide:
 - navigation
 doc_type: api-design
-version: 2.1.0
-last_updated: '2026-09-24'
+version: 2.2.0
+last_updated: '2026-09-25'
 depends_on:
 - requirements/index.md
 - database-design/index.md
 derived_by:
 - ui-design/index.md
-sync_hash: 6769467c3797
+sync_hash: ea8c5d33611d
 dependency_hashes:
-  requirements/index.md: 5b26c78684a4
-  database-design/index.md: 7866336d330d
+  requirements/index.md: 13f64cc9d35f
+  database-design/index.md: '269413516489'
 ---
 
 # API設計書 — サークル練習参加抽選システム
@@ -152,6 +152,7 @@ graph LR
 | POST | /practice-months/{pmId}/publish | 結果の公開 | 代表 | REQ-006.4 |
 
 - 未公開 (`status != published`) の `/results/me` は `404` を返す (REQ-006.4)
+- 公開後の微調整は `assignments.publish_state` で保留され、メンバー向けの `/results/me`・`/participation` には再公開まで反映されない。`POST /publish` は公開済みの月にも実行でき、再公開として保留分を確定する (D-044)
 - `GET /results` の `by_member` は性別グループの**全メンバー**を返す。未投票者も `votes_count = 0` で含める（誰が投票していないかを結果画面で把握するため: D-043）
 - 抽選の再実行時は既存の有効な実行が `is_active = false` になり、割当が置き換わる (REQ-005.12)
 

@@ -429,3 +429,76 @@ def test_participation_table_visible_to_other_gender_after_publish(client, make_
         headers=auth_header(female_token),
     )
     assert res.status_code == 200
+
+
+def test_adjustments_after_publish_are_held_until_republish(client, make_user) -> None:
+    """公開後の微調整は再公開までメンバーに見えない (D-044)"""
+    rep_token, pm, member_tokens = setup_month_with_votes(client, make_user)
+    run_lottery(client, rep_token, pm["id"])
+    client.post(f"/api/v1/practice-months/{pm['id']}/publish", headers=auth_header(rep_token))
+    prc_id = pm["practices"][0]["id"]
+
+    def visible_user_ids() -> set[str]:
+        body = client.get(
+            f"/api/v1/practice-months/{pm['id']}/participation",
+            headers=auth_header(member_tokens[0]),
+        ).json()
+        return {
+            r["user_id"] for g in body["grades"] for r in g["rows"] if prc_id in r["practice_ids"]
+        }
+
+    def rep_participants() -> dict[str, str]:
+        full = client.get(
+            f"/api/v1/practice-months/{pm['id']}/results", headers=auth_header(rep_token)
+        ).json()
+        target = next(p for p in full["by_practice"] if p["practice"]["id"] == prc_id)
+        return {pt["user_id"]: pt["publish_state"] for pt in target["participants"]}
+
+    before = visible_user_ids()
+    assert before and all(s == "published" for s in rep_participants().values())
+
+    # 公開済みの人を外す → 削除予定になり、メンバーにはまだ見える
+    removed_uid, removed_asg = next(
+        (pt["user_id"], pt["assignment_id"])
+        for pt in client.get(
+            f"/api/v1/practice-months/{pm['id']}/results", headers=auth_header(rep_token)
+        ).json()["by_practice"][0]["participants"]
+    )
+    res = client.delete(f"/api/v1/assignments/{removed_asg}", headers=auth_header(rep_token))
+    assert res.status_code == 204
+    assert rep_participants()[removed_uid] == "removing"
+    assert removed_uid in visible_user_ids()
+
+    # 新しい人を追加 → 追加予定になり、メンバーにはまだ見えない
+    extra_id, _ = make_user(gender="male", grade=1)
+    res = client.post(
+        f"/api/v1/practices/{prc_id}/assignments",
+        json={"user_id": extra_id},
+        headers=auth_header(rep_token),
+    )
+    assert res.status_code == 201
+    assert rep_participants()[extra_id] == "pending"
+    assert extra_id not in visible_user_ids()
+    assert visible_user_ids() == before
+
+    # 削除予定の人をもう一度追加すると元に戻る (409 にならない)
+    res = client.post(
+        f"/api/v1/practices/{prc_id}/assignments",
+        json={"user_id": removed_uid},
+        headers=auth_header(rep_token),
+    )
+    assert res.status_code == 201
+    assert rep_participants()[removed_uid] == "published"
+
+    # 改めて外してから再公開 → 外した人は消え、追加した人が見える
+    client.delete(f"/api/v1/assignments/{removed_asg}", headers=auth_header(rep_token))
+    res = client.post(
+        f"/api/v1/practice-months/{pm['id']}/publish", headers=auth_header(rep_token)
+    )
+    assert res.status_code == 204
+    after = visible_user_ids()
+    assert removed_uid not in after
+    assert extra_id in after
+    assert after == (before - {removed_uid}) | {extra_id}
+    assert all(s == "published" for s in rep_participants().values())
+    assert removed_uid not in rep_participants()

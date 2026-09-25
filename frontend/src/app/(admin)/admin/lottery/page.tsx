@@ -352,7 +352,7 @@ export default function AdminLotteryPage() {
 
                     <p
                       className={`mt-2 text-xs font-semibold ${
-                        matched ? "text-green-700" : "text-red-600"
+                        matched ? "text-green-700" : "text-gray-500"
                       }`}
                     >
                       合計 {total} / 定員 {p.capacity}

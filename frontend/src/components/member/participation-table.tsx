@@ -99,7 +99,7 @@ export function ParticipationTable({
         })}
       </div>
 
-      {/* 集計タブ — 日ごとの学年別人数と備考 (D-041) */}
+      {/* 集計タブ — 日ごとの学年別人数 (D-041) */}
       {active === SUMMARY && (
         <div className="-mx-1 mt-3 overflow-x-auto">
           <table className="w-full border-collapse text-sm [&_td]:border [&_td]:border-gray-200 [&_th]:border [&_th]:border-gray-200">
@@ -113,7 +113,6 @@ export function ParticipationTable({
                 ))}
                 {managers.length > 0 && <th className="px-2 py-2 text-right">マネ</th>}
                 <th className="px-2 py-2 text-right">合計</th>
-                <th className="px-2 py-2 text-left">備考</th>
               </tr>
             </thead>
             <tbody>
@@ -126,10 +125,22 @@ export function ParticipationTable({
                   r.practice_ids.includes(p.id),
                 ).length;
                 const total = counts.reduce((a, b) => a + b, 0) + mgrCount;
+                // 日付をタップすると行に色が付く。学年タブの列の選択と同じ状態を使うので、
+                // タブを切り替えても同じ日が強調されたままになる
+                const picked = p.id === pickedCol;
+                const rowBg = picked ? "bg-sky-50" : "";
                 return (
-                  <tr key={p.id}>
-                    <td className="whitespace-nowrap px-2 py-2 font-bold text-gray-800">
-                      {md}({wd})
+                  <tr key={p.id} className={rowBg || undefined}>
+                    <td className="whitespace-nowrap p-0">
+                      <button
+                        type="button"
+                        onClick={() => setPickedCol(picked ? null : p.id)}
+                        className={`w-full px-2 py-2 text-left font-bold ${
+                          picked ? "text-sky-800" : "text-gray-800"
+                        }`}
+                      >
+                        {md}({wd})
+                      </button>
                     </td>
                     {counts.map((n, i) => (
                       <td key={i} className="px-2 py-2 text-right text-gray-700">
@@ -139,11 +150,12 @@ export function ParticipationTable({
                     {managers.length > 0 && (
                       <td className="px-2 py-2 text-right text-gray-700">{mgrCount}</td>
                     )}
-                    <td className="px-2 py-2 text-right font-bold text-brand-700">
+                    <td
+                      className={`px-2 py-2 text-right font-bold ${
+                        picked ? "text-sky-800" : "text-brand-700"
+                      }`}
+                    >
                       {total}
-                    </td>
-                    <td className="px-2 py-2 text-xs text-gray-500">
-                      {p.note ? `※ ${p.note}` : ""}
                     </td>
                   </tr>
                 );
@@ -277,11 +289,11 @@ export function ParticipationTable({
         <p className="py-6 text-center text-sm text-gray-500">該当する参加者はいません</p>
       )}
 
-      {active !== SUMMARY && (
-        <p className="mt-3 text-xs text-gray-400">
-          名前や日付をタップすると、その行・列に色が付きます
-        </p>
-      )}
+      <p className="mt-3 text-xs text-gray-400">
+        {active === SUMMARY
+          ? "日付をタップすると、その行に色が付きます"
+          : "名前や日付をタップすると、その行・列に色が付きます"}
+      </p>
     </section>
   );
 }

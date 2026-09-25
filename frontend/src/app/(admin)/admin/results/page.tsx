@@ -103,9 +103,10 @@ export default function AdminResultsPage() {
     });
   };
 
+  // タップごとに確認は出さない。メンバーへ反映されるのは公開・再公開のときだけなので、
+  // 確認はそちらでまとめて行う (D-044)
   const handleDelete = async (assignmentId: string, name: string) => {
     if (busy) return;
-    if (!window.confirm(`${name}さんをこの練習から外しますか？`)) return;
     setBusy(true);
     setActionError(null);
     try {
@@ -113,7 +114,7 @@ export default function AdminResultsPage() {
       await mutateResults();
     } catch (e) {
       setActionError(
-        e instanceof ApiClientError ? e.error.message : "削除に失敗しました",
+        e instanceof ApiClientError ? e.error.message : `${name}さんを外せませんでした`,
       );
     } finally {
       setBusy(false);
@@ -169,14 +170,30 @@ export default function AdminResultsPage() {
     }
   };
 
+  const published = pm?.status === "published";
+
+  // 公開後の微調整で、まだメンバーに反映されていない件数 (D-044)。
+  // 追加予定 (pending) と削除予定 (removing) を数える
+  const pendingChanges = published
+    ? (results?.by_practice ?? []).reduce(
+        (n, pr) =>
+          n + pr.participants.filter((p) => p.publish_state !== "published").length,
+        0,
+      )
+    : 0;
+
   const handlePublish = async () => {
     if (!monthId || publishing) return;
-    if (!window.confirm("結果を公開しますか？公開後は全メンバーが閲覧できます")) return;
+    // メンバーに見える内容が変わるのはこの操作だけなので、確認はここでまとめて出す
+    const message = published
+      ? `${pendingChanges}件の変更をメンバーに反映しますか？再公開後は全メンバーが新しい内容を閲覧できます`
+      : "結果を公開しますか？公開後は全メンバーが閲覧できます";
+    if (!window.confirm(message)) return;
     setPublishing(true);
     setActionError(null);
     try {
       await apiClient.post<void>(`/v1/practice-months/${monthId}/publish`);
-      await mutatePm();
+      await Promise.all([mutatePm(), mutateResults()]);
     } catch (e) {
       setActionError(
         e instanceof ApiClientError ? e.error.message : "公開に失敗しました",
@@ -189,8 +206,6 @@ export default function AdminResultsPage() {
   if (authLoading || !user) {
     return <Loading />;
   }
-
-  const published = pm?.status === "published";
 
   const renderPracticeSection = (pr: PracticeResults) => {
     const { practice, participants } = pr;
@@ -229,9 +244,7 @@ export default function AdminResultsPage() {
         className={`overflow-hidden rounded-xl bg-white shadow-sm ${
           open
             ? "border-2 border-brand-200"
-            : over
-              ? "border border-red-200"
-              : "border border-gray-200"
+            : "border border-gray-200"
         }`}
       >
         <button
@@ -246,14 +259,13 @@ export default function AdminResultsPage() {
               <div className="h-2 w-28 overflow-hidden rounded-full bg-gray-200">
                 <div
                   className={`h-full rounded-full ${
-                    over ? "bg-red-500" : full ? "bg-gray-400" : "bg-green-500"
+                    over || full ? "bg-gray-400" : "bg-green-500"
                   }`}
                   style={{ width: `${pct}%` }}
                 />
               </div>
               {over ? (
-                <span className="inline-flex items-center gap-1 text-xs font-bold text-red-600">
-                  <TriangleAlertIcon width={14} height={14} />
+                <span className="text-xs font-semibold text-gray-500">
                   {playerCount} / {capacity}名（定員超過）
                 </span>
               ) : full ? (
@@ -307,13 +319,34 @@ export default function AdminResultsPage() {
                       </span>
                     </>
                   )}
-                  <button
-                    onClick={() => handleDelete(p.assignment_id, p.name)}
-                    aria-label={`${p.name}を削除`}
-                    className="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-500"
-                  >
-                    <XIcon width={16} height={16} />
-                  </button>
+                  {published && p.publish_state === "pending" && (
+                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
+                      追加予定
+                    </span>
+                  )}
+                  {p.publish_state === "removing" ? (
+                    <>
+                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
+                        削除予定
+                      </span>
+                      <button
+                        onClick={() => handleAddFor(practice.id, p.user_id, p.name)}
+                        disabled={busy}
+                        className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-700 disabled:opacity-50"
+                      >
+                        戻す
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => handleDelete(p.assignment_id, p.name)}
+                      disabled={busy}
+                      aria-label={`${p.name}を削除`}
+                      className="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
+                    >
+                      <XIcon width={16} height={16} />
+                    </button>
+                  )}
                 </li>
               );
             })}
@@ -420,9 +453,21 @@ export default function AdminResultsPage() {
 
         {/* 公開状態バナー */}
         {pm &&
-          (published ? (
+          (published && pendingChanges > 0 ? (
+            <div className="rounded-xl border border-yellow-300 bg-yellow-50 px-4 py-3">
+              <p className="flex items-center gap-2 text-sm font-semibold text-yellow-800">
+                <span className="shrink-0">
+                  <TriangleAlertIcon width={18} height={18} />
+                </span>
+                未反映の変更が{pendingChanges}件あります。再公開するとメンバーに反映されます
+              </p>
+            </div>
+          ) : published ? (
             <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
               <p className="text-sm font-semibold text-blue-800">公開済み</p>
+              <p className="mt-0.5 text-xs text-blue-700">
+                微調整した内容は、再公開するまでメンバーには見えません
+              </p>
             </div>
           ) : (
             <div className="rounded-xl border border-yellow-300 bg-yellow-50 px-4 py-3">
@@ -588,17 +633,40 @@ export default function AdminResultsPage() {
                               {players.length}/{pr.practice.capacity}名
                               {voted ? "" : "・未投票"}
                             </span>
-                            {joining ? (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleDelete(joining.assignment_id, m.name)
-                                }
-                                disabled={busy}
-                                className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-600 disabled:opacity-50"
-                              >
-                                外す
-                              </button>
+                            {joining?.publish_state === "removing" ? (
+                              <>
+                                <span className="text-[10px] font-bold text-amber-700">
+                                  削除予定
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleAddFor(pr.practice.id, m.user_id, m.name)
+                                  }
+                                  disabled={busy}
+                                  className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-700 disabled:opacity-50"
+                                >
+                                  戻す
+                                </button>
+                              </>
+                            ) : joining ? (
+                              <>
+                                {published && joining.publish_state === "pending" && (
+                                  <span className="text-[10px] font-bold text-amber-700">
+                                    追加予定
+                                  </span>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleDelete(joining.assignment_id, m.name)
+                                  }
+                                  disabled={busy}
+                                  className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-600 disabled:opacity-50"
+                                >
+                                  外す
+                                </button>
+                              </>
                             ) : (
                               <button
                                 type="button"
@@ -674,6 +742,13 @@ export default function AdminResultsPage() {
                   <span>
                     <span className="text-gray-300">・</span> 投票なし
                   </span>
+                  {published && (
+                    <span className="text-amber-700">
+                      <span className="font-bold">●</span> 追加予定{" "}
+                      <span className="font-bold">×</span> 削除予定
+                      （再公開で反映）
+                    </span>
+                  )}
                   <span className="text-gray-400">
                     名前・日付をタップすると行・列に色が付きます
                   </span>
@@ -692,7 +767,7 @@ export default function AdminResultsPage() {
                           const cap = pr.practice.capacity;
                           const tone =
                             players > cap
-                              ? "text-red-600"
+                              ? "text-gray-500"
                               : players === cap
                                 ? "text-gray-400"
                                 : "text-green-700";
@@ -806,15 +881,12 @@ export default function AdminResultsPage() {
                                     : colPicked
                                       ? "bg-sky-50"
                                       : "";
+                                // 削除予定の人をもう一度タップすると取り消し (元に戻す)。
+                                // それ以外は参加中なら外し、未参加なら追加する
                                 const toggleCell = () => {
-                                  if (joining) {
+                                  if (joining && joining.publish_state !== "removing") {
                                     handleDelete(joining.assignment_id, m.name);
-                                  } else if (
-                                    voted ||
-                                    window.confirm(
-                                      `${m.name}さんはこの日に投票していません。追加しますか？`,
-                                    )
-                                  ) {
+                                  } else {
                                     handleAddFor(
                                       pr.practice.id,
                                       m.user_id,
@@ -831,7 +903,15 @@ export default function AdminResultsPage() {
                                       aria-label={`${m.name} ${shortDate(pr.practice.practice_date)}`}
                                       className="block w-full px-1 py-2 disabled:opacity-50"
                                     >
-                                      {joining ? (
+                                      {joining?.publish_state === "removing" ? (
+                                        <span className="font-bold text-amber-600">
+                                          ×
+                                        </span>
+                                      ) : joining?.publish_state === "pending" && published ? (
+                                        <span className="font-bold text-amber-500">
+                                          ●
+                                        </span>
+                                      ) : joining ? (
                                         <span className="font-bold text-brand-600">
                                           ●
                                         </span>
@@ -863,10 +943,16 @@ export default function AdminResultsPage() {
       <div className="fixed bottom-14 left-1/2 z-40 w-full max-w-[480px] -translate-x-1/2 border-t border-gray-200 bg-white/95 px-4 pt-3 pb-3 backdrop-blur">
         <button
           onClick={handlePublish}
-          disabled={published || publishing || !pm}
+          disabled={(published && pendingChanges === 0) || publishing || !pm}
           className="w-full rounded-xl bg-brand-600 py-4 text-lg font-bold text-white shadow-lg hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-gray-300"
         >
-          {published ? "公開済み" : publishing ? "公開中…" : "結果を公開する"}
+          {publishing
+            ? "公開中…"
+            : published && pendingChanges > 0
+              ? `変更を再公開する（${pendingChanges}件）`
+              : published
+                ? "公開済み"
+                : "結果を公開する"}
         </button>
       </div>
     </div>

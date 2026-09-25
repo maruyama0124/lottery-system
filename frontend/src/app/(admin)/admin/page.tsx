@@ -4,9 +4,7 @@
 import Link from "next/link";
 import { AdminHeader } from "@/components/admin/header";
 import {
-  CalendarDaysIcon,
   ChevronRightIcon,
-  ClipboardListIcon,
   DicesIcon,
   SettingsIcon,
   CheckIcon,
@@ -207,10 +205,8 @@ function NextActionCard({ month }: { month: PracticeMonthDetail }) {
   );
 }
 
+// 日程・抽選・結果は下のナビゲーションバーから行けるので、ここには設定だけ置く
 const MENU_ITEMS = [
-  { href: "/admin/schedule", label: "練習日程の管理", Icon: CalendarDaysIcon },
-  { href: "/admin/lottery", label: "抽選の実行", Icon: DicesIcon },
-  { href: "/admin/results", label: "結果の確認・微調整", Icon: ClipboardListIcon },
   { href: "/admin/settings", label: "設定", Icon: SettingsIcon },
 ];
 

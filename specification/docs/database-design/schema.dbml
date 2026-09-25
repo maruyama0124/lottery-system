@@ -102,6 +102,7 @@ Table assignments {
   user_id varchar(30) [not null, ref: > users.id]
   lottery_execution_id varchar(30) [ref: > lottery_executions.id, note: '手動調整時は NULL']
   assigned_via varchar(20) [not null, note: 'manager / grade3 / guaranteed / distribution / overflow / manual']
+  publish_state varchar(20) [not null, default: 'pending', note: 'pending / published / removing。公開後の微調整を再公開まで保留 (D-044)']
   is_deleted boolean [not null, default: false, note: '微調整での取消']
   created_at timestamptz [not null]
   updated_at timestamptz [not null]

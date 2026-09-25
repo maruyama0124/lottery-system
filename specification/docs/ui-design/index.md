@@ -2,16 +2,16 @@
 hide:
 - navigation
 doc_type: ui-design
-version: 2.1.0
-last_updated: '2026-09-24'
+version: 2.2.0
+last_updated: '2026-09-25'
 depends_on:
 - requirements/index.md
 - api-design/index.md
 derived_by: []
-sync_hash: 7d63bb13b393
+sync_hash: e249dc7235de
 dependency_hashes:
-  requirements/index.md: 5b26c78684a4
-  api-design/index.md: 6769467c3797
+  requirements/index.md: 13f64cc9d35f
+  api-design/index.md: ea8c5d33611d
 ---
 
 # 画面設計書 — サークル練習参加抽選システム
@@ -146,8 +146,8 @@ stateDiagram-v2
 
 - 練習日別/メンバー別のタブ切替 (REQ-006.2)。参加者行には割当由来バッジ（3年確定/保証/配分/手動 等）
 - メンバー別・表の両タブには**未投票のメンバーも並ぶ**。「未投票」バッジを付け、投票0・当選0で表示する。表タブでは全マスが「・」になる (D-043)
-- 参加者の追加・削除で微調整 (REQ-006.3)。定員超過時は警告色のインジケーター
-- 未公開バナー + 「結果を公開する」ボタン (REQ-006.4)
+- 参加者の追加・削除で微調整 (REQ-006.3)。タップごとの確認ダイアログは出さない。定員超過は人数を灰色で示すだけで赤くしない (D-044)
+- 未公開バナー + 「結果を公開する」ボタン (REQ-006.4)。公開済みの月で微調整すると「未反映の変更が N 件」の黄色バナーと「変更を再公開する（N件）」ボタンに切り替わる。表タブでは追加予定を黄色の●、削除予定を×で示し、×をもう一度タップすると戻る。確認ダイアログは公開・再公開のときだけ出す (D-044)
 - API: `GET .../results`, `POST /practices/{id}/assignments`, `DELETE /assignments/{id}`, `POST .../publish`
 - 状態: default / unpublished / published / capacity-warning
 

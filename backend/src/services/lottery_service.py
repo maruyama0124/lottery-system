@@ -334,7 +334,7 @@ class LotteryService:
         practices = {p.id: p for p in self.practices.list_by_month(pm.id)}
         items = [
             MyResultItem(practice=PracticeResponse.model_validate(practices[a.practice_id]))
-            for a in self.repo.list_assignments(list(practices))
+            for a in self.repo.list_assignments(list(practices), visible_only=True)
             if a.user_id == user.id
         ]
         items.sort(key=lambda i: (i.practice.practice_date, i.practice.starts_at))
@@ -356,7 +356,8 @@ class LotteryService:
 
         practice_ids = [p.id for p in practices]
         joined: dict[str, list[str]] = defaultdict(list)
-        for a in self.repo.list_assignments(practice_ids):
+        # 公開後の微調整は再公開までメンバーに見せない (D-044)
+        for a in self.repo.list_assignments(practice_ids, visible_only=True):
             joined[a.user_id].append(a.practice_id)
         voters = {v.user_id for v in self.repo.list_votes_for_practices(practice_ids)}
 
@@ -403,6 +404,7 @@ class LotteryService:
                     grade=users[a.user_id].grade,
                     is_manager=users[a.user_id].is_manager,
                     assigned_via=a.assigned_via,
+                    publish_state=a.publish_state,
                 )
                 for a in assignments
                 if a.practice_id == p.id and a.user_id in users
@@ -461,12 +463,19 @@ class LotteryService:
             raise ForbiddenError("担当性別以外のメンバーは割当できません")
 
         existing = self.repo.list_assignments([practice_id])
-        if any(a.user_id == user_id for a in existing):
+        current = next((a for a in existing if a.user_id == user_id), None)
+        if current is not None and current.publish_state != "removing":
             raise ConflictError("このメンバーは既にこの練習日に割当済みです")
 
-        assignment = self.repo.create_assignment(
-            practice_id=practice_id, user_id=user_id, via="manual", execution_id=None
-        )
+        if current is not None:
+            # 公開後に外した人を戻す。メンバーにはまだ見えたままなので published に戻すだけ (D-044)
+            current.publish_state = "published"
+            self.db.flush()
+            assignment = current
+        else:
+            assignment = self.repo.create_assignment(
+                practice_id=practice_id, user_id=user_id, via="manual", execution_id=None
+            )
         player_count = sum(
             1
             for a in self.repo.list_assignments([practice_id])
@@ -484,8 +493,12 @@ class LotteryService:
         practice = self.practices.get(assignment.practice_id)
         if practice is None:
             raise NotFoundError("練習日が見つかりません")
-        self.practice_service.get_month_for_rep(rep, practice.practice_month_id)
-        assignment.is_deleted = True
+        pm = self.practice_service.get_month_for_rep(rep, practice.practice_month_id)
+        if pm.status == "published" and assignment.publish_state == "published":
+            # 公開済みの割当はすぐ消さず、再公開まで「削除予定」にとどめる (D-044)
+            assignment.publish_state = "removing"
+        else:
+            assignment.is_deleted = True
         self.db.flush()
 
     # ---------- 公開 (REQ-006.4) ----------
@@ -501,6 +514,15 @@ class LotteryService:
         votes: dict[str, set[str]] = defaultdict(set)
         for v in self.repo.list_votes_for_practices(practice_ids):
             votes[v.user_id].add(v.practice_id)
+        # 保留中の微調整をここで確定する (D-044)。
+        # 追加予定 (pending) はメンバーに見える状態にし、削除予定 (removing) は消す
+        for a in self.repo.list_assignments(practice_ids):
+            if a.publish_state == "removing":
+                a.is_deleted = True
+            else:
+                a.publish_state = "published"
+        self.db.flush()
+
         wins: dict[str, int] = defaultdict(int)
         managers = {u.id for u in self.repo.list_members(pm.gender) if u.is_manager}
         for a in self.repo.list_assignments(practice_ids):

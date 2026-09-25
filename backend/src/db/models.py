@@ -180,12 +180,21 @@ class Assignment(Base, TimestampMixin):
         String(30), ForeignKey("lottery_executions.id"), nullable=True  # 手動調整時は NULL
     )
     assigned_via: Mapped[str] = mapped_column(String(20), nullable=False)
+    # メンバーへの公開状態 (D-044)。
+    #   pending   … まだメンバーに見えていない (抽選直後・公開後の追加)
+    #   published … 公開済みでメンバーに見えている
+    #   removing  … 公開後に外したが、再公開までメンバーには見えたまま
+    publish_state: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
     is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     __table_args__ = (
         CheckConstraint(
             "assigned_via IN ('manager', 'grade3', 'guaranteed', 'distribution', 'overflow', 'manual')",
             name="ck_assignments_via",
+        ),
+        CheckConstraint(
+            "publish_state IN ('pending', 'published', 'removing')",
+            name="ck_assignments_publish_state",
         ),
         # is_deleted = false の行に対する部分一意インデックス (DB設計書 §3)
         Index(

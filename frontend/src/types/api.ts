@@ -228,7 +228,12 @@ export interface Participant {
   grade: number;
   is_manager: boolean;
   assigned_via: AssignedVia;
+  /** 公開後の微調整は再公開までメンバーに見えない (D-044)。
+   *  pending = 追加予定 / published = 公開済み / removing = 削除予定 */
+  publish_state: PublishState;
 }
+
+export type PublishState = "pending" | "published" | "removing";
 
 export interface PracticeResults {
   practice: Practice;
