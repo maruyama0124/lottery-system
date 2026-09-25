@@ -105,7 +105,8 @@ def test_vote_summary_returns_votes_and_quotas(client, make_user) -> None:
         assert sum(g["quota"] for g in p["grades"]) == p["capacity"]
 
 
-def test_quota_sum_must_match_capacity(client, make_user) -> None:
+def test_quota_sum_may_differ_from_capacity(client, make_user) -> None:
+    """枠の合計と定員の一致は求めない (D-045)。代表が意図的にずらすことがある"""
     rep_token, pm, _tokens = setup_month_with_votes(client, make_user)
     practice_id = pm["practices"][0]["id"]
     res = client.put(
@@ -124,8 +125,13 @@ def test_quota_sum_must_match_capacity(client, make_user) -> None:
         },
         headers=auth_header(rep_token),
     )
-    assert res.status_code == 400
-    assert res.json()["error"]["code"] == "VALIDATION_ERROR"
+    assert res.status_code == 204
+    summary = client.get(
+        f"/api/v1/practice-months/{pm['id']}/vote-summary", headers=auth_header(rep_token)
+    ).json()
+    saved = next(p for p in summary["practices"] if p["practice_id"] == practice_id)
+    assert [g["quota"] for g in saved["grades"]] == [1, 1, 1]
+    assert saved["capacity"] != 3
 
 
 def test_lottery_requires_quotas(client, make_user) -> None:
@@ -492,6 +498,11 @@ def test_adjustments_after_publish_are_held_until_republish(client, make_user) -
 
     # 改めて外してから再公開 → 外した人は消え、追加した人が見える
     client.delete(f"/api/v1/assignments/{removed_asg}", headers=auth_header(rep_token))
+    # 削除予定をもう一度削除しても即座には消えない (二重削除は何もしない)
+    res = client.delete(f"/api/v1/assignments/{removed_asg}", headers=auth_header(rep_token))
+    assert res.status_code == 204
+    assert rep_participants()[removed_uid] == "removing"
+    assert removed_uid in visible_user_ids()
     res = client.post(
         f"/api/v1/practice-months/{pm['id']}/publish", headers=auth_header(rep_token)
     )

@@ -69,6 +69,8 @@ export default function AdminResultsPage() {
   const [tab, setTab] = useState<Tab>("matrix");
   // メンバー別タブの学年絞り込み ("all" | "3" | "2" | "1" | "manager")
   const [memberGrade, setMemberGrade] = useState("all");
+  // 練習日別タブの学年絞り込み。1日30名が並ぶので学年で絞れるようにする
+  const [practiceGrade, setPracticeGrade] = useState("all");
   // メンバー別タブで展開中の1名。その人の参加日をここで直接調整する
   const [openMemberId, setOpenMemberId] = useState<string | null>(null);
   const [openPracticeIds, setOpenPracticeIds] = useState<Set<string>>(new Set());
@@ -297,7 +299,15 @@ export default function AdminResultsPage() {
             {/* 抽選のどの段階で入ったか (保証/配分/流込) は内部処理であり、
                 代表の判断材料にならないため表示しない。マネージャーだけは
                 定員外という運用上の意味があるので区別する */}
-            {participants.map((p) => {
+            {participants
+              .filter((p) =>
+                practiceGrade === "all"
+                  ? true
+                  : practiceGrade === "manager"
+                    ? p.is_manager
+                    : !p.is_manager && String(p.grade) === practiceGrade,
+              )
+              .map((p) => {
               return (
                 <li key={p.assignment_id} className="flex items-center gap-2 px-4 py-2.5">
                   <span className="flex-1 text-sm font-semibold text-gray-800">
@@ -518,6 +528,31 @@ export default function AdminResultsPage() {
 
         {results && tab === "practice" && (
           <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <label htmlFor="practice-grade-filter" className="text-sm font-semibold text-gray-600">
+                表示
+              </label>
+              <select
+                id="practice-grade-filter"
+                value={practiceGrade}
+                onChange={(e) => setPracticeGrade(e.target.value)}
+                className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-brand-600 focus:outline-none"
+              >
+                <option value="all">すべて</option>
+                {[3, 2, 1]
+                  .filter((g) =>
+                    results.by_member.some((m) => m.grade === g && !m.is_manager),
+                  )
+                  .map((g) => (
+                    <option key={g} value={String(g)}>
+                      {g}年
+                    </option>
+                  ))}
+                {results.by_member.some((m) => m.is_manager) && (
+                  <option value="manager">マネージャー</option>
+                )}
+              </select>
+            </div>
             {results.by_practice.length === 0 && (
               <p className="py-8 text-center text-sm text-gray-500">
                 結果がまだありません

@@ -494,7 +494,7 @@ paths:
       summary: 学年別の参加人数枠を保存（代表のみ）
       description: |
         REQ-005.3 / D-015。練習日ごとに1〜3年の人数をまとめて保存する。
-        **学年別人数の合計が定員と一致しない場合は 400** を返す。
+        合計と定員の一致は求めない (D-045)。枠の合計がその日の参加上限になる。
       parameters:
         - $ref: '#/components/parameters/PmId'
       requestBody:
@@ -1016,7 +1016,7 @@ components:
               practice_id: { type: string }
               grades:
                 type: array
-                description: 1〜3年すべてを指定する。合計は定員と一致させること
+                description: 1〜3年すべてを指定する。合計と定員の一致は求めない (D-045)
                 items:
                   type: object
                   required: [grade, quota]

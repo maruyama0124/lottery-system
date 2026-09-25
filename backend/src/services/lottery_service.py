@@ -196,8 +196,9 @@ class LotteryService:
         3. 余った席は 3年 → 2年 → 1年 の順に、投票者数を上限として配る
            — 上級生優先の方針 (D-015) をここでも踏襲する
         4. それでも余る席（全学年の投票者が定員未満の日）は1年に載せる
-           — 保存時に合計＝定員が要求されるため。埋まらない席は抽選側が
-             他学年へ回すので (D-027)、どの学年に置いても結果は変わらない
+           — 提案値の合計を定員にそろえるため。埋まらない席は抽選側が
+             他学年へ回すので (D-027)、どの学年に置いても結果は変わらない。
+             代表が合計を定員からずらして保存することはできる (D-045)
 
         一度 D-028 で「常に 10/10/10」の固定値にしたが、投票が足りない日にも
         10 と表示されるのは逆に分かりにくいという指摘で本方式に戻した。
@@ -234,12 +235,8 @@ class LotteryService:
             quotas = {q.grade: q.quota for q in item.grades}
             if set(quotas) != set(GRADES):
                 raise ValidationError("1〜3年すべての枠を指定してください")
-            total = sum(quotas.values())
-            if total != practice.capacity:
-                raise ValidationError(
-                    f"{practice.practice_date} の学年別枠の合計 ({total}名) が"
-                    f"定員 ({practice.capacity}名) と一致しません"
-                )
+            # 合計と定員の一致は求めない (D-045)。代表が意図的に定員より多く/少なく
+            # 取ることがあるため、枠の合計をその日の実際の参加上限として扱う
             practice.quota_grade1 = quotas[1]
             practice.quota_grade2 = quotas[2]
             practice.quota_grade3 = quotas[3]
@@ -494,6 +491,9 @@ class LotteryService:
         if practice is None:
             raise NotFoundError("練習日が見つかりません")
         pm = self.practice_service.get_month_for_rep(rep, practice.practice_month_id)
+        if assignment.publish_state == "removing":
+            # すでに削除予定。二重に消すとメンバーから即座に消えてしまうので何もしない
+            return
         if pm.status == "published" and assignment.publish_state == "published":
             # 公開済みの割当はすぐ消さず、再公開まで「削除予定」にとどめる (D-044)
             assignment.publish_state = "removing"

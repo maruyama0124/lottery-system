@@ -3,7 +3,7 @@
 // 抽選実行画面（代表のみ）
 // D-015: 日ごと・学年ごとの投票状況を見ながら参加人数を決め、確定してから抽選する
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { AdminHeader } from "@/components/admin/header";
 import { ErrorMessage } from "@/components/ui/error-message";
 import { CalendarDaysIcon, DicesIcon, TriangleAlertIcon } from "@/components/ui/icons";
@@ -52,64 +52,6 @@ function toDraft(summary: VoteSummary): QuotaDraft {
 }
 
 /** 定員を学年数で等分した「基準」。端数は 3年 → 2年 → 1年 の順に1ずつ足す */
-function baseShares(capacity: number): Record<number, number> {
-  const base = Math.floor(capacity / 3);
-  const extra = capacity % 3;
-  const shares: Record<number, number> = { 3: base, 2: base, 1: base };
-  for (const g of [3, 2, 1].slice(0, extra)) shares[g] += 1;
-  return shares;
-}
-
-/** 現在の枠が基準からどうずれているか（＝不足分がどこへ回っているか）を文で示す (D-031) */
-function shareNote(
-  capacity: number,
-  quotas: Record<number, number>,
-  voters: Record<number, number>,
-  allowed: number[] | null,
-): string[] {
-  // 学年限定の日 (D-037) は等分の基準が違うため、限定の旨だけ示す
-  if (allowed && allowed.length < 3) {
-    const notes = [`${[...allowed].sort().join("・")}年限定の練習日です`];
-    const over = allowed.filter((g) => (quotas[g] ?? 0) > (voters[g] ?? 0));
-    if (over.length) {
-      const overText = over
-        .map((g) => `${g}年（投票${voters[g] ?? 0}人に枠${quotas[g] ?? 0}）`)
-        .join("・");
-      notes.push(`${overText} は投票を超えるぶんが空席になります`);
-    }
-    return notes;
-  }
-
-  const base = baseShares(capacity);
-  const grades = [3, 2, 1];
-  const minus = grades.filter((g) => (quotas[g] ?? 0) < base[g]);
-  const plus = grades.filter((g) => (quotas[g] ?? 0) > base[g]);
-  const notes: string[] = [];
-
-  if (minus.length || plus.length) {
-    const baseText = base[3] === base[1] ? `各${base[3]}` : `${base[3]}・${base[2]}・${base[1]}`;
-    const minusText = minus.map((g) => `${g}年 −${base[g] - (quotas[g] ?? 0)}`).join("・");
-    const plusText = plus.map((g) => `${g}年 +${(quotas[g] ?? 0) - base[g]}`).join("・");
-    if (minus.length && plus.length) {
-      notes.push(`基準${baseText}に対し、${minusText} のぶんを ${plusText} に回しています`);
-    } else if (minus.length) {
-      notes.push(`基準${baseText}に対し ${minusText}`);
-    } else {
-      notes.push(`基準${baseText}に対し ${plusText}`);
-    }
-  }
-
-  // 投票者より多い枠は書いても埋まらない。抽選側の流用 (D-027) の存在を添える
-  const over = grades.filter((g) => (quotas[g] ?? 0) > (voters[g] ?? 0));
-  if (over.length) {
-    const overText = over
-      .map((g) => `${g}年（投票${voters[g] ?? 0}人に枠${quotas[g] ?? 0}）`)
-      .join("・");
-    notes.push(`${overText} は投票を超えるぶんが抽選時に他学年へ回るか、空席になります`);
-  }
-  return notes;
-}
-
 /** 学年別の投票数を積み上げ棒で表す */
 function VoteBar({ practice }: { practice: PracticeVoteSummary }) {
   const total = practice.grades.reduce((sum, g) => sum + g.voters, 0);
@@ -159,40 +101,32 @@ export default function AdminLotteryPage() {
     mutate: mutateSummary,
   } = useApi<VoteSummary>(monthId ? `/v1/practice-months/${monthId}/vote-summary` : null);
 
-  const [draft, setDraft] = useState<QuotaDraft | null>(null);
+  // 代表が編集中の人数。null のあいだは取得した投票状況（保存値か提案値）を表示する。
+  // effect で取得値を書き戻す方式だと、再取得のたびに編集中の値が消えるのでこの形にする
+  const [edited, setEdited] = useState<QuotaDraft | null>(null);
+  const draft: QuotaDraft | null = edited ?? (summary ? toDraft(summary) : null);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [quotaError, setQuotaError] = useState<string | null>(null);
   const [executing, setExecuting] = useState(false);
   const [execError, setExecError] = useState<string | null>(null);
   const [lastExecution, setLastExecution] = useState<LotteryExecution | null>(null);
 
-  // 取得した投票状況を入力欄の初期値にする（外部データとの同期）
-  useEffect(() => {
-    if (summary) setDraft(toDraft(summary));
-  }, [summary]);
-
   if (authLoading || !user) return <Loading />;
 
   const setQuota = (practiceId: string, grade: number, value: number) => {
-    setSaved(false);
-    setDraft((prev) =>
-      prev
-        ? { ...prev, [practiceId]: { ...prev[practiceId], [grade]: Math.max(0, value) } }
-        : prev,
-    );
+    if (!draft) return;
+    setEdited({
+      ...draft,
+      [practiceId]: { ...draft[practiceId], [grade]: Math.max(0, value) },
+    });
   };
 
   const totalOf = (practiceId: string): number =>
     GRADES.reduce((sum, g) => sum + (draft?.[practiceId]?.[g] ?? 0), 0);
 
-  const allMatched =
-    !!summary &&
-    !!draft &&
-    summary.practices.every((p) => totalOf(p.practice_id) === p.capacity);
-
-  const saveQuotas = async () => {
-    if (!monthId || !summary || !draft) return;
+  // 画面の人数を保存する。抽選の直前に必ず呼び、画面に見えている値で抽選する (D-046)
+  const saveQuotas = async (): Promise<boolean> => {
+    if (!monthId || !summary || !draft) return false;
     setSaving(true);
     setQuotaError(null);
     try {
@@ -202,10 +136,11 @@ export default function AdminLotteryPage() {
           grades: GRADES.map((g) => ({ grade: g, quota: draft[p.practice_id][g] })),
         })),
       });
-      setSaved(true);
       await mutateSummary();
+      return true;
     } catch (e) {
       setQuotaError(e instanceof ApiClientError ? e.error.message : "保存に失敗しました");
+      return false;
     } finally {
       setSaving(false);
     }
@@ -218,10 +153,12 @@ export default function AdminLotteryPage() {
     );
 
   const handleExecute = async () => {
-    if (!monthId || executing) return;
-    setExecuting(true);
+    if (!monthId || executing || saving) return;
     setExecError(null);
     setLastExecution(null);
+    // 画面に入っている人数をそのまま使う。保存し忘れた古い値で抽選しないため
+    if (!(await saveQuotas())) return;
+    setExecuting(true);
     try {
       setLastExecution(await runLottery(false));
     } catch (e) {
@@ -265,10 +202,10 @@ export default function AdminLotteryPage() {
             value={monthId ?? ""}
             onChange={(e) => {
               setSelectedMonthId(e.target.value);
+              setEdited(null); // 月をまたいで編集中の値を持ち越さない
               setLastExecution(null);
               setExecError(null);
-              setSaved(false);
-            }}
+                      }}
             className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm font-bold text-gray-900 focus:border-brand-600 focus:outline-none"
           >
             {months.map((m) => (
@@ -304,7 +241,6 @@ export default function AdminLotteryPage() {
             <div className="space-y-3">
               {summary.practices.map((p) => {
                 const total = totalOf(p.practice_id);
-                const matched = total === p.capacity;
                 return (
                   <div
                     key={p.practice_id}
@@ -350,24 +286,10 @@ export default function AdminLotteryPage() {
                       })}
                     </div>
 
-                    <p
-                      className={`mt-2 text-xs font-semibold ${
-                        matched ? "text-green-700" : "text-gray-500"
-                      }`}
-                    >
+                    {/* 合計と定員の一致は求めない。代表が意図的にずらすことがある (D-045) */}
+                    <p className="mt-2 text-xs font-semibold text-gray-500">
                       合計 {total} / 定員 {p.capacity}
-                      {matched ? " ✓" : "（定員と一致させてください）"}
                     </p>
-                    {shareNote(
-                      p.capacity,
-                      draft[p.practice_id] ?? {},
-                      Object.fromEntries(p.grades.map((g) => [g.grade, g.voters])),
-                      p.allowed_grades,
-                    ).map((note) => (
-                      <p key={note} className="mt-1 text-xs text-gray-500">
-                        {note}
-                      </p>
-                    ))}
                   </div>
                 );
               })}
@@ -378,19 +300,6 @@ export default function AdminLotteryPage() {
                 <ErrorMessage message={quotaError} />
               </div>
             )}
-            {saved && (
-              <p className="mt-3 rounded-lg bg-green-50 px-3 py-2 text-sm font-medium text-green-700">
-                参加人数を保存しました
-              </p>
-            )}
-            <button
-              type="button"
-              onClick={saveQuotas}
-              disabled={!allMatched || saving}
-              className="mt-3 w-full rounded-lg bg-gray-900 py-3 text-sm font-bold text-white hover:bg-gray-800 disabled:opacity-40"
-            >
-              {saving ? "保存中…" : "参加人数を保存する"}
-            </button>
           </section>
         )}
 
@@ -424,19 +333,17 @@ export default function AdminLotteryPage() {
 
       {/* 下部固定: 実行ボタン（タブバーの上） */}
       <div className="fixed bottom-14 left-1/2 z-40 w-full max-w-[480px] -translate-x-1/2 border-t border-gray-200 bg-white/95 px-4 pt-3 pb-3 backdrop-blur">
-        {summary && !summary.quotas_ready && (
-          <p className="mb-2 text-center text-xs text-gray-500">
-            参加人数を保存すると抽選できます
-          </p>
-        )}
+        <p className="mb-2 text-center text-xs text-gray-500">
+          上の参加人数をそのまま使って抽選します
+        </p>
         <button
           onClick={handleExecute}
-          disabled={executing || !monthId || !summary?.quotas_ready}
+          disabled={executing || saving || !monthId || !draft}
           className="w-full rounded-xl bg-brand-600 py-4 text-lg font-bold text-white shadow-lg hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <span className="inline-flex items-center gap-2">
             <DicesIcon width={22} height={22} />
-            {executing ? "実行中…" : "抽選を実行する"}
+            {saving ? "保存中…" : executing ? "実行中…" : "抽選を実行する"}
           </span>
         </button>
       </div>

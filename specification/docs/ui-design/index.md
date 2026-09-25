@@ -8,9 +8,9 @@ depends_on:
 - requirements/index.md
 - api-design/index.md
 derived_by: []
-sync_hash: e249dc7235de
+sync_hash: ebb731449ec3
 dependency_hashes:
-  requirements/index.md: 13f64cc9d35f
+  requirements/index.md: 172f86034dfb
   api-design/index.md: ea8c5d33611d
 ---
 
@@ -134,7 +134,8 @@ stateDiagram-v2
 
 - **練習日ごとに、学年別の投票状況を積み上げ棒グラフで表示**し、その下で1年・2年・3年の参加人数を入力する (REQ-005.5 / D-015)
 - 初期値はシステムの提案値（投票状況から自動算出）。代表は自由に増減できる (REQ-005.5.1)
-- **合計が定員と一致するまで「参加人数を保存する」は押せない**。保存が済むまで「抽選を実行する」も無効
+- 各練習日に「合計 N / 定員 M」を灰色で示すだけで、一致は求めず注意書きや説明文も出さない (D-045)
+- 「参加人数を保存する」ボタンは置かない。「抽選を実行する」を押すと、画面に入っている人数をまず保存し、その値で抽選する (D-046)
 - 「抽選を実行する」ボタン。実行済みの場合は再実行の確認ダイアログ (REQ-005.12)
 - 実行直後は結果カードを表示し、**その回の警告のみ**を出す。過去の実行履歴は画面に出さない (D-018)
 - API: `GET .../vote-summary`, `PUT .../quotas`, `POST .../lottery`

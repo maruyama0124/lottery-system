@@ -89,13 +89,6 @@ def run_lottery(
         g: {p.id: p.quotas.get(g, 0) for p in practices} for g in GRADES
     }
 
-    for p in practices:
-        total = sum(p.quotas.get(g, 0) for g in GRADES)
-        if total > p.capacity:
-            result.warnings.append(
-                f"練習 {p.id}: 学年別枠の合計 ({total}名) が定員 ({p.capacity}名) を超えています"
-            )
-
     def assign(practice_id: str, member_id: str, via: str, counts: bool = True) -> None:
         result.assignments.append((practice_id, member_id, via))
         assigned[member_id].add(practice_id)
@@ -332,7 +325,9 @@ def run_lottery(
     # ---------- 内部検証 (D-036) ----------
     # 実行のたびに不変条件を機械チェックする。破れているのは実装の欠陥なので、
     # 警告として表面化させ、静かに壊れたまま運用され続けるのを防ぐ
-    capacity_of = {p.id: p.capacity for p in practices}
+    # 枠の合計は定員と一致しなくてよい (D-045)。実際に配る席数は枠の合計なので、
+    # 空席・超過の検証はどちらも枠の合計に対して行う (定員は表示上の目安)
+    capacity_of = {p.id: sum(p.quotas.get(g, 0) for g in GRADES) for p in practices}
     per_day: dict[str, int] = defaultdict(int)
     seen_pairs: set[tuple[str, str]] = set()
     player_ids = {m.id for m in players}

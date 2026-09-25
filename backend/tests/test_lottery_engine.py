@@ -404,3 +404,23 @@ def test_internal_check_is_silent_on_valid_runs() -> None:
         result = run_lottery(practices, members, votes, rescue_alpha=0.5, seed=seed)
         internal = [w for w in result.warnings if w.startswith("内部検証")]
         assert not internal, f"seed={seed}: {internal}"
+
+
+def test_quota_total_may_differ_from_capacity() -> None:
+    """枠の合計が定員と違っても、枠どおりに配り、内部検証の警告も出ない (D-045)"""
+    members = [Member(id=f"g{g}_{i}", grade=g) for g in (3, 2, 1) for i in range(8)]
+    votes = {m.id: {"p_over", "p_under"} for m in members}
+    practices = [
+        # 定員10に対して枠13 → 13人入る
+        PracticeDay(id="p_over", capacity=10, quotas={3: 4, 2: 4, 1: 5}),
+        # 定員10に対して枠8 → 8人で止まり、「空席」扱いにしない
+        PracticeDay(id="p_under", capacity=10, quotas={3: 3, 2: 3, 1: 2}),
+    ]
+    for seed in range(5):
+        result = run_lottery(practices, members, votes, rescue_alpha=0.5, seed=seed)
+        count = {p.id: 0 for p in practices}
+        for pid, _mid, _via in result.assignments:
+            count[pid] += 1
+        assert count == {"p_over": 13, "p_under": 8}, f"seed={seed}: {count}"
+        internal = [w for w in result.warnings if w.startswith("内部検証")]
+        assert not internal, f"seed={seed}: {internal}"
