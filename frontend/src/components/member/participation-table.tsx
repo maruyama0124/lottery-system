@@ -71,8 +71,9 @@ export function ParticipationTable({
       <h2 className="font-bold text-gray-900">練習参加表</h2>
       <p className="mt-0.5 text-sm text-gray-500">誰がどの日に参加するかの一覧</p>
 
-      {/* グループの切り替え。「マネージャー」だけ文字数が多いので幅は内容に合わせる */}
-      <div className="mt-4 flex gap-2">
+      {/* グループの切り替え。スマホ幅で入り切らないときは折り返して、
+          最後の「集計」が画面外に隠れないようにする */}
+      <div className="mt-4 flex flex-wrap gap-2">
         {tabs.map((t) => {
           const isActive = t.key === active;
           return (
@@ -83,9 +84,7 @@ export function ParticipationTable({
                 setActive(t.key);
                 setPickedRow(null); // 学年をまたぐと行の選択は無効になる
               }}
-              className={`whitespace-nowrap rounded-full px-3 py-2 text-sm font-bold transition-colors ${
-                t.key === MANAGER || t.key === SUMMARY ? "shrink-0" : "flex-1"
-              } ${
+              className={`shrink-0 whitespace-nowrap rounded-full px-3 py-2 text-sm font-bold transition-colors ${
                 isActive ? "bg-brand-600 text-white" : "border-2 border-gray-200 text-gray-500"
               }`}
             >
@@ -103,18 +102,18 @@ export function ParticipationTable({
       {/* 集計タブ — 日ごとの学年別人数と備考 (D-041) */}
       {active === SUMMARY && (
         <div className="-mx-1 mt-3 overflow-x-auto">
-          <table className="w-full border-collapse text-sm">
+          <table className="w-full border-collapse text-sm [&_td]:border [&_td]:border-gray-200 [&_th]:border [&_th]:border-gray-200">
             <thead>
-              <tr className="text-xs font-bold text-gray-500">
-                <th className="pb-2 pr-2 text-left">日付</th>
+              <tr className="bg-gray-50 text-xs font-bold text-gray-500">
+                <th className="px-2 py-2 text-left">日付</th>
                 {gradeTabs.map((t) => (
-                  <th key={String(t.key)} className="px-2 pb-2 text-right">
+                  <th key={String(t.key)} className="px-2 py-2 text-right">
                     {t.label}
                   </th>
                 ))}
-                {managers.length > 0 && <th className="px-2 pb-2 text-right">マネ</th>}
-                <th className="px-2 pb-2 text-right">合計</th>
-                <th className="pb-2 pl-3 text-left">備考</th>
+                {managers.length > 0 && <th className="px-2 py-2 text-right">マネ</th>}
+                <th className="px-2 py-2 text-right">合計</th>
+                <th className="px-2 py-2 text-left">備考</th>
               </tr>
             </thead>
             <tbody>
@@ -128,8 +127,8 @@ export function ParticipationTable({
                 ).length;
                 const total = counts.reduce((a, b) => a + b, 0) + mgrCount;
                 return (
-                  <tr key={p.id} className="border-t border-gray-100">
-                    <td className="whitespace-nowrap py-2 pr-2 font-bold text-gray-800">
+                  <tr key={p.id}>
+                    <td className="whitespace-nowrap px-2 py-2 font-bold text-gray-800">
                       {md}({wd})
                     </td>
                     {counts.map((n, i) => (
@@ -143,7 +142,7 @@ export function ParticipationTable({
                     <td className="px-2 py-2 text-right font-bold text-brand-700">
                       {total}
                     </td>
-                    <td className="py-2 pl-3 text-xs text-gray-500">
+                    <td className="px-2 py-2 text-xs text-gray-500">
                       {p.note ? `※ ${p.note}` : ""}
                     </td>
                   </tr>
@@ -157,10 +156,14 @@ export function ParticipationTable({
       {/* 表だけを横スクロールさせる。ページ全体は横に動かさない */}
       {active !== SUMMARY && (
       <div className="-mx-1 mt-3 overflow-x-auto">
-        <table className="w-full border-collapse text-sm">
+        {/* 罫線は行・列を目で追いやすくするため全セルに付ける。
+            名前列を sticky にしているので border-collapse だと横スクロール時に
+            罫線が置いていかれる (Chrome の既知の挙動)。border-separate にして
+            各セルの右と下だけ引き、左上の外枠は table 側で引く */}
+        <table className="w-full border-separate border-spacing-0 border-l border-t border-gray-200 text-sm [&_td]:border-b [&_td]:border-r [&_td]:border-gray-200 [&_th]:border-b [&_th]:border-r [&_th]:border-gray-200">
           <thead>
             <tr>
-              <th className="sticky left-0 z-10 bg-white pb-2 pr-2 text-left text-xs font-bold text-gray-500">
+              <th className="sticky left-0 z-10 bg-gray-50 px-2 py-2 text-left text-xs font-bold text-gray-500">
                 名前
               </th>
               {data.practices.map((p) => {
@@ -171,8 +174,8 @@ export function ParticipationTable({
                     <button
                       type="button"
                       onClick={() => setPickedCol(picked ? null : p.id)}
-                      className={`w-full rounded-t-lg px-1 pb-2 pt-1 text-center text-xs font-bold transition-colors ${
-                        picked ? "bg-sky-100 text-sky-800" : "text-gray-600"
+                      className={`w-full px-1 py-1 text-center text-xs font-bold transition-colors ${
+                        picked ? "bg-sky-100 text-sky-800" : "bg-gray-50 text-gray-600"
                       }`}
                     >
                       <span className="block">{md}</span>
@@ -201,7 +204,7 @@ export function ParticipationTable({
                     <button
                       type="button"
                       onClick={() => setPickedRow(rowPicked ? null : row.user_id)}
-                      className={`w-full py-1.5 pr-3 text-left text-sm ${
+                      className={`w-full px-2 py-1.5 text-left text-sm ${
                         isMe
                           ? "font-bold text-accent-700"
                           : rowPicked
@@ -244,7 +247,7 @@ export function ParticipationTable({
           {current && current.rows.length > 0 && (
             <tfoot>
               <tr>
-                <td className="sticky left-0 border-t border-gray-200 bg-white py-1.5 pr-3 text-left text-xs font-bold text-gray-500">
+                <td className="sticky left-0 bg-gray-50 px-2 py-1.5 text-left text-xs font-bold text-gray-500">
                   {current.label} 合計
                 </td>
                 {practiceIds.map((pid) => {
@@ -255,8 +258,8 @@ export function ParticipationTable({
                   return (
                     <td
                       key={pid}
-                      className={`border-t border-gray-200 py-1.5 text-center text-sm font-bold ${
-                        colPicked ? "bg-sky-50 text-sky-800" : "text-brand-700"
+                      className={`py-1.5 text-center text-sm font-bold ${
+                        colPicked ? "bg-sky-50 text-sky-800" : "bg-gray-50 text-brand-700"
                       }`}
                     >
                       {count}
