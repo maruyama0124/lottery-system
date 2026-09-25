@@ -59,9 +59,8 @@ function AlphaForm({ initial }: { initial: string | number }) {
       </label>
       <input
         id="rescue-alpha"
-        type="number"
-        step={0.1}
-        min={0}
+        type="text"
+        inputMode="decimal"
         value={alpha}
         onChange={(e) => setAlpha(e.target.value)}
         className={inputClass}

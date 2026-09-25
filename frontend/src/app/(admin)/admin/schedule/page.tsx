@@ -254,10 +254,11 @@ function PracticeForm({
       <div>
         <label className={labelClass}>定員</label>
         <input
-          type="number"
-          min={1}
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
           value={values.capacity}
-          onChange={(e) => onChange({ ...values, capacity: e.target.value })}
+          onChange={(e) => onChange({ ...values, capacity: e.target.value.replace(/\D/g, "") })}
           className={inputClass}
         />
       </div>

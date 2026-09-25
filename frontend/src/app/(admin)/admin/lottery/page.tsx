@@ -37,7 +37,8 @@ function formatPracticeDate(dateStr: string): string {
 }
 
 /** practice_id -> 学年 -> 入力中の人数 */
-type QuotaDraft = Record<string, Record<number, number>>;
+// 入力中は文字列で持つ。数値で持つと空欄にできず「0」が残る（スマホで消せない）ため
+type QuotaDraft = Record<string, Record<number, string>>;
 
 function toDraft(summary: VoteSummary): QuotaDraft {
   const draft: QuotaDraft = {};
@@ -45,7 +46,7 @@ function toDraft(summary: VoteSummary): QuotaDraft {
     draft[p.practice_id] = {};
     for (const g of p.grades) {
       // 未設定なら提案値（基準の等分に投票状況を反映した値: D-031）を初期表示する
-      draft[p.practice_id][g.grade] = g.quota ?? g.suggested_quota;
+      draft[p.practice_id][g.grade] = String(g.quota ?? g.suggested_quota);
     }
   }
   return draft;
@@ -113,16 +114,18 @@ export default function AdminLotteryPage() {
 
   if (authLoading || !user) return <Loading />;
 
-  const setQuota = (practiceId: string, grade: number, value: number) => {
+  const setQuota = (practiceId: string, grade: number, value: string) => {
     if (!draft) return;
+    // 数字以外は捨てる (電話番号用キーボードでの入力を想定)
+    const digits = value.replace(/\D/g, "");
     setEdited({
       ...draft,
-      [practiceId]: { ...draft[practiceId], [grade]: Math.max(0, value) },
+      [practiceId]: { ...draft[practiceId], [grade]: digits },
     });
   };
 
   const totalOf = (practiceId: string): number =>
-    GRADES.reduce((sum, g) => sum + (draft?.[practiceId]?.[g] ?? 0), 0);
+    GRADES.reduce((sum, g) => sum + (Number(draft?.[practiceId]?.[g]) || 0), 0);
 
   // 画面の人数を保存する。抽選の直前に必ず呼び、画面に見えている値で抽選する (D-046)
   const saveQuotas = async (): Promise<boolean> => {
@@ -133,7 +136,10 @@ export default function AdminLotteryPage() {
       await apiClient.put<void>(`/v1/practice-months/${monthId}/quotas`, {
         practices: summary.practices.map((p) => ({
           practice_id: p.practice_id,
-          grades: GRADES.map((g) => ({ grade: g, quota: draft[p.practice_id][g] })),
+          grades: GRADES.map((g) => ({
+            grade: g,
+            quota: Number(draft[p.practice_id][g]) || 0, // 空欄は 0 として保存
+          })),
         })),
       });
       await mutateSummary();
@@ -272,13 +278,12 @@ export default function AdminLotteryPage() {
                             </label>
                             <input
                               id={`${p.practice_id}-${g.grade}`}
-                              type="number"
-                              min={0}
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
                               disabled={!inPlay}
-                              value={draft[p.practice_id]?.[g.grade] ?? 0}
-                              onChange={(e) =>
-                                setQuota(p.practice_id, g.grade, Number(e.target.value))
-                              }
+                              value={draft[p.practice_id]?.[g.grade] ?? ""}
+                              onChange={(e) => setQuota(p.practice_id, g.grade, e.target.value)}
                               className="w-full rounded-lg border border-gray-300 px-2 py-2 text-center text-sm text-gray-900 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600 disabled:bg-gray-100 disabled:text-gray-400"
                             />
                           </div>
