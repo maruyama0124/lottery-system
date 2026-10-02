@@ -1,9 +1,16 @@
-FROM python:3.12-slim
+FROM python:3.12-slim AS base
 
 WORKDIR /app
 
-COPY requirements.txt requirements-dev.txt ./
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# ローカル開発用: テスト用ライブラリも入れる (docker-compose.yaml の target: dev で使う)
+FROM base AS dev
+COPY requirements-dev.txt ./
 RUN pip install --no-cache-dir -r requirements-dev.txt
+
+FROM base AS prod
 
 COPY . .
 
