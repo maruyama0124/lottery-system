@@ -2,8 +2,8 @@
 hide:
 - navigation
 doc_type: requirements
-version: 4.2.0
-last_updated: '2026-09-25'
+version: 4.3.0
+last_updated: '2026-10-03'
 depends_on:
 - business-plan/index.md
 derived_by:
@@ -11,7 +11,7 @@ derived_by:
 - database-design/index.md
 - ui-design/index.md
 - infrastructure-design/index.md
-sync_hash: 35966ac7d489
+sync_hash: 904486cbf3c5
 dependency_hashes:
   business-plan/index.md: 95db25dcaa0b
 ---
@@ -741,7 +741,7 @@ Phase 2 : 残枠配分（投票数・落選救済で重み付け）… 既存
 - **JWT は継続**: 認証手段が LINE に変わっただけで、検証後にアクセストークン（JWT Bearer Token）を発行して httpOnly Cookie に格納する仕組みはそのまま
 - **プロフィール編集画面も廃止**: 本人による学年の更新は年度替わりに抜け漏れが生じるため、変更は管理者が DB を直接更新する運用にした (REQ-002.2)
 - **残したもの**: `/auth/logout`（Cookie の破棄）。ただし現状これを呼ぶ画面はない
-- **未処理**: `users` テーブルの `email` / `password_hash` / `email_verified_at` / `verification_*` の各カラム。削除には本番への破壊的マイグレーションが必要なため、扱いは別途決める
+- **未処理**: `users` テーブルの `email` / `password_hash` / `email_verified_at` / `verification_*` の各カラム。削除には本番への破壊的マイグレーションが必要なため、扱いは別途決める → D-047 で削除した
 
 ### D-043: 結果画面と練習参加表に、未投票・不参加のメンバーも表示する
 
@@ -769,6 +769,12 @@ Phase 2 : 残枠配分（投票数・落選救済で重み付け）… 既存
 - **決定**: 抽選画面の「参加人数を保存する」ボタンを廃止し、「抽選を実行する」を押した時点で画面の人数を `PUT /quotas` で保存してから `POST /lottery` を呼ぶ。保存に失敗した場合は抽選しない
 - **背景**: 初回運用で、代表が画面の人数を打ち替えたあと保存を押さずに抽選を実行し、8月に保存した古い枠（合計30）で抽選が走った。画面には合計33と出ているのに結果は30人で、代表からは「指定した人数で抽選されていない」ように見えた。人数の入力と抽選は一連の操作なので、別々の保存ボタンを挟む必然性がない
 - **影響**: `quotas_ready`（全練習日の枠が保存済みか）による実行ボタンの無効化は不要になる。API 側の「枠が未設定なら 409」は安全弁として残す
+
+### D-047: メール認証の廃止で未使用になった users のカラムを削除する
+
+- **決定**: `users` の `email` / `password_hash` / `email_verified_at` / `verification_code_hash` / `verification_expires_at` / `verification_attempts` の 6 列を削除する。あわせて開発用代表アカウント (seed) はメールではなくダミーの `line_user_id` で作る形に改め、`bcrypt` への依存を外す
+- **背景**: D-042 で認証を LINE に一本化した際、「削除には本番への破壊的マイグレーションが必要」として列だけ残していた。コードの読み直しで、使われていない列が設計書と実装のずれとして残り続けることのほうが保守の妨げになると判断した。削除前に本番で 6 列すべてが NULL（attempts は 0）であることを確認したため、失われるデータはない
+- **D-042 への影響**: 同記録の「未処理」項目はこれで解消
 
 ## 6. 用語集
 

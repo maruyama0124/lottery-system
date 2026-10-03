@@ -35,20 +35,9 @@ class User(Base, TimestampMixin):
 
     __tablename__ = "users"
 
-    email_verified_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    verification_code_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    verification_expires_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    verification_attempts: Mapped[int] = mapped_column(nullable=False, server_default="0")
     id: Mapped[str] = mapped_column(String(30), primary_key=True)
-    # LINE ログインで識別するメンバー (D-021)。代表はメール+パスワードのため NULL
+    # LINE ログインで識別する (D-021 / D-042)
     line_user_id: Mapped[str | None] = mapped_column(String(50), unique=True, nullable=True)
-    # 代表のみが保持する。LINE ログインのメンバーは持たない (D-021)
-    email: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
-    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     grade: Mapped[int] = mapped_column(nullable=False)
     gender: Mapped[str] = mapped_column(String(10), nullable=False)

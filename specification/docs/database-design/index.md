@@ -2,15 +2,15 @@
 hide:
 - navigation
 doc_type: database-design
-version: 1.4.0
-last_updated: '2026-09-25'
+version: 1.5.0
+last_updated: '2026-10-03'
 depends_on:
 - requirements/index.md
 derived_by:
 - api-design/index.md
-sync_hash: '269413516489'
+sync_hash: a1858d615ffd
 dependency_hashes:
-  requirements/index.md: 35966ac7d489
+  requirements/index.md: 904486cbf3c5
 ---
 
 # DB設計書 — サークル練習参加抽選システム
@@ -131,9 +131,7 @@ erDiagram
 
 インデックス: `(gender, grade)`, `(role)` ／ 一意制約: `line_user_id`
 
-住所・電話番号・メールアドレス・学部学科・学籍番号は本システムでは保持しない (D-021)。抽選に必要な氏名・学年・性別・マネージャー区分に限定している。
-
-**未使用のまま残っているカラム**: `email` / `password_hash` / `email_verified_at` / `verification_code_hash` / `verification_expires_at` / `verification_attempts`。メールアドレス + パスワードによる認証を廃止した (D-042) ため、いずれも書き込まれることはない。削除には本番への破壊的マイグレーションが必要なため、扱いは別途決める。
+住所・電話番号・メールアドレス・学部学科・学籍番号は本システムでは保持しない (D-021)。抽選に必要な氏名・学年・性別・マネージャー区分に限定している。メール + パスワード認証の廃止 (D-042) 後に残っていた `email` / `password_hash` / `verification_*` の各列は D-047 で削除した。
 
 ### practice_months — 月別抽選単位（月 × 性別）
 

@@ -30,7 +30,7 @@
 - バックエンド: `docker compose -f backend/docker-compose.yaml up -d` (API: localhost:8010, Swagger: /api/v1/docs)
 - バックエンドテスト: `docker compose -f backend/docker-compose.yaml exec api pytest -q`
 - フロントエンド: `cd frontend && npx next dev` (localhost:3000。`.env.local` の API_URL=http://localhost:8010)
-- 初期代表アカウント (開発用): rep-male@example.com / rep-female@example.com。`python -m src.db.seed --with-dev-reps` で作成（本番では作らない: D-040）
+- 初期代表アカウント (開発用): `python -m src.db.seed --with-dev-reps` で line_user_id が dev_rep_male / dev_rep_female の代表を作る（本番では作らない: D-040）。ログインは LINE のみ (D-042) のため、ローカルでは JWT を直接発行して Cookie に入れる
 
 ## Mermaid 日本語ルール
 - 日本語を含むラベルは必ずダブルクォートで囲む

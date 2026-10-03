@@ -3,35 +3,24 @@
 - lottery_settings: 男女2行 (rescue_alpha = 0.5)
 - 初期代表アカウント (開発用): `--with-dev-reps` を付けたときだけ作成する。
   本番はダミーの代表を作らず、最初の代表は LINE 登録後に SQL で
-  role を付与する運用 (D-040)
+  role を付与する運用 (D-040)。ログイン手段は LINE のみ (D-042) のため、
+  開発用代表はダミーの line_user_id で作り、JWT を直接発行して使う。
 
 冪等: 既存データがあればスキップする。
 実行: docker compose -f backend/docker-compose.yaml exec api python -m src.db.seed [--with-dev-reps]
 """
 from decimal import Decimal
 
-import bcrypt
 from sqlalchemy.orm import Session
 
-from src.core.datetime_utils import utcnow
 from src.core.ids import generate_id
 from src.db.models import LotterySettings, User
 from src.db.session import SessionLocal
 
 INITIAL_REPRESENTATIVES = [
-    {
-        "email": "rep-male@example.com",
-        "name": "男子代表 (初期)",
-        "gender": "male",
-    },
-    {
-        "email": "rep-female@example.com",
-        "name": "女子代表 (初期)",
-        "gender": "female",
-    },
+    {"line_user_id": "dev_rep_male", "name": "男子代表 (初期)", "gender": "male"},
+    {"line_user_id": "dev_rep_female", "name": "女子代表 (初期)", "gender": "female"},
 ]
-INITIAL_PASSWORD = "change-me-1234"  # 初回ログイン後に変更する運用
-
 
 def seed_lottery_settings(db: Session) -> None:
     for gender in ("male", "female"):
@@ -50,28 +39,23 @@ def seed_lottery_settings(db: Session) -> None:
 
 
 def seed_representatives(db: Session) -> None:
-    password_hash = bcrypt.hashpw(INITIAL_PASSWORD.encode(), bcrypt.gensalt()).decode()
     for rep in INITIAL_REPRESENTATIVES:
-        exists = db.query(User).filter_by(email=rep["email"]).first()
+        exists = db.query(User).filter_by(line_user_id=rep["line_user_id"]).first()
         if exists:
-            print(f"代表 ({rep['email']}): スキップ (既存)")
+            print(f"代表 ({rep['line_user_id']}): スキップ (既存)")
             continue
         db.add(
             User(
                 id=generate_id("usr"),
-                email=rep["email"],
-                password_hash=password_hash,
+                line_user_id=rep["line_user_id"],
                 name=rep["name"],
                 grade=3,
                 gender=rep["gender"],
                 is_manager=False,
                 role="representative",
-                # 開発用アカウントは確認メールを受け取れないため確認済みで作る。
-                # NULL のままだとログイン時に 403 EMAIL_NOT_VERIFIED になる (D-011)
-                email_verified_at=utcnow(),
             )
         )
-        print(f"代表 ({rep['email']}): 作成")
+        print(f"代表 ({rep['line_user_id']}): 作成")
 
 
 def main() -> None:

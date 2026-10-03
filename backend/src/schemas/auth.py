@@ -11,7 +11,6 @@ class UserProfile(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
-    email: str | None
     name: str
     grade: int
     gender: str
