@@ -102,8 +102,6 @@ export interface PracticeMonth {
   gender: Gender;
   vote_starts_at: string;
   vote_ends_at: string;
-  /** D-015 で廃止（学年別の枠は practices 側で持つ） */
-  grade2_ratio: number | null;
   status: PracticeMonthStatus;
   published_at: string | null;
 }
@@ -188,8 +186,6 @@ export interface LotteryExecution {
   practice_month_id: string;
   executed_by: string;
   random_seed: number;
-  /** D-015 で廃止。以前の実行履歴のみ値を持つ */
-  grade2_ratio: string | number | null;
   is_active: boolean;
   warnings: string[];
   created_at: string;

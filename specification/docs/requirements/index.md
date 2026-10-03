@@ -2,7 +2,7 @@
 hide:
 - navigation
 doc_type: requirements
-version: 4.3.0
+version: 4.4.0
 last_updated: '2026-10-03'
 depends_on:
 - business-plan/index.md
@@ -11,7 +11,7 @@ derived_by:
 - database-design/index.md
 - ui-design/index.md
 - infrastructure-design/index.md
-sync_hash: 904486cbf3c5
+sync_hash: 6c1772cde1a9
 dependency_hashes:
   business-plan/index.md: 95db25dcaa0b
 ---
@@ -368,7 +368,7 @@ Phase 2 — 学年をまたいだ余り枠の再配分 (D-027):
 - **受け入れたトレードオフ**:
     - 代表の作業が1手順増える（枠の確認・保存をしてからでないと抽選できない）。ただし初期値が自動で入るため、そのまま保存するだけでも運用できる
     - 総枠が全学年の投票者数を下回る月は、優先度順に確保されるため下級生の枠が0になりうる。150名規模・総枠120に対し投票者78名という現状では発生しないが、発生時は代表が手で調整する
-    - 抽選の再現に必要な情報が `lottery_executions.grade2_ratio` から `settings_snapshot.quotas` へ移った。過去の実行履歴は `grade2_ratio` を保持したまま残す（列は NULL 許容に変更）
+    - 抽選の再現に必要な情報が `lottery_executions.grade2_ratio` から `settings_snapshot.quotas` へ移った。過去の実行履歴は `grade2_ratio` を保持したまま残す（列は NULL 許容に変更）→ D-048 で列ごと削除した
 
 ### D-016: 月の練習日程は確認画面を挟んでから作成する
 
@@ -775,6 +775,12 @@ Phase 2 : 残枠配分（投票数・落選救済で重み付け）… 既存
 - **決定**: `users` の `email` / `password_hash` / `email_verified_at` / `verification_code_hash` / `verification_expires_at` / `verification_attempts` の 6 列を削除する。あわせて開発用代表アカウント (seed) はメールではなくダミーの `line_user_id` で作る形に改め、`bcrypt` への依存を外す
 - **背景**: D-042 で認証を LINE に一本化した際、「削除には本番への破壊的マイグレーションが必要」として列だけ残していた。コードの読み直しで、使われていない列が設計書と実装のずれとして残り続けることのほうが保守の妨げになると判断した。削除前に本番で 6 列すべてが NULL（attempts は 0）であることを確認したため、失われるデータはない
 - **D-042 への影響**: 同記録の「未処理」項目はこれで解消
+
+### D-048: 学年枠比率 (grade2_ratio) の列を削除する
+
+- **決定**: `practice_months.grade2_ratio` と `lottery_executions.grade2_ratio` を削除する。あわせて `PUT /practice-months/{pmId}` のリクエストと、月・抽選実行のレスポンスから `grade2_ratio` を外す
+- **背景**: D-015 で月単位の学年枠比率を廃止し、練習日ごとの学年別人数に置き換えた。その際「過去の実行履歴のため」として `lottery_executions` 側は残し、`practice_months` 側は消し忘れていた。実際には本番運用の開始が D-015 より後だったため、どちらの列も一度も値が入っておらず（削除前に全行 NULL を確認）、保持すべき履歴が存在しない。D-047 と同じく、使われていない列を設計書と実装のずれとして残さないために削除する
+- **D-015 への影響**: 同記録の「過去の実行履歴は grade2_ratio を保持したまま残す」はこれで無効
 
 ## 6. 用語集
 

@@ -1,6 +1,5 @@
 """月別練習・練習日・投票スキーマ (openapi.yaml 準拠)"""
 from datetime import date, datetime, time
-from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
@@ -77,7 +76,6 @@ class PracticeMonthCreateRequest(BaseModel):
 class PracticeMonthUpdateRequest(BaseModel):
     vote_starts_at: datetime | None = None
     vote_ends_at: datetime | None = None
-    grade2_ratio: Decimal | None = Field(default=None, ge=0, le=1)
 
 
 class PracticeMonthResponse(BaseModel):
@@ -88,13 +86,8 @@ class PracticeMonthResponse(BaseModel):
     gender: Gender
     vote_starts_at: datetime
     vote_ends_at: datetime
-    grade2_ratio: Decimal | None
     status: str
     published_at: datetime | None
-
-    @field_serializer("grade2_ratio")
-    def _ratio_to_float(self, value: Decimal | None) -> float | None:
-        return float(value) if value is not None else None
 
 
 class PracticeMonthDetailResponse(PracticeMonthResponse):

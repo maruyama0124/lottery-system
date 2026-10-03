@@ -2,17 +2,17 @@
 hide:
 - navigation
 doc_type: api-design
-version: 2.2.0
-last_updated: '2026-09-25'
+version: 2.3.0
+last_updated: '2026-10-03'
 depends_on:
 - requirements/index.md
 - database-design/index.md
 derived_by:
 - ui-design/index.md
-sync_hash: ea8c5d33611d
+sync_hash: f0010e5ade73
 dependency_hashes:
-  requirements/index.md: 904486cbf3c5
-  database-design/index.md: a1858d615ffd
+  requirements/index.md: 6c1772cde1a9
+  database-design/index.md: 2820bf661115
 ---
 
 # API設計書 — サークル練習参加抽選システム
@@ -181,4 +181,4 @@ graph LR
 | REQ-006 (抽選結果) | GET /results/me, GET /results, GET /participation, POST/DELETE assignments, POST /publish |
 | REQ-007 (メンバー管理) | GET /users, GET /users/export, PUT /users/{userId}/role, DELETE /users/{userId} |
 | NFR-002.3〜4 (アクセス制御) | 全エンドポイントのロール・性別スコープ検証 (403) |
-| NFR-004.1 (設定変更) | GET/PUT /settings, PUT /practice-months/{pmId} (grade2_ratio) |
+| NFR-004.1 (設定変更) | GET/PUT /settings, PUT /practice-months/{pmId}/quotas |

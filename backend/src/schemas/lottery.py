@@ -23,14 +23,9 @@ class LotteryExecutionResponse(BaseModel):
     practice_month_id: str
     executed_by: str
     random_seed: int
-    grade2_ratio: Decimal | None  # D-015 以前の実行のみ値を持つ
     is_active: bool
     warnings: list[str] = []
     created_at: datetime
-
-    @field_serializer("grade2_ratio")
-    def _ratio_to_float(self, value: Decimal | None) -> float | None:
-        return float(value) if value is not None else None
 
 
 class GradeVoteSummary(BaseModel):

@@ -59,7 +59,6 @@ class LotteryRepository:
             practice_month_id=pm_id,
             executed_by=executed_by,
             random_seed=random_seed,
-            # grade2_ratio は D-015 で廃止。枠は settings_snapshot に記録する
             settings_snapshot=snapshot,
             is_active=True,
         )

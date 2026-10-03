@@ -98,20 +98,20 @@ def test_rep_gender_scope_on_update(client, make_user) -> None:
     _frep, female_rep_token = make_user(role="representative", gender="female")
     res = client.put(
         f"/api/v1/practice-months/{pm['id']}",
-        json={"grade2_ratio": 0.6},
+        json={"vote_ends_at": "2026-08-09T23:59:00+09:00"},
         headers=auth_header(female_rep_token),
     )
     assert res.status_code == 403
 
 
-def test_update_month_ratio_and_practice_crud(client, make_user) -> None:
+def test_update_month_and_practice_crud(client, make_user) -> None:
     _rep, rep_token = make_user(role="representative", gender="male")
     pm = create_month(client, rep_token)
 
     assert (
         client.put(
             f"/api/v1/practice-months/{pm['id']}",
-            json={"grade2_ratio": 0.5},
+            json={"vote_ends_at": "2026-08-09T23:59:00+09:00"},
             headers=auth_header(rep_token),
         ).status_code
         == 204
@@ -172,7 +172,6 @@ def test_delete_practice_after_lottery_requires_force(client, make_user, db_sess
             practice_month_id=pm["id"],
             executed_by=rep_id,
             random_seed=42,
-            grade2_ratio=0.5,
             settings_snapshot={"rescue_alpha": 0.2},
         )
     )

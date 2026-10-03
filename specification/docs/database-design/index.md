@@ -2,15 +2,15 @@
 hide:
 - navigation
 doc_type: database-design
-version: 1.5.0
+version: 1.6.0
 last_updated: '2026-10-03'
 depends_on:
 - requirements/index.md
 derived_by:
 - api-design/index.md
-sync_hash: a1858d615ffd
+sync_hash: 2820bf661115
 dependency_hashes:
-  requirements/index.md: 904486cbf3c5
+  requirements/index.md: 6c1772cde1a9
 ---
 
 # DB設計書 — サークル練習参加抽選システム
@@ -59,7 +59,6 @@ erDiagram
         varchar gender
         timestamptz vote_starts_at
         timestamptz vote_ends_at
-        numeric grade2_ratio "2年枠比率 0-1"
         varchar status
         timestamptz published_at
     }
@@ -85,7 +84,6 @@ erDiagram
         varchar practice_month_id FK
         varchar executed_by FK
         bigint random_seed
-        numeric grade2_ratio "実行時の比率"
         jsonb settings_snapshot
         boolean is_active
     }
@@ -142,7 +140,6 @@ erDiagram
 | gender | varchar(10) | NOT NULL | 男女で独立した抽選単位 (REQ-005.1) |
 | vote_starts_at | timestamptz | NOT NULL | 投票受付開始 (REQ-003.3) |
 | vote_ends_at | timestamptz | NOT NULL | 投票締切。以降は投票変更不可 |
-| grade2_ratio | numeric(3,2) | NULL | 2年枠比率 0〜1（抽選実行前に代表が設定。前月値を初期表示） |
 | status | varchar(20) | NOT NULL, DEFAULT 'draft' | draft / voting / closed / drawn / published |
 | published_at | timestamptz | NULL | 結果公開日時 (REQ-006.4) |
 | is_deleted | boolean | NOT NULL, DEFAULT false | — |
@@ -189,7 +186,6 @@ erDiagram
 | practice_month_id | varchar(30) | NOT NULL, FK → practice_months | — |
 | executed_by | varchar(30) | NOT NULL, FK → users | 実行した代表 |
 | random_seed | bigint | NOT NULL | 同一シードで結果を再現可能 |
-| grade2_ratio | numeric(3,2) | NULL 許容 | **D-015 で廃止**。以前の実行履歴のみ値を持つ |
 | settings_snapshot | jsonb | NOT NULL | 実行時のスナップショット。`rescue_alpha` / `warnings` / **`quotas`（練習日ごとの学年別枠: D-015）** |
 | is_active | boolean | NOT NULL, DEFAULT true | 再実行時 (REQ-005.12) は旧実行を false にする |
 | is_deleted | boolean | NOT NULL, DEFAULT false | — |
@@ -270,7 +266,7 @@ erDiagram
 | REQ-005.1 (男女独立) | practice_months.gender, lottery_settings.gender |
 | REQ-005.2 (マネージャー定員外) | users.is_manager, assignments.assigned_via = 'manager' |
 | REQ-005.3 (3年生全通し) | users.grade, assignments.assigned_via = 'grade3' |
-| REQ-005.4〜5 (学年枠・比率設定) | practice_months.grade2_ratio, lottery_executions.grade2_ratio |
+| REQ-005.4〜5 (学年別の参加人数: D-015) | practices.quotas, lottery_executions.settings_snapshot.quotas |
 | REQ-005.6〜8 (保証・比例・平準化) | assignments.assigned_via (guaranteed / distribution) |
 | REQ-005.9 (落選救済) | monthly_member_results.losses_count, lottery_settings.rescue_alpha |
 | REQ-005.10 (余剰枠流し込み) | assignments.assigned_via = 'overflow' |
@@ -280,4 +276,4 @@ erDiagram
 | REQ-006.4 (公開制御) | practice_months.status, published_at |
 | REQ-007.2 (代表権限) | users.role |
 | REQ-007.3 (退会・論理削除) | users.is_deleted |
-| NFR-004.1 (設定変更) | lottery_settings, practice_months.grade2_ratio |
+| NFR-004.1 (設定変更) | lottery_settings, practices.quotas |

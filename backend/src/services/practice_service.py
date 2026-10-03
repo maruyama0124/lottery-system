@@ -64,8 +64,6 @@ class PracticeService:
             pm.vote_starts_at = to_utc(data.vote_starts_at)
         if data.vote_ends_at is not None:
             pm.vote_ends_at = to_utc(data.vote_ends_at)
-        if data.grade2_ratio is not None:
-            pm.grade2_ratio = data.grade2_ratio
         self.db.flush()
 
     @staticmethod

@@ -870,10 +870,6 @@ components:
         gender: { $ref: '#/components/schemas/Gender' }
         vote_starts_at: { type: string, format: date-time }
         vote_ends_at: { type: string, format: date-time }
-        grade2_ratio:
-          type: number
-          nullable: true
-          description: D-015 で廃止（学年別枠は practices 側で持つ）。以前のデータのみ値を持つ
         status: { type: string, enum: [draft, voting, closed, drawn, published] }
         published_at: { type: string, format: date-time, nullable: true }
 
@@ -905,7 +901,6 @@ components:
       properties:
         vote_starts_at: { type: string, format: date-time }
         vote_ends_at: { type: string, format: date-time }
-        # grade2_ratio は D-015 で廃止。学年別枠は PUT /practice-months/{pmId}/quotas で設定する
 
     Practice:
       type: object
@@ -1037,10 +1032,6 @@ components:
         practice_month_id: { type: string }
         executed_by: { type: string }
         random_seed: { type: integer }
-        grade2_ratio:
-          type: number
-          nullable: true
-          description: D-015 で廃止。実行時の学年別枠は settings_snapshot.quotas に記録する
         is_active: { type: boolean }
         warnings:
           type: array

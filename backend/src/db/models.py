@@ -67,7 +67,6 @@ class PracticeMonth(Base, TimestampMixin):
     gender: Mapped[str] = mapped_column(String(10), nullable=False)
     vote_starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     vote_ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    grade2_ratio: Mapped[Decimal | None] = mapped_column(Numeric(3, 2), nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
@@ -144,8 +143,6 @@ class LotteryExecution(Base, TimestampMixin):
     )
     executed_by: Mapped[str] = mapped_column(String(30), ForeignKey("users.id"), nullable=False)
     random_seed: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    # D-015 で日別・学年別の枠に置き換わったため未使用。過去の実行履歴のため残す
-    grade2_ratio: Mapped[Decimal | None] = mapped_column(Numeric(3, 2), nullable=True)
     settings_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
