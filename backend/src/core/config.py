@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     db_password: str = "password"
     db_name: str = "lottery_db"
 
-    jwt_secret: str = "dev-secret-key-do-not-use-in-production"
+    jwt_secret: str
     jwt_expires_minutes: int = 43200  # 30日
 
     # LINE ログイン (D-021)。ID トークンの検証時に client_id として送る
