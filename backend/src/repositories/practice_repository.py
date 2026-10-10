@@ -69,7 +69,7 @@ class PracticeRepository:
         self.db.flush()
         return p
 
-    def suggestions(self, gender: str, limit: int = 2) -> list[tuple[str, time, time, int, int]]:
+    def suggestions(self, gender: str, limit: int = 3) -> list[tuple[str, time, time, int, int]]:
         """過去に登録した (場所, 開始, 終了) の組み合わせを利用回数の多い順に返す。
 
         代表が毎月同じ体育館・同じ時間帯を登録する運用のため、
