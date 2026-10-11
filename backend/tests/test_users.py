@@ -2,21 +2,22 @@
 from tests.conftest import auth_header
 
 
-def test_get_and_update_me(client, make_user) -> None:
+def test_get_me(client, make_user) -> None:
     _uid, token = make_user(grade=1)
     me = client.get("/api/v1/users/me", headers=auth_header(token))
     assert me.status_code == 200
     assert me.json()["grade"] == 1
 
+
+def test_profile_update_is_not_available(client, make_user) -> None:
+    """D-049: 編集画面だけでなく本人向け更新APIも廃止する"""
+    _uid, token = make_user(grade=1)
     res = client.put(
-        "/api/v1/users/me",
-        json={"grade": 2, "name": "テスト 花子"},
-        headers=auth_header(token),
+        "/api/v1/users/me", json={"grade": 2}, headers=auth_header(token)
     )
-    assert res.status_code == 204
-    me2 = client.get("/api/v1/users/me", headers=auth_header(token)).json()
-    assert me2["grade"] == 2
-    assert me2["name"] == "テスト 花子"
+    assert res.status_code == 405
+    me = client.get("/api/v1/users/me", headers=auth_header(token)).json()
+    assert me["grade"] == 1
 
 
 def test_roster_requires_representative(client, make_user) -> None:
@@ -46,23 +47,13 @@ def test_roster_covers_both_genders_and_filters(client, make_user) -> None:
     assert q["total"] == 1
 
 
-def test_roster_csv_export(client, make_user) -> None:
+def test_roster_csv_export_is_not_available(client, make_user) -> None:
+    """D-049: 未使用のCSV出力APIを廃止する"""
     _rep_id, rep_token = make_user(role="representative")
-    make_user(gender="female", grade=1)
-
     res = client.get("/api/v1/users/export", headers=auth_header(rep_token))
-    assert res.status_code == 200
-    assert res.headers["content-type"].startswith("text/csv")
-    body = res.text
-    assert "名前" in body and "学年" in body  # ヘッダー (D-021 で個人情報の列は廃止)
-    # 個人情報は Google フォームで管理するため、CSV には出力しない (D-021)
-    assert "住所" not in body and "電話番号" not in body and "学籍番号" not in body
-    assert body.count("\n") >= 3  # ヘッダー + 2名
-
-    filtered = client.get(
-        "/api/v1/users/export?grade=1", headers=auth_header(rep_token)
-    ).text
-    assert filtered.count("1年") == 1
+    # DELETE /users/{user_id} にパスだけ一致するため、GETは405になる。
+    assert res.status_code == 405
+    assert "/api/v1/users/export" not in client.app.openapi()["paths"]
 
 
 def test_role_update_works_across_genders(client, make_user) -> None:

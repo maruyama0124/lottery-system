@@ -2,16 +2,16 @@
 hide:
 - navigation
 doc_type: api-design
-version: 2.3.0
-last_updated: '2026-10-03'
+version: 2.3.1
+last_updated: '2026-10-11'
 depends_on:
 - requirements/index.md
 - database-design/index.md
 derived_by:
 - ui-design/index.md
-sync_hash: f0010e5ade73
+sync_hash: b52e40ec4ec1
 dependency_hashes:
-  requirements/index.md: 6c1772cde1a9
+  requirements/index.md: c8aab8da7159
   database-design/index.md: 2820bf661115
 ---
 
@@ -31,17 +31,17 @@ FastAPI で実装する RESTful API。フロントエンド (Next.js) から HTT
 
 | ロール | 権限 |
 |--------|------|
-| member | 自分のプロフィール・投票・自分の抽選結果の操作のみ |
+| member | 自分のプロフィール取得・投票・自分の抽選結果の閲覧。本人向けプロフィール更新APIは提供しない (D-049) |
 | representative（代表） | member の全権限 + 担当性別の日程管理・抽選実行・結果微調整 + 名簿閲覧（男女全体: REQ-007.1）+ 設定変更 |
 
-- **性別スコープ** (NFR-002.4): 代表の操作系 API（日程・抽選・微調整）はトークンの `gender` と対象リソースの `gender` が一致しない場合 `403` を返す。名簿系 (`GET /users`, `GET /users/export`) のみ男女全体を返す。月別練習の閲覧系（一覧・詳細・公開後の参加表）は性別を問わず閲覧できる (D-038)。投票は自分の性別グループのみ (403)
+- **性別スコープ** (NFR-002.4): 代表の操作系 API（日程・抽選・微調整）は現在のユーザーの `gender` と対象リソースの `gender` が一致しない場合 `403` を返す。名簿 (`GET /users`) は男女全体を返す。代表権限の変更も男女全体を対象とする (D-040)。月別練習の閲覧系（一覧・詳細・公開後の参加表）は性別を問わず閲覧できる (D-038)。投票は自分の性別グループのみ (403)
 
 ## 3. 共通仕様
 
 | 項目 | 仕様 |
 |------|------|
 | ベースURL | `/api/v1` |
-| リクエスト/レスポンス形式 | JSON (UTF-8)。CSVエクスポートのみ `text/csv` |
+| リクエスト/レスポンス形式 | JSON (UTF-8)。204は本文なし。CSV出力APIは廃止 (D-049) |
 | 日時形式 | ISO 8601。**レスポンスは必ずオフセット付きの UTC**（例: `2026-08-01T10:53:15.860494Z`）。リクエストはオフセット付きであれば任意のタイムゾーンを受け付け、サーバー側で UTC に正規化する。月は `YYYY-MM`（D-013） |
 | ID形式 | プレフィックス付き ULID（例: `usr_01H...`） |
 | ページネーション | 名簿一覧のみ `?page=&per_page=`（既定 per_page=50、150名規模のため任意） |
@@ -77,9 +77,8 @@ graph LR
         A3["POST /auth/logout"]
     end
     subgraph USERS["メンバー"]
-        U1["GET/PUT /users/me"]
+        U1["GET /users/me"]
         U2["GET /users (名簿)"]
-        U3["GET /users/export (CSV)"]
         U4["PUT /users/{id}/role"]
     end
     subgraph PM["月別練習・投票"]
@@ -108,9 +107,7 @@ graph LR
 | メソッド | パス | 概要 | 権限 | 要件 |
 |----------|------|------|------|------|
 | GET | /users/me | 自分のプロフィール取得 | member | REQ-002 |
-| PUT | /users/me | 自分のプロフィール更新 | member | REQ-002.2 |
 | GET | /users | 名簿一覧（検索・絞り込み。男女全体） | 代表 | REQ-007.1, REQ-007.1.1 |
-| GET | /users/export | 名簿CSVエクスポート（絞り込み反映） | 代表 | REQ-007.1.2 |
 | PUT | /users/{userId}/role | 代表権限の付与・剥奪（男女全体: D-040） | 代表 | REQ-007.2 |
 | DELETE | /users/{userId} | メンバー無効化（論理削除） | 代表 | REQ-007.3 |
 
@@ -174,11 +171,11 @@ graph LR
 | 要件 | 対応エンドポイント |
 |------|--------------------|
 | REQ-001 (認証) | POST /auth/line/login, /auth/line/register, /auth/logout |
-| REQ-002 (プロフィール) | GET/PUT /users/me |
+| REQ-002 (プロフィール) | POST /auth/line/register, GET /users/me。登録後の変更は管理者がDBで行う |
 | REQ-003 (練習日程管理) | POST/PUT /practice-months, POST/PUT/DELETE /practices, GET /practices/suggestions |
 | REQ-004 (投票) | GET /practice-months, GET/PUT /practice-months/{pmId}/votes/me |
 | REQ-005 (抽選) | POST /practice-months/{pmId}/lottery, GET /vote-summary, PUT /quotas, GET /executions |
 | REQ-006 (抽選結果) | GET /results/me, GET /results, GET /participation, POST/DELETE assignments, POST /publish |
-| REQ-007 (メンバー管理) | GET /users, GET /users/export, PUT /users/{userId}/role, DELETE /users/{userId} |
+| REQ-007 (メンバー管理) | GET /users, PUT /users/{userId}/role, DELETE /users/{userId} |
 | NFR-002.3〜4 (アクセス制御) | 全エンドポイントのロール・性別スコープ検証 (403) |
 | NFR-004.1 (設定変更) | GET/PUT /settings, PUT /practice-months/{pmId}/quotas |

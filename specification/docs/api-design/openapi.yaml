@@ -187,21 +187,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserProfile'
-    put:
-      tags: [users]
-      summary: 自分のプロフィール更新
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UserUpdateRequest'
-      responses:
-        '204':
-          description: 更新成功
-        '400':
-          $ref: '#/components/responses/BadRequest'
-
   /users:
     get:
       tags: [users]
@@ -221,25 +206,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RosterPage'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-  /users/export:
-    get:
-      tags: [users]
-      summary: 名簿CSVエクスポート（代表のみ）
-      description: REQ-007.1.2。/users と同じ絞り込みパラメータを受け付け、結果を CSV で返す
-      parameters:
-        - { name: grade, in: query, schema: { type: integer, enum: [1, 2, 3] } }
-        - { name: is_manager, in: query, schema: { type: boolean } }
-        - { name: gender, in: query, schema: { $ref: '#/components/schemas/Gender' } }
-        - { name: q, in: query, schema: { type: string } }
-      responses:
-        '200':
-          description: CSVファイル
-          content:
-            text/csv:
-              schema: { type: string }
         '403':
           $ref: '#/components/responses/Forbidden'
 
@@ -833,17 +799,6 @@ components:
         role: { type: string, enum: [member, representative] }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
-
-    UserUpdateRequest:
-      type: object
-      properties:
-        name: { type: string }
-        address: { type: string }
-        phone_number: { type: string }
-        grade: { type: integer, enum: [1, 2, 3] }
-        faculty_department: { type: string }
-        student_number: { type: string }
-        is_manager: { type: boolean }
 
     RosterPage:
       type: object

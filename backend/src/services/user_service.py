@@ -1,17 +1,10 @@
 """メンバー・名簿サービス (REQ-002, REQ-007)"""
-import csv
-import io
-
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from src.core.errors import ForbiddenError, NotFoundError
 from src.db.models import User
 from src.repositories.user_repository import UserRepository
-from src.schemas.users import UserUpdateRequest
-
-# 個人情報は Google フォームで管理するため、本システムは氏名・学年・性別のみ扱う (D-021)
-CSV_HEADERS = ["名前", "学年", "性別", "区分", "権限"]
 
 
 def _roster_stmt(
@@ -35,11 +28,6 @@ class UserService:
         self.db = db
         self.users = UserRepository(db)
 
-    def update_me(self, user: User, data: UserUpdateRequest) -> None:
-        for field, value in data.model_dump(exclude_none=True).items():
-            setattr(user, field, value)
-        self.db.flush()
-
     def roster(
         self,
         *,
@@ -55,28 +43,6 @@ class UserService:
         total = self.db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
         rows = list(self.db.scalars(stmt.offset((page - 1) * per_page).limit(per_page)))
         return rows, total
-
-    def roster_csv(
-        self,
-        *,
-        grade: int | None = None,
-        is_manager: bool | None = None,
-        gender: str | None = None,
-        q: str | None = None,
-    ) -> str:
-        """名簿CSV (REQ-007.1.2)。絞り込み結果をそのまま出力する"""
-        rows = list(self.db.scalars(_roster_stmt(grade, is_manager, gender, q)))
-        buf = io.StringIO()
-        writer = csv.writer(buf)
-        writer.writerow(CSV_HEADERS)
-        for u in rows:
-            writer.writerow([
-                u.name, f"{u.grade}年",
-                "男" if u.gender == "male" else "女",
-                "マネージャー" if u.is_manager else "プレイヤー",
-                "代表" if u.role == "representative" else "メンバー",
-            ])
-        return buf.getvalue()
 
     def _get_target_in_scope(self, rep: User, user_id: str) -> User:
         """操作系は担当性別のみ (NFR-002.4)"""
