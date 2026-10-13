@@ -25,6 +25,7 @@ export async function POST(req: Request) {
     headers: { Authorization: `Bearer ${token.access_token}` },
     cache: "no-store",
   });
+  if (!meRes.ok) return NextResponse.json({ error: { message: "ユーザー情報を取得できませんでした" } }, { status: meRes.status });
   const user = await meRes.json();
 
   const store = await cookies();
@@ -35,5 +36,5 @@ export async function POST(req: Request) {
     path: "/",
     maxAge: token.expires_in,
   });
-  return NextResponse.json(user);
+  return NextResponse.json(user, { headers: { "Cache-Control": "private, no-store" } });
 }

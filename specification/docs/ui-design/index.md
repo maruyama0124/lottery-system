@@ -2,16 +2,16 @@
 hide:
 - navigation
 doc_type: ui-design
-version: 2.2.1
+version: 2.2.2
 last_updated: '2026-10-13'
 depends_on:
 - requirements/index.md
 - api-design/index.md
 derived_by: []
-sync_hash: 03141ae1e558
+sync_hash: d5f024b1ed92
 dependency_hashes:
-  requirements/index.md: 549f94b6e738
-  api-design/index.md: b52e40ec4ec1
+  requirements/index.md: 9da4738334d0
+  api-design/index.md: 5a6ac6bf70d7
 ---
 
 # 画面設計書 — サークル練習参加抽選システム
@@ -92,6 +92,7 @@ stateDiagram-v2
 - 本名を求める理由を画面に明記する（代表が抽選結果を確認するため）
 - API: `POST /api/auth/line`（BFF 経由で `POST /auth/line/login`）、`POST /api/auth/line/register`
 - 状態: loading / register / error
+- 認証確認で有効なセッションがあればホームへ進み、LIFF・LINEログインを省略する。ログイン・登録後は返却されたユーザー情報をそのまま利用する (D-051)。
 
 ### 4.2 home — ホーム（メンバー）
 
@@ -104,6 +105,8 @@ stateDiagram-v2
 - 代表には管理画面への導線を出す
 - API: `GET /practice-months`, `GET /practice-months/{pmId}`, `GET/PUT .../votes/me`（409 = 締切後）, `GET .../results/me`, `GET .../participation`
 - 状態: voting / voted / closed / published / observer / loading / error
+- 初期データはBFF `GET /api/member/home` で一括取得する。認証済み本人の保存済み日程・公開結果があれば先に表示し、最新状態を裏で確認する。ユーザー・性別・対象月をまたいでキャッシュを共有しない (D-051)。
+- 更新中は「最新の状態を確認中…」、失敗時は保存済みの古い情報であることと「再試行」を表示する。投票の編集中の選択は再取得で変更しない。投票状態の確認前・更新中・取得失敗中は送信を無効にし、保存中は選択と月・性別切替を無効にする。
 
 <iframe src="snippets/home-mobile.html" width="100%" height="750px" frameborder="0" style="border: none; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></iframe>
 

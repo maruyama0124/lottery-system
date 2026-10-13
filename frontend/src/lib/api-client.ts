@@ -1,6 +1,7 @@
 // API クライアント — すべて BFF (/api/v1/* → バックエンド中継) 経由で呼ぶ
 // 認証は httpOnly Cookie。Authorization ヘッダや localStorage は使わない
 import type { ApiError } from "@/types/api";
+import { invalidateMemberHomes } from "@/lib/member-cache";
 
 class ApiClientError extends Error {
   constructor(
@@ -27,6 +28,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       .json()
       .catch(() => ({ error: { code: "UNKNOWN", message: res.statusText } }));
     throw new ApiClientError(res.status, body.error);
+  }
+
+  // 日程変更・投票・抽選・公開の成功を、再訪用キャッシュと別タブへ伝える。
+  // 微調整の途中は公開結果が変わらないため対象外 (D-044)。
+  if (options.method && options.method !== "GET" &&
+      (/^\/v1\/practice-months(?:[/?]|$)/.test(path) ||
+       /^\/v1\/practices\/[^/?]+(?:\?|$)/.test(path))) {
+    invalidateMemberHomes(/\/lottery(?:\?|$)/.test(path));
   }
 
   if (res.status === 204) {

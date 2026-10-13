@@ -2,16 +2,16 @@
 hide:
 - navigation
 doc_type: api-design
-version: 2.3.1
-last_updated: '2026-10-11'
+version: 2.3.2
+last_updated: '2026-10-13'
 depends_on:
 - requirements/index.md
 - database-design/index.md
 derived_by:
 - ui-design/index.md
-sync_hash: b52e40ec4ec1
+sync_hash: 5a6ac6bf70d7
 dependency_hashes:
-  requirements/index.md: 549f94b6e738
+  requirements/index.md: 9da4738334d0
   database-design/index.md: 2820bf661115
 ---
 
@@ -35,6 +35,12 @@ FastAPI で実装する RESTful API。フロントエンド (Next.js) から HTT
 | representative（代表） | member の全権限 + 担当性別の日程管理・抽選実行・結果微調整 + 名簿閲覧（男女全体: REQ-007.1）+ 設定変更 |
 
 - **性別スコープ** (NFR-002.4): 代表の操作系 API（日程・抽選・微調整）は現在のユーザーの `gender` と対象リソースの `gender` が一致しない場合 `403` を返す。名簿 (`GET /users`) は男女全体を返す。代表権限の変更も男女全体を対象とする (D-040)。月別練習の閲覧系（一覧・詳細・公開後の参加表）は性別を問わず閲覧できる (D-038)。投票は自分の性別グループのみ (403)
+
+### メンバーホーム向けBFF (D-051)
+
+`GET /api/member/home?gender=male|female&month={pmId}` はNext.js専用の集約APIであり、バックエンドの `/api/v1` APIを置き換えない。`month` を省略すると最新月を選ぶ。返却値は `user / months / detail / voteStatus / myResults / participation` とし、該当月がない場合は詳細以降をnullにする。対象の本人情報と月一覧を並行取得し、日程・本人の投票（公開前かつ同じ性別の非閲覧専用ユーザー）・公開結果（公開後）を並行取得する。管理用 `/results` は取得しない。CookieのJWTを各APIへ渡して認証・権限・公開状態の確認を維持する。
+
+認証・対象月・公開状態の拒否を含む取得失敗はHTTPエラーとして返す。BFFレスポンスは `Cache-Control: private, no-store` と `Vary: Cookie` を指定し、共有CDNへキャッシュしない。端末キャッシュは認証後の画面表示専用である。BFFログの `backendRequests / totalMs` は通信回数と所要時間のみを記録し、ID・投票内容・トークンは記録しない。
 
 ## 3. 共通仕様
 

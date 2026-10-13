@@ -4,21 +4,15 @@
 // 投票受付中は投票フォーム、締切後は抽選待ち、公開後は当選日。
 // メンバーがやることは「投票する」「結果を見る」の2つだけなので画面を分けない。
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ParticipationTable } from "@/components/member/participation-table";
 import { Quasar } from "@/components/quasar";
 import { ErrorMessage } from "@/components/ui/error-message";
 import { Loading } from "@/components/ui/loading";
 import { apiClient, ApiClientError } from "@/lib/api-client";
-import { useApi } from "@/hooks/use-api";
+import { useMemberHome } from "@/hooks/use-member-home";
 import { useRequireAuth } from "@/hooks/use-auth";
-import type {
-  MyResults,
-  ParticipationTable as ParticipationTableData,
-  PracticeMonth,
-  PracticeMonthDetail,
-  VoteStatus,
-} from "@/types/api";
+import type { MemberHome } from "@/lib/member-home";
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"] as const;
 
@@ -48,6 +42,11 @@ function formatYearMonth(ym: string): string {
 
 export default function MemberPage() {
   const { user, isLoading: authLoading } = useRequireAuth();
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // 男女どちらの予定を見るか (D-038)。既定は自分の性別
   const [viewGender, setViewGender] = useState<"male" | "female" | null>(null);
@@ -57,49 +56,28 @@ export default function MemberPage() {
   // 過去の月も選べる (既定は最新月)
   const [selectedMonthId, setSelectedMonthId] = useState<string | null>(null);
 
-  const {
-    data: months,
-    error: monthsError,
-    isLoading: monthsLoading,
-    mutate: mutateMonths,
-  } = useApi<PracticeMonth[]>(
-    user && gender ? `/v1/practice-months?gender=${gender}` : null,
-  );
-
-  const currentMonth =
-    months?.find((m) => m.id === selectedMonthId) ?? months?.[0];
-
-  const { data: detail } = useApi<PracticeMonthDetail>(
-    currentMonth ? `/v1/practice-months/${currentMonth.id}` : null,
-  );
-  const { data: voteStatus, mutate: mutateVoteStatus } = useApi<VoteStatus>(
-    ownView && currentMonth
-      ? `/v1/practice-months/${currentMonth.id}/votes/me`
-      : null,
-  );
-  const { data: myResults } = useApi<MyResults>(
-    ownView && currentMonth
-      ? `/v1/practice-months/${currentMonth.id}/results/me`
-      : null,
-  );
-  // 参加表は公開後のみ取得できる (公開前は 404 が返る)。異性の月も閲覧可 (D-038)
-  const { data: participation } = useApi<ParticipationTableData>(
-    currentMonth?.status === "published"
-      ? `/v1/practice-months/${currentMonth.id}/participation`
-      : null,
-  );
+  const home = useMemberHome(user, gender, selectedMonthId);
+  const { months, detail, voteStatus, myResults, participation } = home.data ?? {};
+  const currentMonth = detail;
+  const selectionKey = `${user?.id}:${gender}:${currentMonth?.id}`;
 
   // ユーザーが触るまではサーバー上の投票内容を表示する
-  const [localSelection, setLocalSelection] = useState<string[] | null>(null);
-  const selectedIds = localSelection ?? voteStatus?.voted_practice_ids ?? [];
+  const [localSelection, setLocalSelection] = useState<{
+    key: string; ids: string[]; dirty: boolean; baseline: MemberHome | undefined;
+  } | null>(null);
+  const keepSelection = localSelection?.key === selectionKey &&
+    (localSelection.dirty || home.stale || home.refreshing || localSelection.baseline === home.data);
+  const selectedIds = keepSelection ? localSelection.ids : voteStatus?.voted_practice_ids ?? [];
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   // 結果公開後の表示切り替え。既定は自分の参加日
   const [resultTab, setResultTab] = useState<"mine" | "all">("mine");
 
-  const editable = ownView && (voteStatus?.editable ?? false);
+  const inVoteWindow = currentMonth && now >= Date.parse(currentMonth.vote_starts_at) && now <= Date.parse(currentMonth.vote_ends_at);
+  const editable = ownView && inVoteWindow && (voteStatus?.editable ?? false);
   const published = currentMonth?.status === "published";
+  const showVoting = ownView && currentMonth && !published && inVoteWindow;
 
   const switchView = () => {
     setLocalSelection(null);
@@ -108,26 +86,26 @@ export default function MemberPage() {
   };
 
   const toggle = (practiceId: string) => {
-    if (!editable) return;
+    if (!editable || isSubmitting) return;
     setSaved(false);
-    setLocalSelection(
+    setLocalSelection({ key: selectionKey, dirty: true, baseline: home.data, ids:
       selectedIds.includes(practiceId)
         ? selectedIds.filter((id) => id !== practiceId)
         : [...selectedIds, practiceId],
-    );
+    });
   };
 
   const submit = async () => {
-    if (!currentMonth || !editable || isSubmitting) return;
+    if (!currentMonth || !editable || isSubmitting || home.stale || home.refreshing) return;
     setIsSubmitting(true);
     setSubmitError(null);
     try {
-      await apiClient.put<VoteStatus>(
+      await apiClient.put<void>(
         `/v1/practice-months/${currentMonth.id}/votes/me`,
         { practice_ids: selectedIds },
       );
-      await mutateVoteStatus();
-      setLocalSelection(null);
+      // 204で保存確定。保存前に開始した再取得では選択を戻さない。
+      setLocalSelection({ key: selectionKey, ids: [...selectedIds], dirty: false, baseline: home.data });
       setSaved(true);
     } catch (e) {
       setSubmitError(
@@ -138,7 +116,7 @@ export default function MemberPage() {
     }
   };
 
-  if (authLoading || !user || monthsLoading) {
+  if (authLoading || !user || (!home.data && !home.error)) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <Loading />
@@ -153,12 +131,14 @@ export default function MemberPage() {
       <Header userName={user.name} isRep={user.role === "representative"} />
 
       <main className="space-y-5 px-4">
-        {monthsError && (
+        {home.refreshing && <p role="status" className="text-sm text-gray-500">最新の状態を確認中…</p>}
+        {home.error && (
           <ErrorMessage
-            message="練習情報を取得できませんでした"
-            onRetry={() => mutateMonths()}
+            message={home.data ? `${home.error}。保存済みの古い情報を表示しているため、変更が反映されていない場合があります。` : home.error}
+            onRetry={() => void home.refresh()}
           />
         )}
+        {home.stale && home.data && !home.error && <p className="text-xs text-gray-500">保存済みの情報を表示しています</p>}
 
         {/* 男女の切り替えと月の切り替え (D-038) */}
         <div className="flex items-center gap-2">
@@ -167,6 +147,7 @@ export default function MemberPage() {
               <button
                 key={g}
                 type="button"
+                disabled={isSubmitting}
                 onClick={() => {
                   setViewGender(g);
                   setSelectedMonthId(null);
@@ -182,6 +163,7 @@ export default function MemberPage() {
           </div>
           {months && months.length > 1 && (
             <select
+              disabled={isSubmitting}
               value={currentMonth?.id ?? ""}
               onChange={(e) => {
                 setSelectedMonthId(e.target.value);
@@ -198,7 +180,7 @@ export default function MemberPage() {
           )}
         </div>
 
-        {!monthsError && !currentMonth && (
+        {!home.error && !currentMonth && (
           <Card>
             <div className="py-6 text-center">
               <p className="font-bold text-gray-700">練習が登録されていません</p>
@@ -324,7 +306,7 @@ export default function MemberPage() {
         )}
 
         {/* 締切後・結果未公開 — 抽選待ち */}
-        {currentMonth && ownView && !published && !editable && (
+        {currentMonth && ownView && !published && !showVoting && (
           <Card>
             <div className="py-6 text-center">
               <p className="font-bold text-gray-700">抽選結果を待っています</p>
@@ -336,7 +318,7 @@ export default function MemberPage() {
         )}
 
         {/* 投票受付中 */}
-        {currentMonth && editable && (
+        {currentMonth && showVoting && (
           <>
             <Card>
               <p className="font-bold text-gray-900">
@@ -386,6 +368,8 @@ export default function MemberPage() {
                   <button
                     key={practice.id}
                     type="button"
+                    aria-pressed={selected}
+                    disabled={!editable || isSubmitting}
                     onClick={() => toggle(practice.id)}
                     className={`flex w-full flex-wrap items-center gap-2.5 rounded-2xl border-2 px-3 py-2.5 text-left transition-colors ${
                       selected
@@ -428,12 +412,12 @@ export default function MemberPage() {
       </main>
 
       {/* 投票ボタン（投票期間中のみ） */}
-      {currentMonth && editable && (
+      {currentMonth && showVoting && (
         <div className="fixed bottom-0 left-1/2 z-40 w-full max-w-[480px] -translate-x-1/2 bg-brand-50 px-4 pb-5 pt-8">
           <button
             type="button"
             onClick={submit}
-            disabled={isSubmitting}
+            disabled={isSubmitting || !editable || home.stale || home.refreshing}
             className="w-full rounded-full bg-brand-600 py-4 text-base font-bold text-white shadow-lg shadow-brand-200 active:scale-[0.98] disabled:opacity-60"
           >
             {isSubmitting

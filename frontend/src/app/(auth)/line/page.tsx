@@ -8,12 +8,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Quasar } from "@/components/quasar";
+import type { UserProfile } from "@/types/api";
 
 type Phase = "loading" | "register" | "error";
+type LoginResponse = { registered: true; user: UserProfile } | { registered: false; display_name?: string };
 
 export default function LineLoginPage() {
   const router = useRouter();
-  const { refresh } = useAuth();
+  const { user, isLoading, acceptLogin } = useAuth();
   const [phase, setPhase] = useState<Phase>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState<string | null>(null);
@@ -27,74 +29,69 @@ export default function LineLoginPage() {
 
   // ID トークンは登録時にも必要になるため保持する (再取得は不可)
   const idTokenRef = useRef<string | null>(null);
+  const loginRequest = useRef<Promise<LoginResponse | null> | null>(null);
 
-  const goHome = useCallback(async () => {
-    await refresh();
+  const goHome = useCallback((profile: UserProfile) => {
+    acceptLogin(profile);
     router.replace("/");
-  }, [refresh, router]);
+  }, [acceptLogin, router]);
 
   useEffect(() => {
+    if (isLoading) return;
+    if (user) { router.replace("/"); return; }
     let cancelled = false;
 
-    (async () => {
+    const login = async (): Promise<LoginResponse | null> => {
       const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
       if (!liffId) {
-        setErrorMessage("LIFF ID が設定されていません");
-        setPhase("error");
-        return;
+        throw new Error("LIFF ID が設定されていません");
       }
 
-      try {
-        // SSR 時に window を参照して落ちるため、ブラウザ側でのみ読み込む
-        const liff = (await import("@line/liff")).default;
-        await liff.init({ liffId });
+      // SSR 時に window を参照して落ちるため、ブラウザ側でのみ読み込む
+      const liff = (await import("@line/liff")).default;
+      await liff.init({ liffId });
 
-        if (!liff.isLoggedIn()) {
-          // 外部ブラウザで開かれた場合はここで LINE の認可画面へ飛ぶ。
-          // LINE アプリ内であればログイン済みのため、この分岐には入らない
-          liff.login();
-          return;
-        }
-
-        const idToken = liff.getIDToken();
-        if (!idToken) {
-          setErrorMessage("LINE の認証情報を取得できませんでした");
-          setPhase("error");
-          return;
-        }
-        idTokenRef.current = idToken;
-
-        const res = await fetch("/api/auth/line", {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id_token: idToken }),
-        });
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new Error(body?.error?.message ?? "ログインに失敗しました");
-        }
-
-        const data = await res.json();
-        if (cancelled) return;
-
-        if (data.registered) {
-          await goHome();
-          return;
-        }
-        setDisplayName(data.display_name ?? null);
-        setPhase("register");
-      } catch (err) {
-        if (cancelled) return;
-        setErrorMessage(err instanceof Error ? err.message : "ログインに失敗しました");
-        setPhase("error");
+      if (!liff.isLoggedIn()) {
+        // 外部ブラウザで開かれた場合はここで LINE の認可画面へ飛ぶ。
+        // LINE アプリ内であればログイン済みのため、この分岐には入らない
+        liff.login();
+        return null;
       }
-    })();
+
+      const idToken = liff.getIDToken();
+      if (!idToken) throw new Error("LINE の認証情報を取得できませんでした");
+      idTokenRef.current = idToken;
+
+      const res = await fetch("/api/auth/line", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_token: idToken }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error?.message ?? "ログインに失敗しました");
+      }
+
+      return res.json();
+    };
+    loginRequest.current ??= login();
+    loginRequest.current.then((data) => {
+      if (cancelled || !data) return;
+
+      if (data.registered) { goHome(data.user); return; }
+      setDisplayName(data.display_name ?? null);
+      setPhase("register");
+    }).catch((err) => {
+      if (cancelled) return;
+      setErrorMessage(err instanceof Error ? err.message : "ログインに失敗しました");
+      setPhase("error");
+    });
 
     return () => {
       cancelled = true;
     };
-  }, [goHome]);
+  }, [goHome, isLoading, user, router]);
 
   const handleRegister = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -117,7 +114,7 @@ export default function LineLoginPage() {
         const body = await res.json().catch(() => ({}));
         throw new Error(body?.error?.message ?? "登録に失敗しました");
       }
-      await goHome();
+      goHome(await res.json());
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : "登録に失敗しました");
       setIsSubmitting(false);
