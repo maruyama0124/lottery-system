@@ -12,10 +12,9 @@ import {
 import { Loading } from "@/components/ui/loading";
 import { apiClient, ApiClientError } from "@/lib/api-client";
 import { useApi } from "@/hooks/use-api";
+import { useResultAdjustments } from "@/hooks/use-result-adjustments";
 import { useRequireRepresentative } from "@/hooks/use-auth";
 import type {
-  AssignmentCreated,
-  FullResults,
   PracticeMonth,
   PracticeMonthDetail,
   PracticeResults,
@@ -54,11 +53,12 @@ export default function AdminResultsPage() {
   const { data: pm, mutate: mutatePm } = useApi<PracticeMonthDetail>(
     monthId ? `/v1/practice-months/${monthId}` : null,
   );
-  const {
-    data: results,
-    error: resultsError,
-    mutate: mutateResults,
-  } = useApi<FullResults>(monthId ? `/v1/practice-months/${monthId}/results` : null);
+  const adjustments = useResultAdjustments(monthId);
+  const { results, store, syncing, syncError, needsSync, publishing } = adjustments;
+  const saving = adjustments.saving.size > 0;
+  const resultsError = adjustments.loadError;
+  const isCellBusy = (practiceId: string, userId: string) =>
+    !pm || pm.id !== monthId || store.isCellBusy(practiceId, userId);
 
   // 追加用メンバー候補（自性別）
   const { data: roster } = useApi<RosterPage>(
@@ -81,10 +81,7 @@ export default function AdminResultsPage() {
   const [matrixGrade, setMatrixGrade] = useState("all");
   const [addingFor, setAddingFor] = useState<string | null>(null);
   const [selectedUserId, setSelectedUserId] = useState("");
-  const [capacityWarnings, setCapacityWarnings] = useState<Set<string>>(new Set());
   const [actionError, setActionError] = useState<string | null>(null);
-  const [publishing, setPublishing] = useState(false);
-  const [busy, setBusy] = useState(false);
 
   // 絞り込み。マネージャーは学年に関係なく1つにまとめる
   const filterByGrade = (grade: string) =>
@@ -107,69 +104,33 @@ export default function AdminResultsPage() {
 
   // タップごとに確認は出さない。メンバーへ反映されるのは公開・再公開のときだけなので、
   // 確認はそちらでまとめて行う (D-044)
-  const handleDelete = async (assignmentId: string, name: string) => {
-    if (busy) return;
-    setBusy(true);
-    setActionError(null);
-    try {
-      await apiClient.delete<void>(`/v1/assignments/${assignmentId}`);
-      await mutateResults();
-    } catch (e) {
-      setActionError(
-        e instanceof ApiClientError ? e.error.message : `${name}さんを外せませんでした`,
-      );
-    } finally {
-      setBusy(false);
-    }
+  const handleDelete = async (assignmentId: string) => {
+    if (!pm || pm.id !== monthId) return;
+    await store.remove(assignmentId, published);
   };
 
   /** メンバー別タブから、その人を指定の練習日へ追加する */
   const handleAddFor = async (practiceId: string, userId: string, name: string) => {
-    if (busy) return;
-    setBusy(true);
-    setActionError(null);
-    try {
-      const created = await apiClient.post<AssignmentCreated>(
-        `/v1/practices/${practiceId}/assignments`,
-        { user_id: userId },
-      );
-      if (created?.capacity_exceeded) {
-        setCapacityWarnings((prev) => new Set(prev).add(practiceId));
-      }
-      await mutateResults();
-    } catch (e) {
-      setActionError(
-        e instanceof ApiClientError
-          ? e.error.message
-          : `${name}さんの追加に失敗しました`,
-      );
-    } finally {
-      setBusy(false);
+    if (!pm || pm.id !== monthId) return false;
+    const member = results?.by_member.find((m) => m.user_id === userId);
+    if (!member) {
+      setActionError(`${name}さんの情報が見つかりません。最新の状態を確認してください`);
+      return false;
     }
+    return store.add(practiceId, member);
   };
 
   const handleAdd = async (practiceId: string) => {
-    if (!selectedUserId || busy) return;
-    setBusy(true);
-    setActionError(null);
-    try {
-      const created = await apiClient.post<AssignmentCreated>(
-        `/v1/practices/${practiceId}/assignments`,
-        { user_id: selectedUserId },
-      );
-      if (created?.capacity_exceeded) {
-        setCapacityWarnings((prev) => new Set(prev).add(practiceId));
-      }
+    if (!selectedUserId || isCellBusy(practiceId, selectedUserId)) return;
+    const userId = selectedUserId;
+    const name = roster?.items.find((u) => u.id === userId)?.name ?? "メンバー";
+    const request = handleAddFor(practiceId, userId, name);
+    // 保存待ちで別の追加フォームを閉じないよう、開始時にこのフォームだけ閉じる。
+    if (results?.by_member.some((m) => m.user_id === userId)) {
       setAddingFor(null);
       setSelectedUserId("");
-      await mutateResults();
-    } catch (e) {
-      setActionError(
-        e instanceof ApiClientError ? e.error.message : "追加に失敗しました",
-      );
-    } finally {
-      setBusy(false);
     }
+    await request;
   };
 
   const published = pm?.status === "published";
@@ -185,23 +146,23 @@ export default function AdminResultsPage() {
     : 0;
 
   const handlePublish = async () => {
-    if (!monthId || publishing) return;
+    if (!monthId || publishing || saving || syncing || needsSync || syncError) return;
     // メンバーに見える内容が変わるのはこの操作だけなので、確認はここでまとめて出す
     const message = published
       ? `${pendingChanges}件の変更をメンバーに反映しますか？再公開後は全メンバーが新しい内容を閲覧できます`
       : "結果を公開しますか？公開後は全メンバーが閲覧できます";
     if (!window.confirm(message)) return;
-    setPublishing(true);
+    if (!store.beginPublish()) return;
     setActionError(null);
     try {
       await apiClient.post<void>(`/v1/practice-months/${monthId}/publish`);
-      await Promise.all([mutatePm(), mutateResults()]);
+      await Promise.all([mutatePm(), store.refresh()]);
     } catch (e) {
       setActionError(
         e instanceof ApiClientError ? e.error.message : "公開に失敗しました",
       );
     } finally {
-      setPublishing(false);
+      store.endPublish();
     }
   };
 
@@ -211,7 +172,7 @@ export default function AdminResultsPage() {
 
   const renderPracticeSection = (pr: PracticeResults) => {
     const { practice, participants } = pr;
-    const playerCount = participants.filter((p) => !p.is_manager).length;
+    const playerCount = participants.filter((p) => !p.is_manager && p.publish_state !== "removing").length;
     const capacity = practice.capacity;
     const over = playerCount > capacity;
     const full = playerCount === capacity;
@@ -288,7 +249,7 @@ export default function AdminResultsPage() {
 
         {open && (
           <ul className="divide-y divide-gray-100">
-            {capacityWarnings.has(practice.id) && (
+            {over && (
               <li className="bg-yellow-50 px-4 py-2">
                 <p className="flex items-center gap-1.5 text-xs font-semibold text-yellow-800">
                   <TriangleAlertIcon width={14} height={14} />
@@ -341,7 +302,7 @@ export default function AdminResultsPage() {
                       </span>
                       <button
                         onClick={() => handleAddFor(practice.id, p.user_id, p.name)}
-                        disabled={busy}
+                        disabled={isCellBusy(practice.id, p.user_id)}
                         className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-700 disabled:opacity-50"
                       >
                         戻す
@@ -349,8 +310,8 @@ export default function AdminResultsPage() {
                     </>
                   ) : (
                     <button
-                      onClick={() => handleDelete(p.assignment_id, p.name)}
-                      disabled={busy}
+                      onClick={() => handleDelete(p.assignment_id)}
+                      disabled={isCellBusy(practice.id, p.user_id)}
                       aria-label={`${p.name}を削除`}
                       className="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
                     >
@@ -398,7 +359,7 @@ export default function AdminResultsPage() {
                   <div className="flex gap-2">
                     <button
                       onClick={() => handleAdd(practice.id)}
-                      disabled={!selectedUserId || busy}
+                      disabled={!selectedUserId || isCellBusy(practice.id, selectedUserId)}
                       className="flex-1 rounded-lg bg-brand-600 py-2 text-sm font-bold text-white hover:bg-brand-700 disabled:opacity-50"
                     >
                       追加する
@@ -441,15 +402,17 @@ export default function AdminResultsPage() {
         {resultsError && (
           <ErrorMessage
             message="結果の取得に失敗しました"
-            onRetry={() => mutateResults()}
+            onRetry={() => { void store.refresh(); }}
           />
         )}
         {actionError && <ErrorMessage message={actionError} />}
+        {adjustments.actionError && <ErrorMessage message={adjustments.actionError} />}
 
         {/* 月の切り替え */}
         {months && months.length > 1 && (
           <select
             value={monthId ?? ""}
+            disabled={saving || syncing || publishing}
             onChange={(e) => setSelectedMonthId(e.target.value)}
             className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm font-bold text-gray-900 focus:border-brand-600 focus:outline-none"
           >
@@ -654,7 +617,7 @@ export default function AdminResultsPage() {
                           (x) => x.user_id === m.user_id,
                         );
                         const voted = m.voted_practice_ids.includes(pr.practice.id);
-                        const players = pr.participants.filter((x) => !x.is_manager);
+                        const players = pr.participants.filter((x) => !x.is_manager && x.publish_state !== "removing");
                         const full = players.length >= pr.practice.capacity;
                         return (
                           <div
@@ -678,7 +641,7 @@ export default function AdminResultsPage() {
                                   onClick={() =>
                                     handleAddFor(pr.practice.id, m.user_id, m.name)
                                   }
-                                  disabled={busy}
+                                  disabled={isCellBusy(pr.practice.id, m.user_id)}
                                   className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-700 disabled:opacity-50"
                                 >
                                   戻す
@@ -694,9 +657,9 @@ export default function AdminResultsPage() {
                                 <button
                                   type="button"
                                   onClick={() =>
-                                    handleDelete(joining.assignment_id, m.name)
+                                    handleDelete(joining.assignment_id)
                                   }
-                                  disabled={busy}
+                                  disabled={isCellBusy(pr.practice.id, m.user_id)}
                                   className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-600 disabled:opacity-50"
                                 >
                                   外す
@@ -708,7 +671,7 @@ export default function AdminResultsPage() {
                                 onClick={() =>
                                   handleAddFor(pr.practice.id, m.user_id, m.name)
                                 }
-                                disabled={busy}
+                                disabled={isCellBusy(pr.practice.id, m.user_id)}
                                 className={`rounded-full px-3 py-1 text-xs font-bold disabled:opacity-50 ${
                                   full
                                     ? "bg-gray-100 text-gray-500"
@@ -797,7 +760,7 @@ export default function AdminResultsPage() {
                         </th>
                         {results.by_practice.map((pr) => {
                           const players = pr.participants.filter(
-                            (x) => !x.is_manager,
+                            (x) => !x.is_manager && x.publish_state !== "removing",
                           ).length;
                           const cap = pr.practice.capacity;
                           const tone =
@@ -920,7 +883,7 @@ export default function AdminResultsPage() {
                                 // それ以外は参加中なら外し、未参加なら追加する
                                 const toggleCell = () => {
                                   if (joining && joining.publish_state !== "removing") {
-                                    handleDelete(joining.assignment_id, m.name);
+                                    handleDelete(joining.assignment_id);
                                   } else {
                                     handleAddFor(
                                       pr.practice.id,
@@ -934,8 +897,9 @@ export default function AdminResultsPage() {
                                     <button
                                       type="button"
                                       onClick={toggleCell}
-                                      disabled={busy}
-                                      aria-label={`${m.name} ${shortDate(pr.practice.practice_date)}`}
+                                      disabled={isCellBusy(pr.practice.id, m.user_id)}
+                                      aria-busy={adjustments.saving.has(`${pr.practice.id}:${m.user_id}`)}
+                                      aria-label={`${m.name} ${formatPracticeDate(pr.practice.practice_date)} ${joining && joining.publish_state !== "removing" ? "参加を取り消す" : "参加にする"}`}
                                       className="block w-full px-1 py-2 disabled:opacity-50"
                                     >
                                       {joining?.publish_state === "removing" ? (
@@ -976,19 +940,33 @@ export default function AdminResultsPage() {
 
       {/* 下部固定: 公開ボタン（タブバーの上） */}
       <div className="fixed bottom-14 left-1/2 z-40 w-full max-w-[480px] -translate-x-1/2 border-t border-gray-200 bg-white/95 px-4 pt-3 pb-3 backdrop-blur">
-        <button
-          onClick={handlePublish}
-          disabled={(published && pendingChanges === 0) || publishing || !pm}
-          className="w-full rounded-xl bg-brand-600 py-4 text-lg font-bold text-white shadow-lg hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-gray-300"
-        >
-          {publishing
-            ? "公開中…"
-            : published && pendingChanges > 0
-              ? `変更を再公開する（${pendingChanges}件）`
-              : published
-                ? "公開済み"
-                : "結果を公開する"}
-        </button>
+        {syncing ? (
+          <div role="status" className="flex items-center justify-center gap-3 rounded-xl bg-gray-100 py-4 font-bold text-gray-700">
+            <span aria-hidden="true" className="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-brand-600" />
+            最新の状態を確認中…
+          </div>
+        ) : syncError ? (
+          <ErrorMessage
+            message={`最新の状態を確認できませんでした：${syncError}`}
+            onRetry={saving || publishing ? undefined : () => { void store.refresh(); }}
+          />
+        ) : (
+          <button
+            onClick={handlePublish}
+            disabled={(published && pendingChanges === 0) || publishing || saving || needsSync || !pm || !results}
+            className="w-full rounded-xl bg-brand-600 py-4 text-lg font-bold text-white shadow-lg hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+          >
+            {publishing
+              ? "公開中…"
+              : saving
+                ? "保存中…"
+                : published && pendingChanges > 0
+                  ? `変更を再公開する（${pendingChanges}件）`
+                  : published
+                    ? "公開済み"
+                    : "結果を公開する"}
+          </button>
+        )}
       </div>
     </div>
   );
