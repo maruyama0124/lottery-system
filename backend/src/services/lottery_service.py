@@ -1,6 +1,8 @@
 """抽選・結果サービス (REQ-005, REQ-006) — 抽選エンジンと DB を接続する"""
 import secrets
 from collections import defaultdict
+import logging
+from time import perf_counter
 
 from sqlalchemy.orm import Session
 
@@ -35,6 +37,7 @@ from src.services.practice_service import PracticeService
 # 枠の提案値: この順に優先して残枠を配る (D-015)
 PRIORITY_GRADES = (3, 2, 1)
 
+logger = logging.getLogger(__name__)
 
 def previous_year_month(year_month: str) -> str:
     year, month = map(int, year_month.split("-"))
@@ -386,120 +389,142 @@ class LotteryService:
         )
 
     def full_results(self, rep: User, pm_id: str) -> FullResults:
-        pm = self.practice_service.get_month_for_rep(rep, pm_id)
-        practices = self.practices.list_by_month(pm.id)
-        assignments = self.repo.list_assignments([p.id for p in practices])
-        users = {u.id: u for u in self.repo.list_members(pm.gender)}
+        started_at = perf_counter()
+        try:
+            pm = self.practice_service.get_month_for_rep(rep, pm_id)
+            practices = self.practices.list_by_month(pm.id)
+            assignments = self.repo.list_assignments([p.id for p in practices])
+            users = {u.id: u for u in self.repo.list_members(pm.gender)}
 
-        by_practice = []
-        for p in practices:
-            participants = [
-                Participant(
-                    assignment_id=a.id,
-                    user_id=a.user_id,
-                    name=users[a.user_id].name,
-                    grade=users[a.user_id].grade,
-                    is_manager=users[a.user_id].is_manager,
-                    assigned_via=a.assigned_via,
-                    publish_state=a.publish_state,
+            by_practice = []
+            for p in practices:
+                participants = [
+                    Participant(
+                        assignment_id=a.id,
+                        user_id=a.user_id,
+                        name=users[a.user_id].name,
+                        grade=users[a.user_id].grade,
+                        is_manager=users[a.user_id].is_manager,
+                        assigned_via=a.assigned_via,
+                        publish_state=a.publish_state,
+                    )
+                    for a in assignments
+                    if a.practice_id == p.id and a.user_id in users
+                ]
+                participants.sort(key=lambda x: (-x.grade, x.name))
+                by_practice.append(
+                    PracticeResults(
+                        practice=PracticeResponse.model_validate(p), participants=participants
+                    )
                 )
-                for a in assignments
-                if a.practice_id == p.id and a.user_id in users
+
+            votes: dict[str, set[str]] = defaultdict(set)
+            for v in self.repo.list_votes_for_practices([p.id for p in practices]):
+                votes[v.user_id].add(v.practice_id)
+            wins: dict[str, list[str]] = defaultdict(list)
+            for a in assignments:
+                wins[a.user_id].append(a.practice_id)
+
+            # 前月の当選/投票。微調整で誰を動かすかの判断材料 (公開済みの実績のみ)
+            prev_pm = self.months.get_by_ym_gender(
+                previous_year_month(pm.year_month), pm.gender
+            )
+            prev = self.repo.get_month_wins_votes(prev_pm.id) if prev_pm else {}
+
+            # 未投票のメンバーも含めて全員を並べる (D-043)。未投票者は votes_count = 0 で並び、
+            # 代表が「誰が投票していないか」を結果画面で把握できる
+            by_member = [
+                MemberResult(
+                    user_id=uid,
+                    name=users[uid].name,
+                    grade=users[uid].grade,
+                    is_manager=users[uid].is_manager,
+                    votes_count=len(votes[uid]),
+                    wins_count=len(wins.get(uid, [])),
+                    prev_wins_count=prev.get(uid, (0, 0))[0],
+                    prev_votes_count=prev.get(uid, (0, 0))[1],
+                    practice_ids=sorted(wins.get(uid, [])),
+                    voted_practice_ids=sorted(votes[uid]),
+                )
+                for uid in sorted(users, key=lambda u: (-users[u].grade, users[u].name))
             ]
-            participants.sort(key=lambda x: (-x.grade, x.name))
-            by_practice.append(
-                PracticeResults(
-                    practice=PracticeResponse.model_validate(p), participants=participants
-                )
+            return FullResults(by_practice=by_practice, by_member=by_member)
+        finally:
+            logger.info(
+                "[timing] full_results %.1f ms",
+                (perf_counter() - started_at) * 1000,
             )
-
-        votes: dict[str, set[str]] = defaultdict(set)
-        for v in self.repo.list_votes_for_practices([p.id for p in practices]):
-            votes[v.user_id].add(v.practice_id)
-        wins: dict[str, list[str]] = defaultdict(list)
-        for a in assignments:
-            wins[a.user_id].append(a.practice_id)
-
-        # 前月の当選/投票。微調整で誰を動かすかの判断材料 (公開済みの実績のみ)
-        prev_pm = self.months.get_by_ym_gender(
-            previous_year_month(pm.year_month), pm.gender
-        )
-        prev = self.repo.get_month_wins_votes(prev_pm.id) if prev_pm else {}
-
-        # 未投票のメンバーも含めて全員を並べる (D-043)。未投票者は votes_count = 0 で並び、
-        # 代表が「誰が投票していないか」を結果画面で把握できる
-        by_member = [
-            MemberResult(
-                user_id=uid,
-                name=users[uid].name,
-                grade=users[uid].grade,
-                is_manager=users[uid].is_manager,
-                votes_count=len(votes[uid]),
-                wins_count=len(wins.get(uid, [])),
-                prev_wins_count=prev.get(uid, (0, 0))[0],
-                prev_votes_count=prev.get(uid, (0, 0))[1],
-                practice_ids=sorted(wins.get(uid, [])),
-                voted_practice_ids=sorted(votes[uid]),
-            )
-            for uid in sorted(users, key=lambda u: (-users[u].grade, users[u].name))
-        ]
-        return FullResults(by_practice=by_practice, by_member=by_member)
 
     # ---------- 微調整 (REQ-006.3) ----------
 
     def add_assignment(self, rep: User, practice_id: str, user_id: str) -> AssignmentCreated:
-        practice = self.practices.get(practice_id)
-        if practice is None:
-            raise NotFoundError("練習日が見つかりません")
-        self.practice_service.get_month_for_rep(rep, practice.practice_month_id)
-
-        target = self.users.get_by_id(user_id)
-        if target is None:
-            raise NotFoundError("メンバーが見つかりません")
-        if target.gender != rep.gender:
-            raise ForbiddenError("担当性別以外のメンバーは割当できません")
-
-        existing = self.repo.list_assignments([practice_id])
-        current = next((a for a in existing if a.user_id == user_id), None)
-        if current is not None and current.publish_state != "removing":
-            raise ConflictError("このメンバーは既にこの練習日に割当済みです")
-
-        if current is not None:
-            # 公開後に外した人を戻す。メンバーにはまだ見えたままなので published に戻すだけ (D-044)
-            current.publish_state = "published"
-            self.db.flush()
-            assignment = current
-        else:
-            assignment = self.repo.create_assignment(
-                practice_id=practice_id, user_id=user_id, via="manual", execution_id=None
+        started_at = perf_counter()
+        try:
+            practice = self.practices.get(practice_id)
+            if practice is None:
+                raise NotFoundError("練習日が見つかりません")
+            self.practice_service.get_month_for_rep(rep, practice.practice_month_id)
+    
+            target = self.users.get_by_id(user_id)
+            if target is None:
+                raise NotFoundError("メンバーが見つかりません")
+            if target.gender != rep.gender:
+                raise ForbiddenError("担当性別以外のメンバーは割当できません")
+    
+            existing = self.repo.list_assignments([practice_id])
+            current = next((a for a in existing if a.user_id == user_id), None)
+            if current is not None and current.publish_state != "removing":
+                raise ConflictError("このメンバーは既にこの練習日に割当済みです")
+    
+            if current is not None:
+                # 公開後に外した人を戻す。メンバーにはまだ見えたままなので published に戻すだけ (D-044)
+                current.publish_state = "published"
+                self.db.flush()
+                assignment = current
+            else:
+                assignment = self.repo.create_assignment(
+                    practice_id=practice_id, user_id=user_id, via="manual", execution_id=None
+                )
+            player_count = sum(
+                1
+                for a in self.repo.list_assignments([practice_id])
+                if a.assigned_via != "manager"
             )
-        player_count = sum(
-            1
-            for a in self.repo.list_assignments([practice_id])
-            if a.assigned_via != "manager"
-        )
-        return AssignmentCreated(
-            assignment_id=assignment.id,
-            capacity_exceeded=player_count > practice.capacity,
-        )
+            return AssignmentCreated(
+                assignment_id=assignment.id,
+                capacity_exceeded=player_count > practice.capacity,
+            )
+        finally:
+            logger.info(
+                "[timing] add_assignment %.1f ms",
+                (perf_counter() - started_at) * 1000,
+            )
 
     def remove_assignment(self, rep: User, assignment_id: str) -> None:
-        assignment = self.repo.get_assignment(assignment_id)
-        if assignment is None:
-            raise NotFoundError("割当が見つかりません")
-        practice = self.practices.get(assignment.practice_id)
-        if practice is None:
-            raise NotFoundError("練習日が見つかりません")
-        pm = self.practice_service.get_month_for_rep(rep, practice.practice_month_id)
-        if assignment.publish_state == "removing":
-            # すでに削除予定。二重に消すとメンバーから即座に消えてしまうので何もしない
-            return
-        if pm.status == "published" and assignment.publish_state == "published":
-            # 公開済みの割当はすぐ消さず、再公開まで「削除予定」にとどめる (D-044)
-            assignment.publish_state = "removing"
-        else:
-            assignment.is_deleted = True
-        self.db.flush()
+        started_at = perf_counter()
+        try:
+            assignment = self.repo.get_assignment(assignment_id)
+            if assignment is None:
+                raise NotFoundError("割当が見つかりません")
+            practice = self.practices.get(assignment.practice_id)
+            if practice is None:
+                raise NotFoundError("練習日が見つかりません")
+            pm = self.practice_service.get_month_for_rep(rep, practice.practice_month_id)
+            if assignment.publish_state == "removing":
+                # すでに削除予定。二重に消すとメンバーから即座に消えてしまうので何もしない
+                return
+            if pm.status == "published" and assignment.publish_state == "published":
+                # 公開済みの割当はすぐ消さず、再公開まで「削除予定」にとどめる (D-044)
+                assignment.publish_state = "removing"
+            else:
+                assignment.is_deleted = True
+            self.db.flush()
+        finally:
+            logger.info(
+                "[timing] remove_assignment %.1f ms",
+                (perf_counter() - started_at) * 1000,
+            )
+
 
     # ---------- 公開 (REQ-006.4) ----------
 

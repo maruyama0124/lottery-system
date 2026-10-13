@@ -8,9 +8,10 @@ from fastapi.responses import JSONResponse
 
 from src.api import auth, health, lottery, practice_months, settings, users
 from src.core.errors import AppError
+import logging
 
 API_PREFIX = "/api/v1"
-
+logging.basicConfig(level=logging.INFO)
 
 def create_app() -> FastAPI:
     app = FastAPI(
