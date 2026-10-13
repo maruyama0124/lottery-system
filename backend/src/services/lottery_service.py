@@ -391,10 +391,34 @@ class LotteryService:
     def full_results(self, rep: User, pm_id: str) -> FullResults:
         started_at = perf_counter()
         try:
+            step_started = perf_counter()
             pm = self.practice_service.get_month_for_rep(rep, pm_id)
+            logger.info(
+                "[timing] full_results get_month %.1f ms",
+                (perf_counter() - step_started) * 1000,
+            )
+
+            step_started = perf_counter()
             practices = self.practices.list_by_month(pm.id)
+            logger.info(
+                "[timing] full_results list_practices %.1f ms",
+                (perf_counter() - step_started) * 1000,
+            )
+
+            step_started = perf_counter()
             assignments = self.repo.list_assignments([p.id for p in practices])
-            users = {u.id: u for u in self.repo.list_members(pm.gender)}
+            logger.info(
+                "[timing] full_results list_assignments %.1f ms",
+                (perf_counter() - step_started) * 1000,
+            )
+
+            step_started = perf_counter()
+            members = self.repo.list_members(pm.gender)
+            logger.info(
+                "[timing] full_results list_members %.1f ms",
+                (perf_counter() - step_started) * 1000,
+            )
+            users = {u.id: u for u in members}
 
             by_practice = []
             for p in practices:
@@ -418,18 +442,37 @@ class LotteryService:
                     )
                 )
 
+            step_started = perf_counter()
+            practice_votes = self.repo.list_votes_for_practices([p.id for p in practices])
+            logger.info(
+                "[timing] full_results list_votes %.1f ms",
+                (perf_counter() - step_started) * 1000,
+            )
             votes: dict[str, set[str]] = defaultdict(set)
-            for v in self.repo.list_votes_for_practices([p.id for p in practices]):
+            for v in practice_votes:
                 votes[v.user_id].add(v.practice_id)
             wins: dict[str, list[str]] = defaultdict(list)
             for a in assignments:
                 wins[a.user_id].append(a.practice_id)
 
             # 前月の当選/投票。微調整で誰を動かすかの判断材料 (公開済みの実績のみ)
+            step_started = perf_counter()
             prev_pm = self.months.get_by_ym_gender(
                 previous_year_month(pm.year_month), pm.gender
             )
-            prev = self.repo.get_month_wins_votes(prev_pm.id) if prev_pm else {}
+            logger.info(
+                "[timing] full_results get_previous_month %.1f ms",
+                (perf_counter() - step_started) * 1000,
+            )
+            if prev_pm:
+                step_started = perf_counter()
+                prev = self.repo.get_month_wins_votes(prev_pm.id)
+                logger.info(
+                    "[timing] full_results get_previous_results %.1f ms",
+                    (perf_counter() - step_started) * 1000,
+                )
+            else:
+                prev = {}
 
             # 未投票のメンバーも含めて全員を並べる (D-043)。未投票者は votes_count = 0 で並び、
             # 代表が「誰が投票していないか」を結果画面で把握できる
