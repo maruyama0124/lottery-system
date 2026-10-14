@@ -8,6 +8,7 @@ from src.api.deps import CurrentUser, Representative
 from src.db.session import get_db
 from src.schemas.lottery import (
     AssignmentCreated,
+    AssignmentBatchRequest,
     AssignmentCreateRequest,
     FullResults,
     LotteryExecuteRequest,
@@ -89,6 +90,15 @@ def add_assignment(
     practice_id: str, data: AssignmentCreateRequest, rep: Representative, db: DbDep
 ) -> AssignmentCreated:
     return LotteryService(db).add_assignment(rep, practice_id, data.user_id)
+
+
+@router.put("/practice-months/{pm_id}/assignments", status_code=status.HTTP_204_NO_CONTENT)
+def save_assignments(pm_id: str, data: AssignmentBatchRequest, rep: Representative, db: DbDep) -> Response:
+    LotteryService(db).save_assignments(rep, pm_id, data)
+    # yield依存関数の終了は応答後になり得る。保存成功を返す前にcommitを確定する。
+    # 例外時のrollbackはget_dbが担い、成功後のget_db.commitは空の処理になる。
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.delete("/assignments/{assignment_id}", status_code=status.HTTP_204_NO_CONTENT)

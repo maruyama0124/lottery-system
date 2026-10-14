@@ -5,16 +5,19 @@ import logging
 from time import perf_counter
 
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 
 from src.core.datetime_utils import utcnow
 from src.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationError
-from src.db.models import PracticeMonth, User
+from src.db.models import Practice, PracticeMonth, User
+from src.core.ids import generate_id
 from src.domain.lottery import GRADES, Member, PracticeDay, run_lottery
 from src.repositories.lottery_repository import LotteryRepository
 from src.repositories.practice_repository import PracticeMonthRepository, PracticeRepository
 from src.repositories.user_repository import UserRepository
 from src.schemas.lottery import (
     AssignmentCreated,
+    AssignmentBatchRequest,
     FullResults,
     GradeVoteSummary,
     LotteryExecutionResponse,
@@ -500,6 +503,86 @@ class LotteryService:
 
     # ---------- 微調整 (REQ-006.3) ----------
 
+    def _lock_adjustment_month(self, rep: User, pm_id: str) -> PracticeMonth:
+        pm = self.db.scalar(select(PracticeMonth).where(
+            PracticeMonth.id == pm_id, PracticeMonth.is_deleted.is_(False)
+        ).with_for_update().execution_options(populate_existing=True))
+        if pm is None:
+            raise NotFoundError("月別練習が見つかりません")
+        if pm.gender != rep.gender:
+            raise ForbiddenError("担当性別以外の月別練習は操作できません")
+        return pm
+
+    def save_assignments(self, rep: User, pm_id: str, data: AssignmentBatchRequest) -> None:
+        started_at = perf_counter()
+        try:
+            pm = self._lock_adjustment_month(rep, pm_id)
+            if pm.status != data.expected_month_status or pm.published_at != data.expected_published_at:
+                raise ConflictError("月の公開状態が変更されました。月を選び直して確認してください")
+            pairs = [(c.practice_id, c.user_id) for c in data.changes]
+            if len(set(pairs)) != len(pairs):
+                raise ValidationError("同じ練習日・メンバーの変更が重複しています")
+            practice_ids = sorted({pid for pid, _ in pairs})
+            user_ids = sorted({uid for _, uid in pairs})
+            practices = {p.id: p for p in self.db.scalars(select(Practice).where(
+                Practice.id.in_(practice_ids), Practice.practice_month_id == pm.id,
+                Practice.is_deleted.is_(False),
+            ).order_by(Practice.id).with_for_update())}
+            if len(practices) != len(practice_ids):
+                raise NotFoundError("この月に存在しない練習日が含まれています")
+            users = {u.id: u for u in self.db.scalars(select(User).where(
+                User.id.in_(user_ids), User.is_deleted.is_(False)
+            ).order_by(User.id).with_for_update())}
+            if len(users) != len(user_ids):
+                raise NotFoundError("メンバーが見つかりません")
+            for user in users.values():
+                if user.gender != pm.gender or user.is_observer:
+                    raise ForbiddenError("担当性別の参加対象メンバー以外は割当できません")
+            rows = self.repo.list_assignments_for_update(practice_ids)
+            active = {(a.practice_id, a.user_id): a for a in rows if not a.is_deleted}
+            deleted = {(a.practice_id, a.user_id): a for a in rows if a.is_deleted}
+            updates, additions = [], []
+            # 全件の検証と更新計画を先に完成させる。途中で一部だけ保存しない。
+            for change in data.changes:
+                pair = (change.practice_id, change.user_id)
+                current = active.get(pair)
+                expected = (change.expected_assignment_id, change.expected_publish_state)
+                actual = (current.id, current.publish_state) if current else (None, None)
+                if (expected[0] is None) != (expected[1] is None):
+                    raise ValidationError("変更前の割当IDと公開状態を両方指定してください")
+                joined = current is not None and current.publish_state != "removing"
+                if actual != expected:
+                    # 応答が届かなかった保存の再送は同じ意図なら成功扱いにする。
+                    retry = joined == change.participating and (
+                        current is None or current.id == change.expected_assignment_id or
+                        (expected == (None, None) and current.publish_state == "pending")
+                    )
+                    if retry:
+                        continue
+                    raise ConflictError("割当が変更されました。月を選び直して確認してください")
+                if joined == change.participating:
+                    continue
+                if change.participating:
+                    row = current or deleted.get(pair)
+                    if row:
+                        restore = current is not None
+                        updates.append(dict(key_id=row.id, new_deleted=False,
+                            new_state="published" if restore else "pending",
+                            new_via=row.assigned_via if restore else "manual",
+                            new_execution=row.lottery_execution_id if restore else None))
+                    else:
+                        additions.append(dict(id=generate_id("asg"), practice_id=pair[0], user_id=pair[1],
+                            is_deleted=False, publish_state="pending", assigned_via="manual", lottery_execution_id=None))
+                elif current:
+                    removing = pm.status == "published" and current.publish_state == "published"
+                    updates.append(dict(key_id=current.id, new_deleted=not removing,
+                        new_state="removing" if removing else current.publish_state,
+                        new_via=current.assigned_via, new_execution=current.lottery_execution_id))
+            self.repo.apply_assignment_batch(updates, additions)
+        finally:
+            logger.info("[timing] save_assignments changes=%d %.1f ms", len(data.changes),
+                        (perf_counter() - started_at) * 1000)
+
     def add_assignment(self, rep: User, practice_id: str, user_id: str) -> AssignmentCreated:
         started_at = perf_counter()
         try:
@@ -572,7 +655,7 @@ class LotteryService:
     # ---------- 公開 (REQ-006.4) ----------
 
     def publish(self, rep: User, pm_id: str) -> None:
-        pm = self.practice_service.get_month_for_rep(rep, pm_id)
+        pm = self._lock_adjustment_month(rep, pm_id)
         if self.repo.get_active_execution(pm.id) is None:
             raise ConflictError("抽選が未実行のため公開できません")
 

@@ -261,6 +261,20 @@ export interface AssignmentCreated {
   capacity_exceeded: boolean;
 }
 
+export interface AssignmentChange {
+  practice_id: string;
+  user_id: string;
+  participating: boolean;
+  expected_assignment_id: string | null;
+  expected_publish_state: PublishState | null;
+}
+
+export interface AssignmentBatchRequest {
+  changes: AssignmentChange[];
+  expected_month_status: PracticeMonthStatus;
+  expected_published_at: string | null;
+}
+
 // ---------- 設定 ----------
 
 export interface LotterySettings {

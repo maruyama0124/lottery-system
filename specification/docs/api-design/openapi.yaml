@@ -562,6 +562,39 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /practice-months/{pmId}/assignments:
+    put:
+      tags: [lottery]
+      summary: 微調整の差分を一括保存（代表のみ）
+      description: D-052。対象月・割当の基準を照合し、全件を1トランザクションで保存する。公開・再公開まではメンバーへ反映しない。同じ保存の再送は既に同じ参加状態なら成功扱いにする。
+      parameters:
+        - $ref: '#/components/parameters/PmId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignmentBatchRequest'
+      responses:
+        '204':
+          description: 一括保存成功（本文なし）
+        '400':
+          description: 入力不正・重複する練習日と会員
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 基準の割当または月の公開状態が変更された
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
   /practices/{practiceId}/assignments:
     post:
       tags: [lottery]
@@ -1020,7 +1053,7 @@ components:
                   $ref: '#/components/schemas/Participant'
         by_member:
           type: array
-          description: 性別グループの全メンバー（未投票者も含む: D-043）。3年→1年、氏名順
+          description: '性別グループの全メンバー（未投票者も含む: D-043）。3年→1年、氏名順'
           items:
             type: object
             properties:
@@ -1061,6 +1094,31 @@ components:
       required: [user_id]
       properties:
         user_id: { type: string }
+
+    AssignmentBatchRequest:
+      type: object
+      required: [changes, expected_month_status, expected_published_at]
+      properties:
+        expected_month_status:
+          type: string
+          enum: [draft, voting, closed, drawn, published]
+        expected_published_at: { type: string, format: date-time, nullable: true }
+        changes:
+          type: array
+          minItems: 1
+          maxItems: 5000
+          items:
+            type: object
+            required: [practice_id, user_id, participating, expected_assignment_id, expected_publish_state]
+            properties:
+              practice_id: { type: string }
+              user_id: { type: string }
+              participating: { type: boolean }
+              expected_assignment_id: { type: string, nullable: true }
+              expected_publish_state:
+                type: string
+                nullable: true
+                enum: [pending, published, removing, null]
 
     AssignmentCreated:
       type: object

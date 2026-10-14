@@ -11,11 +11,5 @@ export function useResultAdjustments(monthId: string | null) {
     store.start();
     return () => store.stop();
   }, [store]);
-  useEffect(() => {
-    if (!state.saving.size) return;
-    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); };
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [state.saving.size]);
   return { ...state, store };
 }

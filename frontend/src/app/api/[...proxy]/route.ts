@@ -3,10 +3,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { BACKEND_URL, getValidAccessToken } from "@/lib/auth/dal";
 
 async function forward(req: NextRequest, path: string[]) {
-  // 微調整の3種類だけを計測する。ID・クエリ・認証情報はログに含めない。
+  // 微調整・一括保存を計測する。ID・クエリ・認証情報はログに含めない。
   const route = path.join("/");
   const operation =
-    req.method === "POST" && /^v1\/practices\/[^/]+\/assignments$/.test(route)
+    req.method === "PUT" && /^v1\/practice-months\/[^/]+\/assignments$/.test(route)
+      ? "save_assignments"
+      : req.method === "POST" && /^v1\/practices\/[^/]+\/assignments$/.test(route)
       ? "add_assignment"
       : req.method === "DELETE" && /^v1\/assignments\/[^/]+$/.test(route)
         ? "remove_assignment"

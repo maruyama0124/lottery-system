@@ -132,6 +132,20 @@ class AssignmentCreated(BaseModel):
     capacity_exceeded: bool  # 定員超過の警告 (REQ-006.3)
 
 
+class AssignmentChange(BaseModel):
+    practice_id: str
+    user_id: str
+    participating: bool
+    expected_assignment_id: str | None
+    expected_publish_state: PublishState | None
+
+
+class AssignmentBatchRequest(BaseModel):
+    changes: list[AssignmentChange] = Field(min_length=1, max_length=5000)
+    expected_month_status: Literal["draft", "voting", "closed", "drawn", "published"]
+    expected_published_at: datetime | None
+
+
 class LotterySettingsResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

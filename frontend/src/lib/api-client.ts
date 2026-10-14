@@ -32,7 +32,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   // 日程変更・投票・抽選・公開の成功を、再訪用キャッシュと別タブへ伝える。
   // 微調整の途中は公開結果が変わらないため対象外 (D-044)。
-  if (options.method && options.method !== "GET" &&
+  if (options.method && options.method !== "GET" && !/\/assignments$/.test(path) &&
       (/^\/v1\/practice-months(?:[/?]|$)/.test(path) ||
        /^\/v1\/practices\/[^/?]+(?:\?|$)/.test(path))) {
     invalidateMemberHomes(/\/lottery(?:\?|$)/.test(path));

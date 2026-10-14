@@ -29,8 +29,9 @@ const initial = {
     }] }],
     by_member: members,
   },
-  saving: new Set(), syncing: false, publishing: false, needsSync: false,
-  syncError: null, loadError: null, actionError: null,
+  saving: false, syncing: false, publishing: false, needsSync: false,
+  dirtyChanges: 0, savedChanges: 1, saveError: null,
+  syncError: null, loadError: null,
 };
 
 function render(patch = {}, monthAvailable = true) {
@@ -40,7 +41,7 @@ function render(patch = {}, monthAvailable = true) {
     practices: [practice], vote_ends_at: "2026-10-01T00:00:00Z",
   };
   state.store = {
-    isCellBusy: (pid, uid) => state.publishing || state.saving.has(`${pid}:${uid}`),
+    isCellBusy: () => state.publishing || state.saving || state.syncing || state.needsSync || !!state.syncError,
     refresh: async () => true,
   };
   const context = {
@@ -69,22 +70,22 @@ const buttons = (html) => html.match(/<button\b[^>]*>[\s\S]*?<\/button>/g) ?? []
 const cell = (html, name) => buttons(html).find((b) => b.includes(`aria-label="${name} `));
 const footer = (html) => html.slice(html.indexOf('class="fixed bottom-14'));
 
-test("saving disables only the target matrix cell and the publish button", () => {
-  const html = render({ saving: new Set(["p1:u1"]), needsSync: true });
+test("saving disables all matrix cells and save/publication buttons", () => {
+  const html = render({ saving: true, dirtyChanges: 1 });
   assert.match(cell(html, "会員A"), /disabled=""/);
   assert.match(cell(html, "会員A"), /aria-busy="true"/);
-  assert.doesNotMatch(cell(html, "会員B"), /disabled=""/);
+  assert.match(cell(html, "会員B"), /disabled=""/);
   assert.match(footer(html), /保存中…/);
   assert.match(footer(html), /disabled=""/);
 });
 
-test("refresh shows spinner and status in the publish position, leaving cells editable", () => {
+test("refresh shows spinner in footer and disables all editing", () => {
   const html = render({ syncing: true, needsSync: true });
   assert.match(footer(html), /role="status"/);
   assert.match(footer(html), /animate-spin/);
   assert.match(footer(html), /最新の状態を確認中…/);
   assert.doesNotMatch(footer(html), /<button/);
-  assert.doesNotMatch(cell(html, "会員B"), /disabled=""/);
+  assert.match(cell(html, "会員B"), /disabled=""/);
 });
 
 test("refresh failure replaces publish with an error and retry", () => {
@@ -98,7 +99,7 @@ test("after confirmation publish label follows latest pending changes", () => {
   assert.match(footer(render()), /変更を再公開する（1件）/);
   const confirmed = structuredClone(initial.results);
   confirmed.by_practice[0].participants[0].publish_state = "published";
-  const html = render({ results: confirmed });
+  const html = render({ results: confirmed, savedChanges: 0 });
   assert.match(footer(html), /公開済み/);
   assert.match(footer(html), /disabled=""/);
 });
@@ -119,4 +120,18 @@ test("cells cannot be edited before month status is available", () => {
   const html = render({}, false);
   assert.match(cell(html, "会員A"), /disabled=""/);
   assert.match(cell(html, "会員B"), /disabled=""/);
+});
+
+test("unsaved count and saved count are separate; unsaved editing keeps cells enabled", () => {
+  const html = render({ dirtyChanges: 2, savedChanges: 1 });
+  assert.match(footer(html), /未保存の変更：2件/);
+  assert.match(footer(html), /保存済み・公開待ち：1件/);
+  const save = buttons(footer(html)).find((b) => b.includes("変更を保存"));
+  const publish = buttons(footer(html)).find((b) => b.includes("再公開する"));
+  assert.doesNotMatch(save, /disabled=""/); assert.match(publish, /disabled=""/);
+  assert.doesNotMatch(cell(html, "会員B"), /disabled=""/);
+});
+test("save failure offers save retry; refresh failure states save already completed", () => {
+  assert.match(footer(render({ dirtyChanges: 1, saveError: "保存失敗" })), /再試行/);
+  assert.match(footer(render({ needsSync: true, syncError: "取得失敗" })), /保存は完了しています/);
 });

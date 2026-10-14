@@ -2,16 +2,16 @@
 hide:
 - navigation
 doc_type: api-design
-version: 2.3.2
-last_updated: '2026-10-13'
+version: 2.4.0
+last_updated: '2026-10-14'
 depends_on:
 - requirements/index.md
 - database-design/index.md
 derived_by:
 - ui-design/index.md
-sync_hash: 5a6ac6bf70d7
+sync_hash: ddd7abc56d8c
 dependency_hashes:
-  requirements/index.md: 9da4738334d0
+  requirements/index.md: 540723f4a230
   database-design/index.md: 2820bf661115
 ---
 
@@ -141,9 +141,12 @@ graph LR
 
 ### 抽選・結果 (lottery / results)
 
+微調整画面は `PUT /practice-months/{pmId}/assignments` で差分を一括保存する (D-052)。本文は `changes`（1〜5000件）、`expected_month_status`、`expected_published_at`。各差分は練習日・会員ID・参加の有無・変更前割当ID・変更前公開状態を持つ。全件検証後に1トランザクションで保存し、成功は204（本文なし）。基準や公開状態の競合は409、重複差分や入力不正は400、不明な練習日・会員は404、担当外性別・閲覧専用は403。同じ保存を再送した場合、既に同じ参加状態なら成功扱いにする。単件追加・削除APIは互換性のため維持するが、この画面からは呼ばない。メンバーへの公開仕様はD-044のままである。
+
 | メソッド | パス | 概要 | 権限 | 要件 |
 |----------|------|------|------|------|
 | GET | /practice-months/{pmId}/vote-summary | 抽選前の投票状況と学年別枠（提案値含む） | 代表 | REQ-005.5, REQ-005.5.1 |
+| PUT | /practice-months/{pmId}/assignments | 微調整の差分を一括保存（公開まで保留） | 代表 | REQ-006.3 / D-052 |
 | PUT | /practice-months/{pmId}/quotas | 学年別の参加人数枠を保存（合計＝定員） | 代表 | REQ-005.3 |
 | POST | /practice-months/{pmId}/lottery | 抽選の一括実行（再実行含む。枠未設定なら409） | 代表 | REQ-005, REQ-005.12 |
 | GET | /practice-months/{pmId}/executions | 抽選実行履歴 | 代表 | REQ-005.11 |

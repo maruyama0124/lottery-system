@@ -2,16 +2,16 @@
 hide:
 - navigation
 doc_type: ui-design
-version: 2.2.2
-last_updated: '2026-10-13'
+version: 2.3.0
+last_updated: '2026-10-14'
 depends_on:
 - requirements/index.md
 - api-design/index.md
 derived_by: []
-sync_hash: d5f024b1ed92
+sync_hash: c5e8ae65617d
 dependency_hashes:
-  requirements/index.md: 9da4738334d0
-  api-design/index.md: 5a6ac6bf70d7
+  requirements/index.md: 540723f4a230
+  api-design/index.md: ddd7abc56d8c
 ---
 
 # 画面設計書 — サークル練習参加抽選システム
@@ -151,11 +151,12 @@ stateDiagram-v2
 - 練習日別/メンバー別のタブ切替 (REQ-006.2)。参加者行には割当由来バッジ（3年確定/保証/配分/手動 等）
 - メンバー別・表の両タブには**未投票のメンバーも並ぶ**。「未投票」バッジを付け、投票0・当選0で表示する。表タブでは全マスが「・」になる (D-043)
 - 参加者の追加・削除で微調整 (REQ-006.3)。タップごとの確認ダイアログは出さない。定員超過は人数を灰色で示すだけで赤くしない (D-044)
-- 微調整は即時反映し、参加人数・当選回数・未反映件数を同時に更新する。削除予定は人数・当選回数から除き、取り消し用の行・マスは残す。保存中は対象セルだけを無効にし、失敗時はそのセルだけを戻す (D-050)
-- 全保存完了後、400ms操作が落ち着いた時点で月全体を再取得する。下部公開ボタン位置にはスピナーと「最新の状態を確認中…」を表示し、失敗時はエラーと再試行を表示する。保存中・確認待ち・再取得中・再取得失敗時は公開できない。再取得中に始めた編集は古い応答で上書きせず、保存後に取り直す (D-050)
+- マス操作は画面内だけで即時反映し、参加人数・当選回数・未保存差分件数を更新する。元へ戻すと差分から除外する。保存済み・公開待ちのpending／removing件数は編集基準から数え、未保存件数とは区別する。公開前の公開待ち件数には初回抽選の割当も含む。削除予定は人数・当選回数から除き、取り消し用の行・マスは残す (D-052)。
+- 下部に「変更を保存」と「公開／再公開」を設ける。未保存変更がある間は公開できない。保存は差分を一括送信し、保存中は編集・保存・公開を無効にする。成功後の結果再取得は1回のみで、下部へスピナーと「最新の状態を確認中…」を表示し、編集・保存・公開を無効にする。
+- 保存失敗は編集内容を維持して保存を再試行する。取得失敗は「保存は完了しています」と表示し、取得だけを再試行する。月切替・離脱・再読み込みで未保存変更を破棄し、離脱警告は出さない。
 - 未公開バナー + 「結果を公開する」ボタン (REQ-006.4)。公開済みの月で微調整すると「未反映の変更が N 件」の黄色バナーと「変更を再公開する（N件）」ボタンに切り替わる。表タブでは追加予定を黄色の●、削除予定を×で示し、×をもう一度タップすると戻る。確認ダイアログは公開・再公開のときだけ出す (D-044)
-- API: `GET .../results`, `POST /practices/{id}/assignments`, `DELETE /assignments/{id}`, `POST .../publish`
-- 状態: default / unpublished / published / capacity-warning / cell-saving / synchronizing / sync-error
+- API: `GET .../results`, `PUT .../assignments`, `POST .../publish`
+- 状態: default / unpublished / published / editing / saving / save-error / synchronizing / sync-error / capacity-warning
 
 <iframe src="snippets/admin-results-mobile.html" width="100%" height="900px" frameborder="0" style="border: none; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></iframe>
 

@@ -2,7 +2,7 @@
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import bindparam, insert, select, update
 from sqlalchemy.orm import Session
 
 from src.core.ids import generate_id
@@ -71,6 +71,26 @@ class LotteryRepository:
     def get_assignment(self, assignment_id: str) -> Assignment | None:
         a = self.db.get(Assignment, assignment_id)
         return a if a and not a.is_deleted else None
+
+    def list_assignments_for_update(self, practice_ids: list[str]) -> list[Assignment]:
+        """削除済みの再利用候補も含めて一括取得する。"""
+        return list(self.db.scalars(
+            select(Assignment).where(Assignment.practice_id.in_(practice_ids))
+            .order_by(Assignment.id).with_for_update()
+            .execution_options(populate_existing=True)
+        ))
+
+    def apply_assignment_batch(self, updates: list[dict[str, Any]], additions: list[dict[str, Any]]) -> None:
+        # 全行で同じ列を更新し、executemanyによってDBとの往復をまとめる。
+        table = Assignment.__table__
+        if updates:
+            self.db.execute(update(table).where(table.c.id == bindparam("key_id")).values(
+                is_deleted=bindparam("new_deleted"), publish_state=bindparam("new_state"),
+                assigned_via=bindparam("new_via"), lottery_execution_id=bindparam("new_execution"),
+            ), updates)
+        if additions:
+            self.db.execute(insert(table), additions)
+        self.db.expire_all()
 
     def list_assignments(
         self, practice_ids: list[str], *, visible_only: bool = False

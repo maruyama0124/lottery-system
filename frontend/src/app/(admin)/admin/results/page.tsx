@@ -54,8 +54,7 @@ export default function AdminResultsPage() {
     monthId ? `/v1/practice-months/${monthId}` : null,
   );
   const adjustments = useResultAdjustments(monthId);
-  const { results, store, syncing, syncError, needsSync, publishing } = adjustments;
-  const saving = adjustments.saving.size > 0;
+  const { results, store, syncing, syncError, needsSync, publishing, saving, dirtyChanges, savedChanges, saveError } = adjustments;
   const resultsError = adjustments.loadError;
   const isCellBusy = (practiceId: string, userId: string) =>
     !pm || pm.id !== monthId || store.isCellBusy(practiceId, userId);
@@ -125,7 +124,7 @@ export default function AdminResultsPage() {
     const userId = selectedUserId;
     const name = roster?.items.find((u) => u.id === userId)?.name ?? "メンバー";
     const request = handleAddFor(practiceId, userId, name);
-    // 保存待ちで別の追加フォームを閉じないよう、開始時にこのフォームだけ閉じる。
+    // 画面内の追加を反映したら、この追加フォームを閉じる。
     if (results?.by_member.some((m) => m.user_id === userId)) {
       setAddingFor(null);
       setSelectedUserId("");
@@ -137,16 +136,10 @@ export default function AdminResultsPage() {
 
   // 公開後の微調整で、まだメンバーに反映されていない件数 (D-044)。
   // 追加予定 (pending) と削除予定 (removing) を数える
-  const pendingChanges = published
-    ? (results?.by_practice ?? []).reduce(
-        (n, pr) =>
-          n + pr.participants.filter((p) => p.publish_state !== "published").length,
-        0,
-      )
-    : 0;
+  const pendingChanges = savedChanges;
 
   const handlePublish = async () => {
-    if (!monthId || publishing || saving || syncing || needsSync || syncError) return;
+    if (!monthId || publishing || saving || syncing || needsSync || syncError || dirtyChanges || saveError) return;
     // メンバーに見える内容が変わるのはこの操作だけなので、確認はここでまとめて出す
     const message = published
       ? `${pendingChanges}件の変更をメンバーに反映しますか？再公開後は全メンバーが新しい内容を閲覧できます`
@@ -397,7 +390,7 @@ export default function AdminResultsPage() {
     <div className="flex min-h-screen flex-col">
       <AdminHeader title="結果・微調整" />
 
-      <main className="flex-1 space-y-4 px-4 py-4 pb-44">
+      <main className="flex-1 space-y-4 px-4 py-4 pb-80">
         {monthsError && <ErrorMessage message="対象月の取得に失敗しました" />}
         {resultsError && (
           <ErrorMessage
@@ -406,14 +399,18 @@ export default function AdminResultsPage() {
           />
         )}
         {actionError && <ErrorMessage message={actionError} />}
-        {adjustments.actionError && <ErrorMessage message={adjustments.actionError} />}
 
         {/* 月の切り替え */}
         {months && months.length > 1 && (
           <select
             value={monthId ?? ""}
             disabled={saving || syncing || publishing}
-            onChange={(e) => setSelectedMonthId(e.target.value)}
+            onChange={(e) => {
+              setSelectedMonthId(e.target.value);
+              setActionError(null);
+              setAddingFor(null);
+              setSelectedUserId("");
+            }}
             className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm font-bold text-gray-900 focus:border-brand-600 focus:outline-none"
           >
             {months.map((m) => (
@@ -744,7 +741,7 @@ export default function AdminResultsPage() {
                     <span className="text-amber-700">
                       <span className="font-bold">●</span> 追加予定{" "}
                       <span className="font-bold">×</span> 削除予定
-                      （再公開で反映）
+                      （保存後、再公開で反映）
                     </span>
                   )}
                   <span className="text-gray-400">
@@ -898,7 +895,7 @@ export default function AdminResultsPage() {
                                       type="button"
                                       onClick={toggleCell}
                                       disabled={isCellBusy(pr.practice.id, m.user_id)}
-                                      aria-busy={adjustments.saving.has(`${pr.practice.id}:${m.user_id}`)}
+                                      aria-busy={saving || syncing}
                                       aria-label={`${m.name} ${formatPracticeDate(pr.practice.practice_date)} ${joining && joining.publish_state !== "removing" ? "参加を取り消す" : "参加にする"}`}
                                       className="block w-full px-1 py-2 disabled:opacity-50"
                                     >
@@ -947,13 +944,23 @@ export default function AdminResultsPage() {
           </div>
         ) : syncError ? (
           <ErrorMessage
-            message={`最新の状態を確認できませんでした：${syncError}`}
+            message={`${needsSync ? "保存は完了しています。" : ""}最新の状態を確認できませんでした：${syncError}`}
             onRetry={saving || publishing ? undefined : () => { void store.refresh(); }}
           />
         ) : (
+          <div className="space-y-2">
+            <p className="text-xs text-gray-600">未保存の変更：{dirtyChanges}件 ／ 保存済み・公開待ち：{savedChanges}件</p>
+            {saveError && <ErrorMessage message={saveError} onRetry={saving || publishing || !pm ? undefined : () => {
+              if (dirtyChanges) void store.save(pm); else void store.refresh();
+            }} />}
+            <button
+              onClick={() => { if (pm) void store.save(pm); }}
+              disabled={!dirtyChanges || saving || publishing || needsSync || !pm || !results}
+              className="w-full rounded-xl border border-brand-600 py-3 font-bold text-brand-600 disabled:border-gray-300 disabled:text-gray-400"
+            >{saving ? "保存中…" : `変更を保存（${dirtyChanges}件）`}</button>
           <button
             onClick={handlePublish}
-            disabled={(published && pendingChanges === 0) || publishing || saving || needsSync || !pm || !results}
+            disabled={(published && pendingChanges === 0) || !!dirtyChanges || !!saveError || publishing || saving || needsSync || !pm || !results}
             className="w-full rounded-xl bg-brand-600 py-4 text-lg font-bold text-white shadow-lg hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-gray-300"
           >
             {publishing
@@ -966,6 +973,7 @@ export default function AdminResultsPage() {
                     ? "公開済み"
                     : "結果を公開する"}
           </button>
+          </div>
         )}
       </div>
     </div>
