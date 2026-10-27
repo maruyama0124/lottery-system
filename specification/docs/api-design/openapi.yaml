@@ -283,6 +283,77 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /practice-months/batch:
+    post:
+      tags: [practice-months]
+      summary: 対象性別を選んで月と練習日を一括登録（代表のみ・D-062）
+      description: 月がなければ作成し、あれば投票期間を維持して再利用。同日をID維持で更新、未登録日を追加、同値はスキップ。入力内の同日・同性別は最後の候補を採用し、全体を原子的に保存する。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PracticeMonthBatchCreateRequest'
+      responses:
+        '201':
+          description: 保存後の男女別の月詳細
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/PracticeMonthDetail' }
+        '400':
+          description: 対象性別や日付などの入力不正
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: 認証が必要
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: 固定日の変更・既存の同日複数行・同時の月作成競合
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /practices/batch:
+    post:
+      tags: [practice-months]
+      summary: 対象性別の既存月へ練習日を一括追加・更新（代表のみ・D-062）
+      description: 選択した性別の対象月がすべて作成済みであることを必須とし、同日はIDを維持して更新、未登録日は追加、同値はスキップする。全体を原子的に保存する。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PracticeBatchCreateRequest'
+      responses:
+        '201':
+          description: 保存後の男女別の練習日
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/PracticeCreated' }
+        '400':
+          description: 対象性別や日付などの入力不正
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: 認証が必要
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+        '409':
+          description: 固定日の変更または既存の同日複数行
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
   /practice-months/{pmId}:
     get:
       tags: [practice-months]
@@ -360,6 +431,41 @@ paths:
                   $ref: '#/components/schemas/PracticeSuggestion'
         '403':
           $ref: '#/components/responses/Forbidden'
+
+  /practices/{practiceId}/genders:
+    get:
+      tags: [practice-months]
+      summary: 既存日の男女登録状態と更新版を取得（代表のみ・D-063）
+      parameters:
+        - { name: practiceId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: 同月・同日の男女登録状態
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PracticeGenderEdit' }
+        '401': { description: 認証が必要 }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: 同一性別・同日に複数の練習がある }
+    put:
+      tags: [practice-months]
+      summary: 内容と男女選択を原子的に変更（代表のみ・D-063）
+      description: 選択側は更新または追加、外した側は論理削除する。有効投票・割当がある側は解除不可。固定日変更・更新版競合・移動先衝突は全件取り消す。
+      parameters:
+        - { name: practiceId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PracticeGenderUpdateRequest' }
+      responses:
+        '204': { description: コミット成功 }
+        '400': { description: 性別・入力・更新版の形式不正 }
+        '401': { description: 認証が必要 }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: 投票・割当ありの解除、固定日変更、更新版競合、同日複数行、移動先日程との衝突 }
 
   /practices/{practiceId}:
     put:
@@ -883,6 +989,96 @@ components:
           description: 月の練習日をまとめて登録（REQ-003.1）
           items:
             $ref: '#/components/schemas/PracticeCreateRequest'
+
+    GenderTargets:
+      type: object
+      required: [genders]
+      properties:
+        genders:
+          type: array
+          minItems: 1
+          maxItems: 2
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/Gender' }
+
+    PracticeMonthBatchCreateRequest:
+      allOf:
+        - $ref: '#/components/schemas/PracticeMonthCreateRequest'
+        - $ref: '#/components/schemas/GenderTargets'
+        - type: object
+          properties:
+            practices:
+              type: array
+              items: { $ref: '#/components/schemas/TargetedPracticeCreateRequest' }
+
+    TargetedPracticeCreateRequest:
+      allOf:
+        - $ref: '#/components/schemas/PracticeCreateRequest'
+        - type: object
+          properties:
+            genders:
+              type: array
+              nullable: true
+              minItems: 1
+              maxItems: 2
+              uniqueItems: true
+              description: 日ごとの対象。省略・nullなら月の対象を引き継ぐ。月の対象の部分集合のみ指定可 (D-061)。
+              items: { $ref: '#/components/schemas/Gender' }
+
+    PracticeBatchCreateRequest:
+      allOf:
+        - $ref: '#/components/schemas/GenderTargets'
+        - type: object
+          required: [year_month, practice]
+          properties:
+            year_month: { type: string, pattern: '^\d{4}-\d{2}$', example: '2026-11' }
+            practice: { $ref: '#/components/schemas/PracticeCreateRequest' }
+
+    PracticeCreated:
+      allOf:
+        - $ref: '#/components/schemas/Practice'
+        - type: object
+          required: [practice_month_id]
+          properties:
+            practice_month_id: { type: string }
+
+    PracticeEditVersion:
+      type: object
+      required: [id, updated_at]
+      properties:
+        id: { type: string }
+        updated_at: { type: string, format: date-time }
+
+    PracticeEditVersions:
+      type: object
+      minProperties: 1
+      maxProperties: 2
+      additionalProperties: false
+      properties:
+        male: { $ref: '#/components/schemas/PracticeEditVersion' }
+        female: { $ref: '#/components/schemas/PracticeEditVersion' }
+
+    PracticeGenderEdit:
+      type: object
+      required: [practice, genders, available_genders, versions]
+      properties:
+        practice: { $ref: '#/components/schemas/Practice' }
+        genders:
+          type: array
+          items: { $ref: '#/components/schemas/Gender' }
+        available_genders:
+          type: array
+          items: { $ref: '#/components/schemas/Gender' }
+        versions: { $ref: '#/components/schemas/PracticeEditVersions' }
+
+    PracticeGenderUpdateRequest:
+      allOf:
+        - $ref: '#/components/schemas/GenderTargets'
+        - type: object
+          required: [practice, expected_versions]
+          properties:
+            practice: { $ref: '#/components/schemas/PracticeCreateRequest' }
+            expected_versions: { $ref: '#/components/schemas/PracticeEditVersions' }
 
     PracticeMonthUpdateRequest:
       type: object

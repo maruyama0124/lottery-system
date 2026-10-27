@@ -2,16 +2,16 @@
 hide:
 - navigation
 doc_type: api-design
-version: 2.6.0
+version: 2.10.0
 last_updated: '2026-10-27'
 depends_on:
 - requirements/index.md
 - database-design/index.md
 derived_by:
 - ui-design/index.md
-sync_hash: f773ad72e6f1
+sync_hash: 754e4d968b1b
 dependency_hashes:
-  requirements/index.md: 19eea300c404
+  requirements/index.md: 6db0df52bd7b
   database-design/index.md: e8495ab6cee8
 ---
 
@@ -32,9 +32,24 @@ FastAPI で実装する RESTful API。フロントエンド (Next.js) から HTT
 | ロール | 権限 |
 |--------|------|
 | member | 自分のプロフィール取得・投票・自分の抽選結果の閲覧。本人向けプロフィール更新APIは提供しない (D-049) |
-| representative（代表） | member の全権限 + 担当性別の日程管理・抽選実行・結果微調整 + 名簿閲覧（男女全体: REQ-007.1）+ 設定変更 |
+| representative（代表） | member の全権限 + 男女の日程作成・担当性別の既存日程管理／抽選実行／結果微調整 + 名簿閲覧（男女全体: REQ-007.1）+ 設定変更 |
 
-- **性別スコープ** (NFR-002.4): 代表の操作系 API（日程・抽選・微調整）は現在のユーザーの `gender` と対象リソースの `gender` が一致しない場合 `403` を返す。名簿 (`GET /users`) は男女全体を返す。代表権限の変更も男女全体を対象とする (D-040)。月別練習の閲覧系（一覧・詳細・公開後の参加表）は性別を問わず閲覧できる (D-038)。投票は自分の性別グループのみ (403)
+- **性別スコープ** (NFR-002.4): 旧個別更新API・単独削除、投票期間変更・抽選・微調整・公開は現在のユーザーと対象リソースの `gender` が一致しない場合 `403` を返す。一括登録APIと新しい男女変更を含む編集APIは代表が両性別を対象に操作できる (D-060 / D-062 / D-063)。名簿 (`GET /users`) は男女全体を返す。代表権限の変更も男女全体を対象とする (D-040)。月別練習の閲覧系（一覧・詳細・公開後の参加表）は性別を問わず閲覧できる (D-038)。投票は自分の性別グループのみ (403)
+
+### 日程の男女一括作成 (D-060)
+
+- `POST /practice-months/batch`: 既存の月作成本文に `genders: ["male", "female"]` を加える。対象は1〜2件・重複不可。月がなければ作成し、既存月は再利用する。同日を入力候補へ更新、未登録日は追加、同値はスキップし、201で最新の月詳細の配列を返す (D-062)。既存月の受付期間・公開状態、投票・割当・未指定の日程は維持する。旧 `POST /practice-months` は担当性別だけの作成・既存月409を維持する。
+- `POST /practices/batch`: `{ year_month, genders, practice }` を受け取り、対象月をID順にロックして同日を更新・未登録日を追加する。201で保存した練習日配列（各要素に `practice_month_id` を含む）を返す。対象月が一方でも未作成なら404。
+- 一括登録は練習日IDを維持し、同じ入力の再送で重複を作らない。入力内で同日・同性別が複数あれば最後を採用する。既存データに同日・同性別が複数あれば409。固定日の変更は409、同値は成功とする。男女の更新・追加をまとめてロールバックする。同時の月作成競合も409である。
+- いずれも代表認証を必須とし、入力不正は400、未認証は401、一般メンバーは403。練習日は対象月内に限定する。コミット失敗を成功として返さず、ロールバックする。男女のID・定員・投票・割当は共有しない。
+
+新規月の各 `practices[]` には任意の `genders` を指定できる (D-061)。指定された日を該当性別にだけ保存する。省略時は月レベルの `genders` を引き継ぐ。日ごとの対象は空・重複を許可せず、月レベルの対象の部分集合であることを必須とする（違反時400・全件取り消し）。UIは各日の対象の和集合を月レベルへ送信する。日程なしでは表示中の性別を送信する。
+
+### 既存練習日の男女変更 (D-063)
+
+既存日の編集用に `GET /practices/{practiceId}/genders` を追加する (D-063)。代表のみ利用でき、`practice / genders / available_genders / versions`（性別ごとのID・updated_at）を返す。同日・同月の両性別を取得し、曖昧な同日複数行は409とする。
+
+`PUT /practices/{practiceId}/genders` は `genders / practice / expected_versions` を受け取る。性別選択を保った行は更新、不足側は追加、外した側は論理削除し、コミット後204を返す。外した側に有効な投票・割当がある、固定日の性別変更・更新、更新版の不一致、日付変更先の衝突は409。対象月未作成・練習日不明は404、一般メンバーは403、未認証は401、入力不正は400。全件をロールバック可能な単一トランザクションとする。投票・割当は残す側に維持し、新規側にはコピーしない。
 
 ### メンバーホーム向けBFF (D-051)
 
@@ -123,11 +138,15 @@ graph LR
 |----------|------|------|------|------|
 | GET | /practice-months | 月別練習の一覧（既定は自性別。`?gender=` で他方も閲覧可 (D-038)。`?year_month=` 絞り込み） | member | REQ-004.1 |
 | POST | /practice-months | 月別練習単位の作成（投票期間含む） | 代表 | REQ-003, REQ-003.3 |
+| POST | /practice-months/batch | 対象性別を選んで月と練習日を原子的に一括作成 | 代表 | REQ-003.9 |
+| POST | /practices/batch | 対象性別の既存月に練習日を原子的に一括追加 | 代表 | REQ-003.9 |
 | GET | /practice-months/{pmId} | 詳細（練習日一覧含む） | member | REQ-004.1 |
 | PUT | /practice-months/{pmId} | 投票期間・枠比率等の更新 | 代表 | REQ-003.3, REQ-005.5 |
 | POST | /practice-months/{pmId}/practices | 練習日の追加 | 代表 | REQ-003.1, REQ-003.2 |
 | GET | /practices/suggestions | よく使う練習の候補（履歴から） | 代表 | REQ-003.6 |
 | PUT | /practices/{practiceId} | 練習日の更新 | 代表 | REQ-003.4 |
+| GET | /practices/{practiceId}/genders | 同日の男女登録・更新版の取得 | 代表 | REQ-003, D-063 |
+| PUT | /practices/{practiceId}/genders | 内容・男女選択の原子的な更新 | 代表 | REQ-003, D-063 |
 | DELETE | /practices/{practiceId} | 練習日の削除（抽選後は警告フラグ） | 代表 | REQ-003.4 |
 
 ### 投票 (votes)

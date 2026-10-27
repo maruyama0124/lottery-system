@@ -106,6 +106,17 @@ export interface PracticeMonth {
   published_at: string | null;
 }
 
+export interface PracticeCreated extends Practice {
+  practice_month_id: string;
+}
+
+export interface PracticeGenderEdit {
+  practice: Practice;
+  genders: Gender[];
+  available_genders: Gender[];
+  versions: Partial<Record<Gender, { id: string; updated_at: string }>>;
+}
+
 export interface PracticeMonthDetail extends PracticeMonth {
   practices: Practice[];
 }

@@ -175,9 +175,19 @@ screens:
     layout: "default"
     references:
       requirements: ["REQ-003.1", "REQ-003.2", "REQ-003.3", "REQ-003.4", "REQ-003.5", "REQ-003.6", "REQ-003.7"]
-      apis: ["POST /practice-months", "PUT /practice-months/{pmId}", "POST /practice-months/{pmId}/practices", "GET /practices/suggestions", "PUT /practices/{practiceId}", "DELETE /practices/{practiceId}"]
+      apis: ["POST /practice-months/batch", "PUT /practice-months/{pmId}", "POST /practices/batch", "GET /practices/suggestions", "GET /practices/{practiceId}/genders", "PUT /practices/{practiceId}/genders", "DELETE /practices/{practiceId}"]
       user_stories: ["月の練習日・場所・定員・投票期間をスマホからまとめて登録したい", "毎月同じ体育館・同じ時間帯なので入力を省きたい"]
     elements:
+      # D-063: 男女選択付きの既存編集も可能。単独削除・投票期間変更は担当性別のみ。
+      # D-061: 新規月でもこの選択は各練習日に配置し、月共通の選択は置かない。
+      practice-creation-target:
+        fields:
+          - { id: target-genders, type: select, label: "登録対象", required: true, validation: "男子・女子・両方。男女別に定員・投票・抽選を管理" }
+      existing-practice-gender-editor:
+        fields:
+          - { id: edit-target-genders, type: select, label: "登録対象", required: true, validation: "GET /practices/{practiceId}/genders で初期化。投票・割当ありの側は解除不可。固定日・更新版をサーバーで再確認" }
+        actions:
+          - { id: save-genders, type: submit, label: "保存する", api: "PUT /practices/{practiceId}/genders" }
       month-settings:
         fields:
           # 時刻は入力させず 0:00〜23:59 に固定する (D-014)
@@ -192,18 +202,18 @@ screens:
           - { id: location, type: text, label: "場所", required: true, validation: "-" }
           - { id: capacity, type: number, label: "定員", required: true, validation: "定員 > 0" }
         actions:
-          - { id: add-practice, type: button, label: "+ 練習日を追加", api: "POST /practice-months/{pmId}/practices" }
+          - { id: add-practice, type: button, label: "+ 練習日を追加", api: "POST /practices/batch" }
           # 場所・時刻・定員を引き継ぎ、日付だけ空にして追加する (REQ-003.7 / D-014)
           - { id: duplicate-practice, type: button, label: "同じ内容で別日を追加", api: "-（画面内で入力欄を複製するのみ）" }
           - { id: save-vote-period, type: submit, label: "投票期間を保存", api: "PUT /practice-months/{pmId}" }
       # 月の新規作成のみ確認画面を挟む (REQ-003.8 / D-016)
       new-month-confirm:
         fields:
-          - { id: confirm-summary, type: text, label: "対象月・投票期間・練習日一覧（日付順）", required: false, validation: "表示のみ。日付重複時は注意を表示" }
+          - { id: confirm-summary, type: text, label: "登録対象・対象月・投票期間・練習日一覧（日付順）", required: false, validation: "表示のみ。日付重複時は注意を表示" }
         actions:
           - { id: to-confirm, type: button, label: "入力内容を確認", api: "-（画面内で確認ステップへ）" }
           - { id: back-to-edit, type: button, label: "修正する", api: "-（入力画面へ戻る）" }
-          - { id: create-month, type: submit, label: "作成する", api: "POST /practice-months" }
+          - { id: create-month, type: submit, label: "保存する", api: "POST /practice-months/batch" }
     states: ["default", "confirming", "saving", "warning-after-lottery"]
 
   admin-lottery:

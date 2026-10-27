@@ -34,7 +34,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   // 微調整の途中は公開結果が変わらないため対象外 (D-044)。
   if (options.method && options.method !== "GET" && !/\/assignments$/.test(path) &&
       (/^\/v1\/practice-months(?:[/?]|$)/.test(path) ||
-       /^\/v1\/practices\/[^/?]+(?:\?|$)/.test(path))) {
+       /^\/v1\/practices\/[^/?]+(?:\/genders)?(?:\?|$)/.test(path))) {
     invalidateMemberHomes(/\/lottery(?:\?|$)/.test(path));
   }
 

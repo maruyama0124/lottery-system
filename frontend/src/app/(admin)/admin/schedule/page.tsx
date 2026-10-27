@@ -18,12 +18,38 @@ import { apiClient, ApiClientError } from "@/lib/api-client";
 import { useApi } from "@/hooks/use-api";
 import { useRequireRepresentative } from "@/hooks/use-auth";
 import type {
+  Gender,
   Practice,
+  PracticeCreated,
+  PracticeGenderEdit,
   PracticeCreateRequest,
   PracticeMonth,
   PracticeMonthDetail,
   PracticeSuggestion,
 } from "@/types/api";
+
+type GenderTarget = Gender | "both";
+const targetGenders = (target: GenderTarget): Gender[] => target === "both" ? ["male", "female"] : [target];
+const targetLabel = (target: GenderTarget) => target === "both" ? "男子・女子の両方" : target === "male" ? "男子" : "女子";
+
+function GenderTargetField({ value, onChange, disabled = false }: {
+  value: GenderTarget; onChange: (value: GenderTarget) => void; disabled?: boolean;
+}) {
+  return (
+    <fieldset disabled={disabled} className="min-w-0 space-y-2">
+      <legend className="mb-1 text-xs font-semibold text-gray-600">登録対象</legend>
+      <div className="flex gap-2">
+        {(["male", "female", "both"] as const).map((target) => (
+          <button key={target} type="button" aria-pressed={value === target} onClick={() => onChange(target)}
+            className={`flex-1 rounded-lg border py-2 text-sm font-bold disabled:opacity-50 ${value === target ? "border-brand-600 bg-brand-50 text-brand-700" : "border-gray-300 text-gray-500"}`}>
+            {target === "both" ? "両方" : targetLabel(target)}
+          </button>
+        ))}
+      </div>
+      <p className="text-xs text-gray-500">両方の場合も定員・投票・抽選は男女別です</p>
+    </fieldset>
+  );
+}
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 
@@ -154,6 +180,7 @@ function PracticeForm({
   busy,
   suggestions,
   yearMonth,
+  submitDisabled = false,
 }: {
   values: PracticeFormValues;
   onChange: (v: PracticeFormValues) => void;
@@ -166,6 +193,7 @@ function PracticeForm({
   suggestions?: PracticeSuggestion[];
   /** 対象月 (YYYY-MM)。指定するとその月の日付しか選べない (D-033) */
   yearMonth?: string;
+  submitDisabled?: boolean;
 }) {
   const range = yearMonth && /^\d{4}-\d{2}$/.test(yearMonth) ? monthRange(yearMonth) : null;
   const dateInMonth = !range || (values.practice_date >= range[0] && values.practice_date <= range[1]);
@@ -329,7 +357,7 @@ function PracticeForm({
           <button
             type="button"
             onClick={onSubmit}
-            disabled={!valid || busy}
+            disabled={!valid || busy || submitDisabled}
             className="flex-1 rounded-lg bg-brand-600 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-brand-700 disabled:opacity-50"
           >
             {submitLabel}
@@ -348,6 +376,7 @@ function PracticeCard({
   suggestions,
   onDuplicate,
   yearMonth,
+  readOnly = false,
 }: {
   practice: Practice;
   onUpdated: () => void;
@@ -356,17 +385,40 @@ function PracticeCard({
   onDuplicate?: (practice: Practice) => void;
   /** 対象月。編集時もこの月の日付しか選べない (D-033) */
   yearMonth?: string;
+  readOnly?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<PracticeFormValues>(practiceToForm(practice));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const save = async () => {
+  const [genderContext, setGenderContext] = useState<PracticeGenderEdit | null>(null);
+  const [target, setTarget] = useState<GenderTarget>("both");
+  const openEditor = async () => {
     setBusy(true);
     setError(null);
     try {
-      await apiClient.put<Practice>(`/v1/practices/${practice.id}`, formToRequest(form));
+      const context = await apiClient.get<PracticeGenderEdit>(`/v1/practices/${practice.id}/genders`);
+      setGenderContext(context);
+      setTarget(context.genders.length === 2 ? "both" : context.genders[0]);
+      setForm(practiceToForm(context.practice));
+      setEditing(true);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const save = async () => {
+    if (!genderContext || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await apiClient.put<void>(`/v1/practices/${practice.id}/genders`, {
+        genders: targetGenders(target), practice: formToRequest(form),
+        expected_versions: genderContext.versions,
+      });
       setEditing(false);
       onUpdated();
     } catch (err) {
@@ -404,6 +456,12 @@ function PracticeCard({
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4">
       {editing ? (
+        <fieldset disabled={busy} className="space-y-4">
+        <GenderTargetField value={target} onChange={setTarget} disabled={busy} />
+        <p className="text-xs text-gray-500">同じ日付の男女の練習をまとめて編集します。選択を外した側は削除します。投票・参加割当がある側や固定済みの日は削除・男女変更できません。</p>
+        {genderContext && targetGenders(target).some((g) => !genderContext.available_genders.includes(g)) && (
+          <p role="status" className="text-xs text-amber-700">選択した性別の対象月が未作成です。先にその月を作成してください。</p>
+        )}
         <PracticeForm
           values={form}
           onChange={setForm}
@@ -416,7 +474,9 @@ function PracticeCard({
           }}
           submitLabel="保存する"
           busy={busy}
+          submitDisabled={!genderContext || targetGenders(target).some((g) => !genderContext.available_genders.includes(g))}
         />
+        </fieldset>
       ) : (
         <>
           <div className="flex items-start justify-between">
@@ -443,12 +503,13 @@ function PracticeCard({
               <button
                 type="button"
                 aria-label="編集"
-                onClick={() => setEditing(true)}
+                onClick={openEditor}
+                disabled={busy}
                 className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200"
               >
                 <PencilIcon width={16} height={16} />
               </button>
-              <button
+              {!readOnly && <button
                 type="button"
                 aria-label="削除"
                 onClick={remove}
@@ -456,7 +517,7 @@ function PracticeCard({
                 className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-100 hover:text-red-600 disabled:opacity-50"
               >
                 <TrashIcon width={16} height={16} />
-              </button>
+              </button>}
             </div>
           </div>
           <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-600">
@@ -489,19 +550,25 @@ function NewMonthForm({
   onCreated,
   onCancel,
   suggestions,
+  defaultGender,
 }: {
-  onCreated: (month: PracticeMonth) => void;
+  onCreated: (months: PracticeMonth[]) => void;
   onCancel: () => void;
   suggestions?: PracticeSuggestion[];
+  defaultGender: Gender;
 }) {
   const [yearMonth, setYearMonth] = useState("");
   const [voteStart, setVoteStart] = useState("");
   const [voteEnd, setVoteEnd] = useState("");
-  const [practices, setPractices] = useState<PracticeFormValues[]>([]);
+  const [practices, setPractices] = useState<(PracticeFormValues & { target: GenderTarget })[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // 送信前に内容を一覧で見せる確認ステップ (D-016)
   const [confirming, setConfirming] = useState(false);
+  const genders: Gender[] = practices.length
+    ? [...new Set(practices.flatMap((p) => targetGenders(p.target)))].sort()
+    : [defaultGender];
+  const creationLabel = genders.length === 2 ? targetLabel("both") : targetLabel(genders[0]);
 
   const valid =
     /^\d{4}-\d{2}$/.test(yearMonth) &&
@@ -517,11 +584,12 @@ function NewMonthForm({
     setBusy(true);
     setError(null);
     try {
-      const created = await apiClient.post<PracticeMonth>("/v1/practice-months", {
+      const created = await apiClient.post<PracticeMonth[]>("/v1/practice-months/batch", {
+        genders,
         year_month: yearMonth,
         vote_starts_at: voteStartToIso(voteStart),
         vote_ends_at: voteEndToIso(voteEnd),
-        practices: practices.map(formToRequest),
+        practices: practices.map((p) => ({ ...formToRequest(p), genders: targetGenders(p.target) })),
       });
       onCreated(created);
     } catch (err) {
@@ -532,7 +600,7 @@ function NewMonthForm({
   };
 
   const updatePractice = (index: number, v: PracticeFormValues) => {
-    setPractices((prev) => prev.map((p, i) => (i === index ? v : p)));
+    setPractices((prev) => prev.map((p, i) => (i === index ? { ...v, target: p.target } : p)));
   };
 
   /** 場所・時刻・定員を引き継ぎ、日付だけ空にして直後に挿入する (D-014) */
@@ -550,9 +618,13 @@ function NewMonthForm({
     );
     return (
       <section>
-        <h3 className="mb-2 text-sm font-bold text-gray-900">この内容で作成します</h3>
+        <h3 className="mb-2 text-sm font-bold text-gray-900">この内容で保存します</h3>
         <div className="space-y-4 rounded-xl border border-brand-200 bg-brand-50/40 p-4">
           <dl className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <dt className="text-gray-500">登録対象</dt>
+              <dd className="font-bold text-gray-900">{creationLabel}</dd>
+            </div>
             <div className="flex justify-between">
               <dt className="text-gray-500">対象月</dt>
               <dd className="font-bold text-gray-900">{formatYearMonth(yearMonth)}</dd>
@@ -569,6 +641,7 @@ function NewMonthForm({
               <dd className="font-bold text-gray-900">{practices.length}件</dd>
             </div>
           </dl>
+          <p className="text-xs text-gray-600">男女それぞれで、同じ日付があれば入力内容に更新し、なければ追加します。同じ内容は変更しません。既存月の投票期間・投票・割当は維持します。</p>
 
           <div className="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white">
             {sorted.length === 0 ? (
@@ -580,6 +653,7 @@ function NewMonthForm({
                 <div key={`${p.practice_date}-${i}`} className="p-3">
                   <p className="text-sm font-bold text-gray-900">
                     {formatPracticeDate(p.practice_date)} {p.location}
+                    <span className="ml-2 text-xs text-brand-600">{targetLabel(p.target)}</span>
                     {p.allowed_grades.length < ALL_GRADES.length && (
                       <span className="ml-2 rounded bg-accent-100 px-1.5 py-0.5 text-[10px] font-bold text-accent-700">
                         {gradeLimitLabel(p.allowed_grades)}
@@ -598,7 +672,7 @@ function NewMonthForm({
           {sorted.length > 1 &&
             sorted.some((p, i) => i > 0 && p.practice_date === sorted[i - 1].practice_date) && (
               <p className="rounded-lg bg-yellow-50 px-3 py-2 text-xs text-yellow-800">
-                同じ日付の練習が複数あります。意図した内容か確認してください
+                同じ日付の候補があります。同じ性別・日付では、入力欄の下にある最後の候補を保存します。
               </p>
             )}
 
@@ -619,7 +693,7 @@ function NewMonthForm({
               disabled={busy}
               className="flex-1 rounded-lg bg-brand-600 py-3 text-sm font-bold text-white shadow-sm hover:bg-brand-700 disabled:opacity-50"
             >
-              {busy ? "作成中…" : "作成する"}
+              {busy ? "保存中…" : "保存する"}
             </button>
           </div>
         </div>
@@ -629,7 +703,7 @@ function NewMonthForm({
 
   return (
     <section>
-      <h3 className="mb-2 text-sm font-bold text-gray-900">新しい月を作成</h3>
+      <h3 className="mb-2 text-sm font-bold text-gray-900">月・練習日を登録</h3>
       <div className="space-y-4 rounded-xl border border-gray-200 bg-white p-4">
         <div>
           <label className={labelClass}>対象月</label>
@@ -661,13 +735,17 @@ function NewMonthForm({
           </div>
         </div>
         <p className="-mt-2 text-xs text-gray-500">
-          開始日の0:00から締切日の23:59まで投票できます
+          新規月は開始日の0:00から締切日の23:59まで投票できます。作成済みの月は現在の投票期間を維持します。
         </p>
 
         <div className="space-y-3">
           <p className="text-xs font-semibold text-gray-500">練習日（{practices.length}件）</p>
           {practices.map((p, i) => (
             <div key={i} className="rounded-lg border border-gray-200 p-3">
+              <div className="mb-4">
+                <GenderTargetField value={p.target} disabled={busy}
+                  onChange={(target) => setPractices((prev) => prev.map((entry, j) => j === i ? { ...entry, target } : entry))} />
+              </div>
               <PracticeForm
                 values={p}
                 onChange={(v) => updatePractice(i, v)}
@@ -695,11 +773,12 @@ function NewMonthForm({
           ))}
           <button
             type="button"
-            onClick={() => setPractices((prev) => [...prev, emptyPracticeForm()])}
+            onClick={() => setPractices((prev) => [...prev, { ...emptyPracticeForm(), target: defaultGender }])}
             className="w-full rounded-xl border-2 border-dashed border-gray-300 py-3 text-sm font-semibold text-gray-500 hover:border-brand-400 hover:text-brand-600"
           >
             ＋ 練習日を追加
           </button>
+          {practices.length === 0 && <p className="text-xs text-gray-500">練習日を追加すると、日ごとに男子・女子・両方を選べます。練習日なしで作成する場合は{targetLabel(defaultGender)}の月のみ作成します。</p>}
         </div>
 
         {error && <ErrorMessage message={error} />}
@@ -815,12 +894,18 @@ function VotePeriodForm({
 
 export default function AdminSchedulePage() {
   const { user, isLoading: authLoading } = useRequireRepresentative();
+  const [viewGender, setViewGender] = useState<Gender | null>(null);
+  const gender = viewGender ?? user?.gender ?? "male";
+  const otherGender: Gender = gender === "male" ? "female" : "male";
   const {
     data: months,
     error: monthsError,
     isLoading: monthsLoading,
     mutate: mutateMonths,
-  } = useApi<PracticeMonth[]>("/v1/practice-months");
+  } = useApi<PracticeMonth[]>(user ? `/v1/practice-months?gender=${gender}` : null);
+  const { data: otherMonths, error: otherMonthsError, mutate: mutateOtherMonths } = useApi<PracticeMonth[]>(
+    user ? `/v1/practice-months?gender=${otherGender}` : null,
+  );
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -828,6 +913,7 @@ export default function AdminSchedulePage() {
   const [addForm, setAddForm] = useState<PracticeFormValues>(emptyPracticeForm());
   const [addBusy, setAddBusy] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+  const [addTarget, setAddTarget] = useState<GenderTarget | null>(null);
 
   // 未選択時は先頭の月を表示する
   const resolvedId = selectedId ?? months?.[0]?.id ?? null;
@@ -852,17 +938,22 @@ export default function AdminSchedulePage() {
   }
 
   const addPractice = async () => {
-    if (!resolvedId) return;
+    if (!resolvedId || !detail || detail.id !== resolvedId || addBusy) return;
     setAddBusy(true);
     setAddError(null);
     try {
-      await apiClient.post<Practice>(
-        `/v1/practice-months/${resolvedId}/practices`,
-        formToRequest(addForm),
-      );
+      const genders = targetGenders(addTarget ?? gender);
+      await apiClient.post<PracticeCreated[]>("/v1/practices/batch", {
+        year_month: detail.year_month, genders, practice: formToRequest(addForm),
+      });
       setAdding(false);
       setAddForm(emptyPracticeForm());
       mutateDetail();
+      mutateOtherMonths();
+      if (!genders.includes(gender)) {
+        const destination = otherMonths?.find((m) => m.year_month === detail.year_month);
+        setViewGender(genders[0]); setSelectedId(destination?.id ?? null);
+      }
     } catch (err) {
       setAddError(errorMessage(err));
     } finally {
@@ -874,6 +965,15 @@ export default function AdminSchedulePage() {
     <>
       <AdminHeader title="練習日程管理" />
       <main className="space-y-6 px-4 py-4">
+        <div className="flex gap-2" aria-label="表示する性別">
+          {(["male", "female"] as const).map((g) => (
+            <button key={g} type="button" disabled={addBusy || creating} aria-pressed={gender === g}
+              onClick={() => { setViewGender(g); setSelectedId(null); setAdding(false); setAddTarget(null); setAddError(null); }}
+              className={`flex-1 rounded-lg border py-2 text-sm font-bold disabled:opacity-50 ${gender === g ? "border-brand-600 bg-brand-50 text-brand-700" : "border-gray-300 text-gray-500"}`}>
+              {targetLabel(g)}の日程
+            </button>
+          ))}
+        </div>
         {monthsLoading ? (
           <Loading />
         ) : monthsError ? (
@@ -882,12 +982,14 @@ export default function AdminSchedulePage() {
           <>
             <div className="flex items-center gap-2">
               <select
+                disabled={addBusy || creating}
                 value={creating ? "" : (resolvedId ?? "")}
                 onChange={(e) => {
                   setCreating(false);
                   setSelectedId(e.target.value || null);
+                  setAdding(false); setAddTarget(null); setAddError(null);
                 }}
-                className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm font-bold text-gray-900 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600"
+                className="min-w-0 flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm font-bold text-gray-900 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600"
               >
                 {(!months || months.length === 0) && <option value="">月がありません</option>}
                 {months?.map((m) => (
@@ -898,26 +1000,31 @@ export default function AdminSchedulePage() {
               </select>
               <button
                 type="button"
-                onClick={() => setCreating(true)}
+                disabled={addBusy || creating}
+                onClick={() => { setCreating(true); setAdding(false); }}
                 className="flex-none rounded-lg border border-brand-600 px-3 py-2.5 text-sm font-semibold text-brand-600 hover:bg-brand-50"
               >
-                ＋ 新しい月を作成
+                ＋ 月・日程を登録
               </button>
             </div>
 
             {creating ? (
               <NewMonthForm
+                defaultGender={gender}
                 onCreated={(created) => {
+                  const selected = created.find((m) => m.gender === gender) ?? created[0];
                   setCreating(false);
-                  setSelectedId(created.id);
+                  setViewGender(selected.gender);
+                  setSelectedId(selected.id);
                   mutateMonths();
+                  mutateOtherMonths();
                 }}
                 onCancel={() => setCreating(false)}
                 suggestions={suggestions}
               />
             ) : !resolvedId ? (
               <p className="rounded-xl border border-gray-200 bg-white p-6 text-center text-sm text-gray-500">
-                「＋ 新しい月を作成」から練習月を作成してください
+                「＋ 月・日程を登録」から練習月を作成してください
               </p>
             ) : detailLoading ? (
               <Loading />
@@ -928,15 +1035,16 @@ export default function AdminSchedulePage() {
                 <div className="flex items-center justify-between">
                   <h2 className="text-xl font-bold text-gray-900">
                     {formatYearMonth(detail.year_month)}
+                    <span className="ml-2 text-sm text-gray-500">{targetLabel(detail.gender)}</span>
                   </h2>
                   <span className="text-xs text-gray-500">代表: {user.name}</span>
                 </div>
 
-                <VotePeriodForm
+                {detail.gender === user.gender ? <VotePeriodForm
                   key={detail.id}
                   month={detail}
                   onSaved={() => mutateDetail()}
-                />
+                /> : <p className="rounded-lg bg-gray-50 p-3 text-sm text-gray-600">練習日の追加・編集・男女変更ができます。単独の削除・投票期間の変更と抽選は、担当の代表が行います。</p>}
 
                 <section>
                   <h3 className="mb-2 text-sm font-bold text-gray-900">
@@ -947,13 +1055,15 @@ export default function AdminSchedulePage() {
                       <PracticeCard
                         key={p.id}
                         practice={p}
-                        onUpdated={() => mutateDetail()}
+                        readOnly={detail.gender !== user.gender}
+                        onUpdated={() => { mutateDetail(); mutateOtherMonths(); }}
                         suggestions={suggestions}
                         yearMonth={detail.year_month}
                         onDuplicate={(src) => {
                           // 日付だけ空にして追加フォームを開く
                           setAddForm({ ...practiceToForm(src), practice_date: "" });
                           setAddError(null);
+                          setAddTarget(detail.gender);
                           setAdding(true);
                         }}
                       />
@@ -961,6 +1071,15 @@ export default function AdminSchedulePage() {
 
                     {adding ? (
                       <div className="rounded-xl border border-gray-200 bg-white p-4">
+                        <div className="mb-4">
+                          <GenderTargetField value={addTarget ?? gender} onChange={setAddTarget} disabled={addBusy} />
+                          <p className="mt-2 text-xs text-gray-500">同じ日付の練習は入力内容に更新し、未登録の日付は追加します。投票・割当は維持します。</p>
+                          {targetGenders(addTarget ?? gender).includes(otherGender) && !otherMonths?.some((m) => m.year_month === detail.year_month) && (
+                            <p role="status" className="mt-2 text-xs text-amber-700">
+                              {otherMonthsError ? "もう一方の月情報を取得できません。一覧を更新してください。" : `${targetLabel(otherGender)}の対象月が未作成、または確認中です。先にその月を作成してください。`}
+                            </p>
+                          )}
+                        </div>
                         <PracticeForm
                           values={addForm}
                           onChange={setAddForm}
@@ -972,15 +1091,16 @@ export default function AdminSchedulePage() {
                             setAddForm(emptyPracticeForm());
                             setAddError(null);
                           }}
-                          submitLabel="追加する"
+                          submitLabel="追加・更新する"
                           busy={addBusy}
+                          submitDisabled={targetGenders(addTarget ?? gender).includes(otherGender) && !otherMonths?.some((m) => m.year_month === detail.year_month)}
                         />
                         {addError && <p className="mt-2 text-xs text-red-600">{addError}</p>}
                       </div>
                     ) : (
                       <button
                         type="button"
-                        onClick={() => setAdding(true)}
+                        onClick={() => { setAdding(true); setAddTarget(detail.gender); }}
                         className="w-full rounded-xl border-2 border-dashed border-gray-300 py-3.5 text-sm font-semibold text-gray-500 hover:border-brand-400 hover:text-brand-600"
                       >
                         ＋ 練習日を追加

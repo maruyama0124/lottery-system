@@ -11,6 +11,11 @@ from src.repositories.practice_repository import PracticeRepository
 from src.schemas.practices import (
     PracticeCreateRequest,
     PracticeMonthCreateRequest,
+    PracticeMonthBatchCreateRequest,
+    PracticeBatchCreateRequest,
+    PracticeCreatedResponse,
+    PracticeGenderEditResponse,
+    PracticeGenderUpdateRequest,
     PracticeMonthDetailResponse,
     PracticeMonthResponse,
     PracticeMonthUpdateRequest,
@@ -29,8 +34,8 @@ DbDep = Annotated[Session, Depends(get_db)]
 
 def _detail(db: Session, pm: PracticeMonth) -> PracticeMonthDetailResponse:
     repo = PracticeRepository(db)
-    counts = repo.vote_counts(pm.id)
-    practices = [
+    counts: dict[str, int] = repo.vote_counts(pm.id)
+    practices: list[PracticeResponse] = [
         PracticeResponse.model_validate(p).model_copy(update={"vote_count": counts.get(p.id, 0)})
         for p in repo.list_by_month(pm.id)
     ]
@@ -40,6 +45,19 @@ def _detail(db: Session, pm: PracticeMonth) -> PracticeMonthDetailResponse:
 
 
 # ---------- 月別練習 ----------
+
+
+@router.post("/practice-months/batch", status_code=status.HTTP_201_CREATED,
+             response_model=list[PracticeMonthDetailResponse])
+def create_practice_months(data: PracticeMonthBatchCreateRequest, rep: Representative, db: DbDep) -> list[PracticeMonthDetailResponse]:
+    try:
+        months = PracticeService(db).create_months(rep, data)
+        result = [_detail(db, pm) for pm in months]
+        db.commit()
+        return result
+    except Exception:
+        db.rollback()
+        raise
 
 
 @router.get("/practice-months", response_model=list[PracticeMonthResponse])
@@ -83,6 +101,19 @@ def update_practice_month(
 # ---------- 練習日 ----------
 
 
+@router.post("/practices/batch", status_code=status.HTTP_201_CREATED,
+             response_model=list[PracticeCreatedResponse])
+def add_practices(data: PracticeBatchCreateRequest, rep: Representative, db: DbDep) -> list[PracticeCreatedResponse]:
+    try:
+        practices = PracticeService(db).add_practices(rep, data)
+        result = [PracticeCreatedResponse.model_validate(p) for p in practices]
+        db.commit()
+        return result
+    except Exception:
+        db.rollback()
+        raise
+
+
 @router.post(
     "/practice-months/{pm_id}/practices",
     status_code=status.HTTP_201_CREATED,
@@ -109,6 +140,22 @@ def list_practice_suggestions(rep: Representative, db: DbDep) -> list[PracticeSu
         )
         for location, starts_at, ends_at, capacity, use_count in rows
     ]
+
+
+@router.get("/practices/{practice_id}/genders", response_model=PracticeGenderEditResponse)
+def get_practice_gender_edit(practice_id: str, rep: Representative, db: DbDep) -> PracticeGenderEditResponse:
+    return PracticeService(db).get_practice_gender_edit(rep, practice_id)
+
+
+@router.put("/practices/{practice_id}/genders", status_code=status.HTTP_204_NO_CONTENT)
+def update_practice_genders(practice_id: str, data: PracticeGenderUpdateRequest, rep: Representative, db: DbDep) -> Response:
+    try:
+        PracticeService(db).update_practice_genders(rep, practice_id, data)
+        db.commit()
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    except Exception:
+        db.rollback()
+        raise
 
 
 @router.put("/practices/{practice_id}", status_code=status.HTTP_204_NO_CONTENT)

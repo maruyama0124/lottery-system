@@ -73,6 +73,57 @@ class PracticeMonthCreateRequest(BaseModel):
     practices: list[PracticeCreateRequest] = []
 
 
+class PracticeCreatedResponse(PracticeResponse):
+    practice_month_id: str
+
+
+class GenderTargets(BaseModel):
+    genders: list[Gender] = Field(min_length=1, max_length=2)
+
+    @field_validator("genders")
+    @classmethod
+    def _unique_genders(cls, value: list[Gender]) -> list[Gender]:
+        if len(set(value)) != len(value):
+            raise ValueError("対象の性別が重複しています")
+        return sorted(value)
+
+
+class TargetedPracticeCreateRequest(PracticeCreateRequest):
+    # 省略時は月の対象性別を引き継ぐ（旧クライアント互換）。
+    genders: list[Gender] | None = Field(default=None, min_length=1, max_length=2)
+
+    @field_validator("genders")
+    @classmethod
+    def _unique_targets(cls, value: list[Gender] | None) -> list[Gender] | None:
+        return None if value is None else GenderTargets(genders=value).genders
+
+
+class PracticeMonthBatchCreateRequest(PracticeMonthCreateRequest, GenderTargets):
+    practices: list[TargetedPracticeCreateRequest] = Field(default_factory=list)
+
+
+class PracticeBatchCreateRequest(GenderTargets):
+    year_month: str = Field(pattern=r"^\d{4}-\d{2}$")
+    practice: PracticeCreateRequest
+
+
+class PracticeEditVersion(BaseModel):
+    id: str
+    updated_at: datetime
+
+
+class PracticeGenderEditResponse(BaseModel):
+    practice: PracticeResponse
+    genders: list[Gender]
+    available_genders: list[Gender]
+    versions: dict[Gender, PracticeEditVersion]
+
+
+class PracticeGenderUpdateRequest(GenderTargets):
+    practice: PracticeCreateRequest
+    expected_versions: dict[Gender, PracticeEditVersion] = Field(min_length=1, max_length=2)
+
+
 class PracticeMonthUpdateRequest(BaseModel):
     vote_starts_at: datetime | None = None
     vote_ends_at: datetime | None = None
