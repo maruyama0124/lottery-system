@@ -59,6 +59,7 @@ for(const [label,genders] of [['男子',['male']],['女子',['female']],['両方
     assert.equal(ui.calls.length,1);assert.equal(ui.calls[0].path,'/v1/practice-months/batch');
     assert.deepEqual(ui.calls[0].body.genders,[...genders].sort());assert.equal(ui.created.length,1);
     assert.deepEqual(ui.calls[0].body.practices[0].genders,genders);
+    assert.equal(Object.hasOwn(ui.calls[0].body.practices[0],'capacity'),false);
   });
 }
 test('failed creation retains confirmation and target for retry',async()=>{
@@ -104,8 +105,15 @@ test('existing editor fetches both genders and saves selection with versions in 
   assert.equal(ui.calls.length,2);assert.equal(ui.calls[1].method,'PUT');
   assert.equal(ui.calls[1].path,'/v1/practices/p-edit/genders');
   assert.deepEqual(ui.calls[1].body.genders,['female']);
+  assert.equal(Object.hasOwn(ui.calls[1].body.practice,'capacity'),false);
   assert.deepEqual(Object.keys(ui.calls[1].body.expected_versions),['male','female']);
   assert.equal(ui.created.length,1);assert.ok(ui.ariaButton('編集'));
+});
+test('schedule forms have no capacity input and unset capacities are labelled',async()=>{
+  const ui=setup();ui.button('＋ 練習日を追加').props.onClick();
+  assert.doesNotMatch(ui.html(),/>定員<\/label>/);
+  const card=setup('PracticeCard');await card.ariaButton('編集').props.onClick();
+  assert.doesNotMatch(card.html(),/>定員<\/label>/);
 });
 test('blocked removal preserves editing values and supports retry',async()=>{
   const ui=setup('PracticeCard',{saveFail:true});await ui.ariaButton('編集').props.onClick();

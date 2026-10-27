@@ -2,15 +2,15 @@
 hide:
 - navigation
 doc_type: database-design
-version: 1.7.0
+version: 1.8.0
 last_updated: '2026-10-27'
 depends_on:
 - requirements/index.md
 derived_by:
 - api-design/index.md
-sync_hash: e8495ab6cee8
+sync_hash: c60d9e4e6002
 dependency_hashes:
-  requirements/index.md: 6db0df52bd7b
+  requirements/index.md: 8ee4d7df8a9f
 ---
 
 # DB設計書 — サークル練習参加抽選システム
@@ -70,7 +70,7 @@ erDiagram
         time ends_at
         boolean is_assignment_locked "管理者による確定日の保護 (D-053)"
         varchar location
-        int capacity "プレイヤー定員"
+        int capacity "学年枠合計。未設定NULL"
         int quota_grade1 "1年枠"
         int quota_grade2 "2年枠"
         int quota_grade3 "3年枠 合計=定員"
@@ -112,6 +112,8 @@ erDiagram
 ```
 
 ## 3. テーブル定義
+
+D-064の移行 `c8d4e2a6b913` はcapacityのNULLと0を許可し、未固定・学年枠設定済みの日程だけ合計へ補正する。固定日と枠未設定の既存値は維持する。ローカルはリポジトリルートから `docker compose -f backend/docker-compose.yaml exec api alembic upgrade head` を実行してから新UIを利用する。本番Dockerfileは起動時に `alembic upgrade head` を実行する。NULL・0が存在する状態でのdowngradeは停止するため、任意の仮値へ自動変換はしない。
 
 ### users — メンバー
 
@@ -158,7 +160,7 @@ erDiagram
 | starts_at | time | NOT NULL | 開始時刻 |
 | ends_at | time | NOT NULL | 終了時刻 |
 | location | varchar(255) | NOT NULL | 練習場所 |
-| capacity | integer | NOT NULL, CHECK (> 0) | プレイヤー定員（マネージャーは含まない: REQ-005.2） |
+| capacity | integer | NULL許容, CHECK (>= 0) | 未設定はNULL。学年枠保存時に合計を確定（マネージャーを含まない）。日程更新では変更しない (D-064) |
 | quota_grade1 | integer | NULL 許容 | 1年の参加人数枠。抽選前に代表が設定 (REQ-005.3 / D-015) |
 | quota_grade2 | integer | NULL 許容 | 2年の参加人数枠 |
 | quota_grade3 | integer | NULL 許容 | 3年の参加人数枠。合計が実際の参加上限 (D-045)。未固定日にNULLがある場合は抽選不可 |

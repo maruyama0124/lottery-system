@@ -2,17 +2,17 @@
 hide:
 - navigation
 doc_type: api-design
-version: 2.10.0
+version: 2.11.0
 last_updated: '2026-10-27'
 depends_on:
 - requirements/index.md
 - database-design/index.md
 derived_by:
 - ui-design/index.md
-sync_hash: 754e4d968b1b
+sync_hash: 153493a5b5a6
 dependency_hashes:
-  requirements/index.md: 6db0df52bd7b
-  database-design/index.md: e8495ab6cee8
+  requirements/index.md: 8ee4d7df8a9f
+  database-design/index.md: c60d9e4e6002
 ---
 
 # API設計書 — サークル練習参加抽選システム
@@ -37,6 +37,10 @@ FastAPI で実装する RESTful API。フロントエンド (Next.js) から HTT
 - **性別スコープ** (NFR-002.4): 旧個別更新API・単独削除、投票期間変更・抽選・微調整・公開は現在のユーザーと対象リソースの `gender` が一致しない場合 `403` を返す。一括登録APIと新しい男女変更を含む編集APIは代表が両性別を対象に操作できる (D-060 / D-062 / D-063)。名簿 (`GET /users`) は男女全体を返す。代表権限の変更も男女全体を対象とする (D-040)。月別練習の閲覧系（一覧・詳細・公開後の参加表）は性別を問わず閲覧できる (D-038)。投票は自分の性別グループのみ (403)
 
 ### 日程の男女一括作成 (D-060)
+
+日程作成の `capacity` は任意・非推奨とする (D-064)。新UIは送信せず、新規日程はNULLを返す。既存日程の更新ではcapacityを変更しない。`Practice / PracticeVoteSummary / PracticeSuggestion` のcapacityはNULL許容である。旧クライアントが明示した正のcapacityは作成時の互換用暫定値としてのみ受付ける。
+
+`PUT /practice-months/{pmId}/quotas` は各学年を重複なく指定したことを検証し、学年枠とその合計capacityを同時に保存する。全学年0人ならcapacity=0。未固定日で枠未設定・capacityがNULL・合計不一致なら `POST /lottery` は409。`quotas_ready` も同じ条件でfalseとなる。固定日は既存の保護を維持する。定員未設定の手動追加ではcapacity_exceededをfalseとし、不明な定員との比較は行わない。
 
 - `POST /practice-months/batch`: 既存の月作成本文に `genders: ["male", "female"]` を加える。対象は1〜2件・重複不可。月がなければ作成し、既存月は再利用する。同日を入力候補へ更新、未登録日は追加、同値はスキップし、201で最新の月詳細の配列を返す (D-062)。既存月の受付期間・公開状態、投票・割当・未指定の日程は維持する。旧 `POST /practice-months` は担当性別だけの作成・既存月409を維持する。
 - `POST /practices/batch`: `{ year_month, genders, practice }` を受け取り、対象月をID順にロックして同日を更新・未登録日を追加する。201で保存した練習日配列（各要素に `practice_month_id` を含む）を返す。対象月が一方でも未作成なら404。

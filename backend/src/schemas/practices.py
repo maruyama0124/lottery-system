@@ -14,7 +14,7 @@ class PracticeCreateRequest(BaseModel):
     starts_at: time
     ends_at: time
     location: str = Field(min_length=1, max_length=255)
-    capacity: int = Field(ge=1)
+    capacity: int | None = Field(default=None, ge=1)  # 旧クライアント互換。新画面は送信しない
     # 参加できる学年 (D-037)。省略・全学年指定は None に正規化する
     allowed_grades: list[int] | None = None
     # 備考 (D-041)。空文字は None に正規化する
@@ -56,7 +56,7 @@ class PracticeResponse(BaseModel):
     starts_at: time
     ends_at: time
     location: str
-    capacity: int
+    capacity: int | None
     allowed_grades: list[int] | None = None  # None は全学年 (D-037)
     note: str | None = None  # 備考 (D-041)
     vote_count: int = 0  # 現在の投票数 (一覧表示用)
@@ -151,7 +151,7 @@ class PracticeSuggestion(BaseModel):
     location: str
     starts_at: time
     ends_at: time
-    capacity: int
+    capacity: int | None
     use_count: int  # 過去に使われた回数。多い順に並べる
 
     @field_serializer("starts_at", "ends_at")

@@ -419,7 +419,7 @@ paths:
         利用回数の多い順に返す。日程登録時の入力を省くために使う (REQ-003.6 / D-014)。
 
         定員は組み合わせのキーに含めない（施設の空き状況で毎月変わるため）。
-        返す `capacity` は同じ組み合わせで最後に登録された値で、初期値として使う想定。
+        `capacity` は互換用の履歴値（未設定ならnull）。新UIは初期値として使用しない (D-064)。
       responses:
         '200':
           description: 候補一覧（最大10件）
@@ -1094,12 +1094,12 @@ components:
         starts_at: { type: string, example: '18:00' }
         ends_at: { type: string, example: '21:00' }
         location: { type: string, example: 第一体育館 }
-        capacity: { type: integer, example: 30 }
+        capacity: { type: integer, nullable: true, minimum: 0, example: 30, description: 学年枠合計。未設定null (D-064) }
         vote_count: { type: integer, description: 現在の投票数（一覧表示用） }
 
     PracticeCreateRequest:
       type: object
-      required: [practice_date, starts_at, ends_at, location, capacity]
+      required: [practice_date, starts_at, ends_at, location]
       properties:
         practice_date: { type: string, format: date }
         starts_at:
@@ -1113,7 +1113,7 @@ components:
           example: '21:30'
           description: 30分単位のみ (REQ-003.5 / D-014)
         location: { type: string }
-        capacity: { type: integer, minimum: 1 }
+        capacity: { type: integer, nullable: true, minimum: 1, deprecated: true, description: 旧クライアントの作成互換用。新UIは送信せず、更新では無視する (D-064) }
 
     PracticeSuggestion:
       type: object
@@ -1122,7 +1122,7 @@ components:
         location: { type: string, example: 目白小 }
         starts_at: { type: string, example: '18:00' }
         ends_at: { type: string, example: '21:30' }
-        capacity: { type: integer, example: 30, description: 同じ組み合わせで最後に登録された定員 }
+        capacity: { type: integer, nullable: true, example: 30, description: 互換用の履歴値。新UIは初期値に使わない }
         use_count: { type: integer, example: 4, description: 過去に登録された回数（多い順に並ぶ） }
 
     VoteStatus:
@@ -1168,7 +1168,7 @@ components:
         starts_at: { type: string, example: '18:00' }
         ends_at: { type: string, example: '21:30' }
         location: { type: string }
-        capacity: { type: integer }
+        capacity: { type: integer, nullable: true, minimum: 0, description: 保存済み学年枠合計。未設定null }
         grades:
           type: array
           description: 3年 → 1年の順

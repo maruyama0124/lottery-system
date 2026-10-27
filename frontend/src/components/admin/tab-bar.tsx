@@ -8,6 +8,7 @@ import {
   ClipboardListIcon,
   DicesIcon,
   HouseIcon,
+  ClockIcon,
 } from "@/components/ui/icons";
 
 const tabs = [
@@ -15,6 +16,7 @@ const tabs = [
   { href: "/admin/schedule", label: "日程", Icon: CalendarDaysIcon },
   { href: "/admin/lottery", label: "抽選", Icon: DicesIcon },
   { href: "/admin/results", label: "結果", Icon: ClipboardListIcon },
+  { href: "/admin/updates", label: "更新", Icon: ClockIcon },
 ];
 
 export function AdminTabBar() {
@@ -28,7 +30,8 @@ export function AdminTabBar() {
             <Link
               key={href}
               href={href}
-              className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] ${
+              aria-current={active ? "page" : undefined}
+              className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 py-2 text-[10px] ${
                 active ? "text-brand-600" : "text-gray-400"
               }`}
             >

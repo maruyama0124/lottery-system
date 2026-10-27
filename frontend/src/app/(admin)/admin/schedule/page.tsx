@@ -98,7 +98,6 @@ interface PracticeFormValues {
   starts_at: string;
   ends_at: string;
   location: string;
-  capacity: string;
   /** 参加できる学年 (D-037)。全選択 = 制限なし */
   allowed_grades: number[];
   /** 備考 (D-041) */
@@ -113,7 +112,6 @@ function emptyPracticeForm(): PracticeFormValues {
     starts_at: "",
     ends_at: "",
     location: "",
-    capacity: "20",
     allowed_grades: [...ALL_GRADES],
     note: "",
   };
@@ -125,7 +123,6 @@ function practiceToForm(p: Practice): PracticeFormValues {
     starts_at: p.starts_at,
     ends_at: p.ends_at,
     location: p.location,
-    capacity: String(p.capacity),
     allowed_grades: p.allowed_grades ?? [...ALL_GRADES],
     note: p.note ?? "",
   };
@@ -137,7 +134,6 @@ function formToRequest(v: PracticeFormValues): PracticeCreateRequest {
     starts_at: v.starts_at,
     ends_at: v.ends_at,
     location: v.location,
-    capacity: Number(v.capacity),
     allowed_grades:
       v.allowed_grades.length === ALL_GRADES.length
         ? null
@@ -189,7 +185,7 @@ function PracticeForm({
   onCancel?: () => void;
   submitLabel?: string;
   busy?: boolean;
-  /** 過去の登録実績。選ぶと場所・時刻・定員が埋まる (D-014) */
+  /** 過去の登録実績。選ぶと場所・時刻が埋まる。定員は引き継がない。 */
   suggestions?: PracticeSuggestion[];
   /** 対象月 (YYYY-MM)。指定するとその月の日付しか選べない (D-033) */
   yearMonth?: string;
@@ -198,7 +194,7 @@ function PracticeForm({
   const range = yearMonth && /^\d{4}-\d{2}$/.test(yearMonth) ? monthRange(yearMonth) : null;
   const dateInMonth = !range || (values.practice_date >= range[0] && values.practice_date <= range[1]);
   const valid =
-    values.practice_date && dateInMonth && isTime(values.starts_at) && isTime(values.ends_at) && values.location && Number(values.capacity) > 0 &&
+    values.practice_date && dateInMonth && isTime(values.starts_at) && isTime(values.ends_at) && values.location &&
     values.allowed_grades.length > 0;
 
   const applySuggestion = (index: string) => {
@@ -209,7 +205,6 @@ function PracticeForm({
       location: s.location,
       starts_at: s.starts_at,
       ends_at: s.ends_at,
-      capacity: String(s.capacity),
     });
   };
 
@@ -281,17 +276,6 @@ function PracticeForm({
           value={values.location}
           onChange={(e) => onChange({ ...values, location: e.target.value })}
           placeholder="第一体育館"
-          className={inputClass}
-        />
-      </div>
-      <div>
-        <label className={labelClass}>定員</label>
-        <input
-          type="text"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          value={values.capacity}
-          onChange={(e) => onChange({ ...values, capacity: e.target.value.replace(/\D/g, "") })}
           className={inputClass}
         />
       </div>
@@ -528,7 +512,7 @@ function PracticeCard({
               <MapPinIcon width={14} height={14} /> {practice.location}
             </span>
             <span className="inline-flex items-center gap-1">
-              <UsersIcon width={14} height={14} /> 定員 {practice.capacity}名
+              <UsersIcon width={14} height={14} /> {practice.capacity == null ? "定員未設定（抽選準備で確定）" : `定員 ${practice.capacity}名`}
             </span>
             <span className="inline-flex items-center gap-1">
               <VoteIcon width={14} height={14} /> {practice.vote_count}票
@@ -577,7 +561,7 @@ function NewMonthForm({
     practices.every(
       (p) =>
         p.practice_date && isTime(p.starts_at) && isTime(p.ends_at) && p.location &&
-        Number(p.capacity) > 0 && p.allowed_grades.length > 0,
+        p.allowed_grades.length > 0,
     );
 
   const submit = async () => {
@@ -603,7 +587,7 @@ function NewMonthForm({
     setPractices((prev) => prev.map((p, i) => (i === index ? { ...v, target: p.target } : p)));
   };
 
-  /** 場所・時刻・定員を引き継ぎ、日付だけ空にして直後に挿入する (D-014) */
+  /** 場所・時刻・対象学年・備考を引き継ぎ、日付だけ空にして直後に挿入する。 */
   const duplicatePractice = (index: number) => {
     setPractices((prev) => {
       const copy = { ...prev[index], practice_date: "" };
@@ -661,7 +645,7 @@ function NewMonthForm({
                     )}
                   </p>
                   <p className="mt-0.5 text-xs text-gray-600">
-                    {p.starts_at}〜{p.ends_at} ／ 定員 {p.capacity}名
+                    {p.starts_at}〜{p.ends_at} ／ 定員は抽選準備で確定
                   </p>
                 </div>
               ))
@@ -925,7 +909,7 @@ export default function AdminSchedulePage() {
     mutate: mutateDetail,
   } = useApi<PracticeMonthDetail>(resolvedId ? `/v1/practice-months/${resolvedId}` : null);
 
-  // 過去の登録実績（場所・時刻・定員）。入力の手間を減らすため (D-014)
+  // 過去の登録実績（場所・時刻）。入力の手間を減らすため。
   const { data: suggestions } = useApi<PracticeSuggestion[]>("/v1/practices/suggestions");
 
   if (authLoading || !user) {

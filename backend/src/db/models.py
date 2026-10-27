@@ -94,7 +94,7 @@ class Practice(Base, TimestampMixin):
     starts_at: Mapped[time] = mapped_column(Time, nullable=False)
     ends_at: Mapped[time] = mapped_column(Time, nullable=False)
     location: Mapped[str] = mapped_column(String(255), nullable=False)
-    capacity: Mapped[int] = mapped_column(nullable=False)  # プレイヤー定員 (REQ-005.2)
+    capacity: Mapped[int | None] = mapped_column(nullable=True)  # 未設定はNULL。学年枠保存時に合計を確定
     # 参加できる学年 (D-037)。NULL は全学年。例: [1] は1年限定の練習日
     # none_as_null: Python の None を JSON の null ではなく SQL の NULL として保存する
     allowed_grades: Mapped[list[int] | None] = mapped_column(
@@ -113,7 +113,7 @@ class Practice(Base, TimestampMixin):
     is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     __table_args__ = (
-        CheckConstraint("capacity > 0", name="ck_practices_capacity"),
+        CheckConstraint("capacity >= 0", name="ck_practices_capacity"),
         Index("ix_practices_month_date", "practice_month_id", "practice_date"),
     )
 

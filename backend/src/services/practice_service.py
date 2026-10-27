@@ -129,7 +129,7 @@ class PracticeService:
             if practice is None:
                 practice = self._create_practice(pm_id, candidate)
             else:
-                values = candidate.model_dump(exclude={"genders"})
+                values = candidate.model_dump(exclude={"genders", "capacity"})
                 changed = any(getattr(practice, key) != value for key, value in values.items())
                 if changed and practice.is_assignment_locked:
                     raise ConflictError(f"{day} は参加者が固定された練習日のため更新できません")
@@ -196,7 +196,7 @@ class PracticeService:
         if not set(data.genders).issubset(months):
             raise NotFoundError("選択した性別の月が未作成です。先に対象月を作成してください")
         self._ensure_date_in_month(pm, data.practice.practice_date)
-        values = data.practice.model_dump()
+        values = data.practice.model_dump(exclude={"capacity"})
         for gender, practice in rows.items():
             changed = gender not in data.genders or any(getattr(practice,k) != v for k,v in values.items())
             if practice.is_assignment_locked and (changed or set(rows) != set(data.genders)):
@@ -280,7 +280,6 @@ class PracticeService:
         practice.starts_at = data.starts_at
         practice.ends_at = data.ends_at
         practice.location = data.location
-        practice.capacity = data.capacity
         practice.allowed_grades = data.allowed_grades
         practice.note = data.note
         self.db.flush()

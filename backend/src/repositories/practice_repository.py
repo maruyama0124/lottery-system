@@ -1,7 +1,7 @@
 """practice_months / practices テーブルへのアクセス層"""
-from datetime import time
+from datetime import time, datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, Select
 from sqlalchemy.orm import Session
 
 from src.core.ids import generate_id
@@ -69,7 +69,7 @@ class PracticeRepository:
         self.db.flush()
         return p
 
-    def suggestions(self, gender: str, limit: int = 3) -> list[tuple[str, time, time, int, int]]:
+    def suggestions(self, gender: str, limit: int = 3) -> list[tuple[str, time, time, int | None, int]]:
         """過去に登録した (場所, 開始, 終了) の組み合わせを利用回数の多い順に返す。
 
         代表が毎月同じ体育館・同じ時間帯を登録する運用のため、
@@ -78,7 +78,7 @@ class PracticeRepository:
         定員は施設の空き状況で毎回変わるためグルーピングには使わず、
         同じ組み合わせの中で最後に登録した値を初期値として返す。
         """
-        stmt = (
+        stmt: Select[tuple[str, time, time, int | None, datetime]] = (
             select(
                 Practice.location,
                 Practice.starts_at,
@@ -107,7 +107,7 @@ class PracticeRepository:
             grouped.items(), key=lambda kv: (-int(kv[1]["use_count"]), kv[0][0], kv[0][1])
         )
         return [
-            (location, starts_at, ends_at, int(v["capacity"]), int(v["use_count"]))
+            (location, starts_at, ends_at, int(v["capacity"]) if v["capacity"] is not None else None, int(v["use_count"]))
             for (location, starts_at, ends_at), v in ordered[:limit]
         ]
 

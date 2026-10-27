@@ -1,6 +1,59 @@
 # 画面定義 — サークル練習参加抽選システム
 # 全画面モバイルファースト（D-009: 代表もスマホ利用前提）
 screens:
+  admin-updates:
+    name: "アップデート履歴"
+    path: "/admin/updates"
+    layout: "admin"
+    references:
+      requirements: ["REQ-008"]
+      decisions: ["D-066"]
+    elements:
+      entry:
+        navigation: "ホーム・日程・抽選・結果・更新の5タブ"
+        label: "更新"
+        icon: "ClockIcon"
+      release-history:
+        source: "frontend/src/lib/release-notes.ts"
+        order: "新しい順"
+        starts_from: "D-053（抽選除外機能の追加）"
+        fields: ["カテゴリ", "見出し", "変更内容"]
+        latest_badge: "先頭だけに最新を表示"
+        dates: "確認できない公開日は推測して掲載しない"
+    states: ["loading-auth", "default"]
+
+  home-screen-guide:
+    name: "クエーさんをiOS/Androidアプリのように使う方法"
+    path: "/help/home-screen"
+    layout: "member"
+    authentication_required: false
+    references:
+      decisions: ["D-065"]
+    elements:
+      finish-preview:
+        content: "実際のアイコンを使ったホーム画面 → タップ → 投票画面の完成図"
+      presentation:
+        primary: "操作図と短い見出し"
+        collapsed: "公式リンク"
+      entry-link:
+        source: "/"
+        label: "ホーム画面に追加して、もっと便利に"
+      device-navigation:
+        anchors: ["iphone", "android"]
+        entry: "両端末ともリンク先はURLコピーから開始。端末ごとにログイン・追加完了画面までの7手順を掲載"
+      instructions:
+        common: "指定のLIFF URLをコピー → Safari／Chromeを起動 → アドレス欄に貼り付けて開く → 同じLINEアカウントでログイン → 投票画面を表示"
+        iphone: "Safariで投票画面を開く → 共有 → ホーム画面に追加 → 追加"
+        android: "Chromeで投票画面を開く → メニュー → ホーム画面に追加／インストールしてショートカットを作成 → 追加"
+      copy-home-url:
+        label: "URLをコピー"
+        value: "https://liff.line.me/2010994046-WzxKysKA"
+        fallback: "コピー不可なら読み取り専用入力欄でURLを手動選択"
+      back-link:
+        destination: "/"
+        label: "投票画面に戻る"
+    states: ["default", "copied", "manual-copy"]
+
   login:
     name: "ログイン"
     path: "/login"
@@ -195,15 +248,14 @@ screens:
           - { id: vote-end-date, type: date, label: "投票締切日", required: true, validation: "23:59 締切" }
       practice-editor:
         fields:
-          - { id: practice-suggestion, type: select, label: "よく使う練習から入力", required: false, validation: "選ぶと場所・時刻・定員を自動入力 (D-014)" }
+          - { id: practice-suggestion, type: select, label: "よく使う練習から入力", required: false, validation: "選ぶと場所・時刻を自動入力。定員はコピーしない (D-064)" }
           - { id: practice-date, type: date, label: "日付", required: true, validation: "-" }
           - { id: starts-at, type: select, label: "開始時刻", required: true, validation: "30分単位 (00:00〜23:30 の48択)" }
           - { id: ends-at, type: select, label: "終了時刻", required: true, validation: "30分単位" }
           - { id: location, type: text, label: "場所", required: true, validation: "-" }
-          - { id: capacity, type: number, label: "定員", required: true, validation: "定員 > 0" }
         actions:
           - { id: add-practice, type: button, label: "+ 練習日を追加", api: "POST /practices/batch" }
-          # 場所・時刻・定員を引き継ぎ、日付だけ空にして追加する (REQ-003.7 / D-014)
+          # 場所・時刻・対象学年・備考を引き継ぎ、定員はコピーしない (D-064)
           - { id: duplicate-practice, type: button, label: "同じ内容で別日を追加", api: "-（画面内で入力欄を複製するのみ）" }
           - { id: save-vote-period, type: submit, label: "投票期間を保存", api: "PUT /practice-months/{pmId}" }
       # 月の新規作成のみ確認画面を挟む (REQ-003.8 / D-016)

@@ -1,7 +1,7 @@
 """テスト共通フィクスチャ — 専用DB (lottery_test) を使用し、テストごとに全テーブルを空にする"""
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from src.core.config import get_settings
@@ -28,6 +28,14 @@ def test_engine():
     test_url = settings.database_url.rsplit("/", 1)[0] + f"/{TEST_DB_NAME}"
     engine = create_engine(test_url)
     Base.metadata.create_all(engine)
+    # 永続化された専用テストDBにも今回の列変更を適用する。アプリDBは変更しない。
+    if not next(c for c in inspect(engine).get_columns("practices") if c['name']=='capacity')['nullable']:
+        from alembic.migration import MigrationContext
+        from alembic.operations import Operations
+        from migrations.versions.c8d4e2a6b913_capacity_from_grade_quotas import upgrade
+        with engine.begin() as connection:
+            with Operations.context(MigrationContext.configure(connection)):
+                upgrade()
     yield engine
     engine.dispose()
 

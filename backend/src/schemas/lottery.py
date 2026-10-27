@@ -43,7 +43,7 @@ class PracticeVoteSummary(BaseModel):
     starts_at: str
     ends_at: str
     location: str
-    capacity: int
+    capacity: int | None
     allowed_grades: list[int] | None = None  # None は全学年 (D-037)
     grades: list[GradeVoteSummary]  # 3年 → 1年の順
 

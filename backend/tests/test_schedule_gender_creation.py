@@ -114,7 +114,7 @@ def test_existing_month_merges_and_creates_other_side(client, make_user, db_sess
     assert updated['id'] == existing['id'] and updated['vote_ends_at'] == existing['vote_ends_at']
     assert updated['practices'][0]['id'] == existing['practices'][0]['id']
     assert updated['practices'][0]['location'] == '更新場所'
-    assert updated['practices'][0]['capacity'] == 12
+    assert updated['practices'][0]['capacity'] == 30  # 日程登録では確定定員を変更しない
     assert updated['practices'][0]['allowed_grades'] == [1,2]
     assert count(db_session,Practice) == 3
 
@@ -214,7 +214,7 @@ def test_fixed_update_failure_rolls_back_other_gender_changes(client, make_user,
         if month['gender']=='male':
             db_session.get(Practice,month['practices'][0]['id']).is_assignment_locked = True
     db_session.commit()
-    body = month_request(['male','female']);body['practices'][0]['capacity'] = 12
+    body = month_request(['male','female']);body['practices'][0]['location'] = '固定日変更'
     response = client.post('/api/v1/practice-months/batch', json=body, headers=auth_header(token))
     assert response.status_code == 409, response.text
     assert all(db_session.get(Practice,m['practices'][0]['id']).capacity == 30 for m in baseline)

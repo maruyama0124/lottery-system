@@ -146,6 +146,16 @@ export default function MemberPage() {
       <Header userName={user.name} isRep={user.role === "representative"} />
 
       <main className="space-y-5 px-4">
+        <Link
+          href="/help/home-screen"
+          className="flex min-h-14 items-center gap-3 rounded-2xl border border-brand-200 bg-white px-4 py-3 text-brand-800 shadow-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-600"
+        >
+          <span aria-hidden="true" className="text-2xl">⌂</span>
+          <span className="flex-1">
+            <span className="block text-sm font-bold">クエーさんをiOS/Androidアプリのように使う方法</span>
+          </span>
+          <span aria-hidden="true">→</span>
+        </Link>
         {home.refreshing && <p role="status" className="text-sm text-gray-500">最新の状態を確認中…</p>}
         {home.error && (
           <ErrorMessage

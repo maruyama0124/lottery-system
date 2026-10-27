@@ -32,14 +32,16 @@ def test_change_gender_add_update_remove_atomically(client, make_user, db_sessio
     _, header, path, request, months = setup_edit(client,make_user,original)
     old_ids = {g:v['id'] for g,v in request['expected_versions'].items()}
     request['genders'] = target
-    request['practice'].update(location='更新場所',capacity=18)
+    request['practice'].update(location='更新場所')
+    request['practice'].pop('capacity')
     response = client.put(path,json=request,headers=header)
     assert response.status_code == 204, response.text
     for month in months:
         practices = client.get(f"/api/v1/practice-months/{month['id']}",headers=header).json()['practices']
         assert len(practices) == (1 if month['gender'] in target else 0)
         if practices:
-            assert practices[0]['location'] == '更新場所' and practices[0]['capacity'] == 18
+            assert practices[0]['location'] == '更新場所'
+            assert practices[0]['capacity'] == (30 if month['gender'] in old_ids else None)
             if month['gender'] in old_ids:
                 assert practices[0]['id'] == old_ids[month['gender']]
     for gender in set(original)-set(target):
@@ -138,9 +140,9 @@ def test_locked_retained_day_and_outside_month_are_rejected(client, make_user, d
     request['expected_versions']=client.get(path,headers=header).json()['versions']
     request['genders']=['male','female']
     assert client.put(path,json=request,headers=header).status_code==409
-    request['genders']=['male'];request['practice']['capacity']=15
+    request['genders']=['male'];request['practice']['location']='変更場所'
     assert client.put(path,json=request,headers=header).status_code==409
-    request['practice']['capacity']=30
+    request['practice']['location']='第一体育館'
     assert client.put(path,json=request,headers=header).status_code==204
     request['practice']['practice_date']='2026-09-10'
     assert client.put(path,json=request,headers=header).status_code==400

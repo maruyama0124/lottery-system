@@ -74,6 +74,16 @@ const buttons = (html) => html.match(/<button\b[^>]*>[\s\S]*?<\/button>/g) ?? []
 const cell = (html, name) => buttons(html).find((b) => b.includes(`aria-label="${name} `));
 const footer = (html) => html.slice(html.indexOf('class="fixed bottom-14'));
 
+test('unset and zero capacities render without invalid arithmetic',()=>{
+  for(const capacity of [null,0]){
+    const html=render({results:{...initial.results,by_practice:[{
+      ...initial.results.by_practice[0],practice:{...practice,capacity},
+    }]}});
+    assert.doesNotMatch(html,/NaN|Infinity/);
+    if(capacity===null)assert.match(html,/未設定/);
+  }
+});
+
 test("saving disables all matrix cells and save/publication buttons", () => {
   const html = render({ saving: true, dirtyChanges: 1 });
   assert.match(cell(html, "会員A"), /disabled=""/);

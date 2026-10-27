@@ -105,8 +105,8 @@ def test_vote_summary_returns_votes_and_quotas(client, make_user) -> None:
         assert sum(g["quota"] for g in p["grades"]) == p["capacity"]
 
 
-def test_quota_sum_may_differ_from_capacity(client, make_user) -> None:
-    """枠の合計と定員の一致は求めない (D-045)。代表が意図的にずらすことがある"""
+def test_quota_sum_sets_capacity(client, make_user) -> None:
+    """日程作成時の仮値ではなく、確定した学年枠合計を定員にする。"""
     rep_token, pm, _tokens = setup_month_with_votes(client, make_user)
     practice_id = pm["practices"][0]["id"]
     res = client.put(
@@ -131,7 +131,7 @@ def test_quota_sum_may_differ_from_capacity(client, make_user) -> None:
     ).json()
     saved = next(p for p in summary["practices"] if p["practice_id"] == practice_id)
     assert [g["quota"] for g in saved["grades"]] == [1, 1, 1]
-    assert saved["capacity"] != 3
+    assert saved["capacity"] == 3
 
 
 def test_lottery_requires_quotas(client, make_user) -> None:
@@ -301,15 +301,13 @@ def test_capacity_exceeded_warning(client, make_user, db_session) -> None:
     _rep_id, rep_token = make_user(role="representative", gender="male")
     pm = create_month(client, rep_token, year_month="2026-09", practices=1)
     prc_id = pm["practices"][0]["id"]
-    # 定員を1にする
+    # 定員は日程編集でなく学年枠で確定する。
     client.put(
-        f"/api/v1/practices/{prc_id}",
+        f"/api/v1/practice-months/{pm['id']}/quotas",
         json={
-            "practice_date": "2026-09-10",
-            "starts_at": "18:00",
-            "ends_at": "21:00",
-            "location": "第一体育館",
-            "capacity": 1,
+            "practices": [{"practice_id":prc_id,"grades":[
+                {"grade":1,"quota":1},{"grade":2,"quota":0},{"grade":3,"quota":0},
+            ]}],
         },
         headers=auth_header(rep_token),
     )

@@ -79,7 +79,7 @@ function VoteBar({ practice }: { practice: PracticeVoteSummary }) {
           </span>
         ))}
         <span className="ml-auto font-semibold text-gray-600">
-          計 {total}人 / 定員 {practice.capacity}名
+          計 {total}人 / {practice.capacity == null ? "定員未設定" : `確定定員 ${practice.capacity}名`}
         </span>
       </div>
     </div>
@@ -291,9 +291,9 @@ export default function AdminLotteryPage() {
                       })}
                     </div>
 
-                    {/* 合計と定員の一致は求めない。代表が意図的にずらすことがある (D-045) */}
+                    {/* 学年枠の保存時に、この合計を定員として確定する。 */}
                     <p className="mt-2 text-xs font-semibold text-gray-500">
-                      合計 {total} / 定員 {p.capacity}
+                      合計 {total}人（保存すると定員として確定）
                     </p>
                   </div>
                 );

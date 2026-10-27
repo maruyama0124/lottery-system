@@ -174,9 +174,9 @@ export default function AdminResultsPage() {
     const participants = rowOrder.sort(pr.participants);
     const playerCount = participants.filter((p) => !p.is_manager && p.publish_state !== "removing").length;
     const capacity = practice.capacity;
-    const over = playerCount > capacity;
-    const full = playerCount === capacity;
-    const pct = Math.min((playerCount / capacity) * 100, 100);
+    const over = capacity != null && playerCount > capacity;
+    const full = capacity != null && playerCount === capacity;
+    const pct = capacity != null && capacity > 0 ? Math.min((playerCount / capacity) * 100, 100) : 0;
     const open = openPracticeIds.has(practice.id);
     const assignedUserIds = new Set(participants.map((p) => p.user_id));
     // 追加候補は「この日に投票した人」を先に出す。投票していない人を入れても
@@ -237,7 +237,7 @@ export default function AdminResultsPage() {
                 </span>
               ) : (
                 <span className="text-xs font-semibold text-green-700">
-                  {playerCount} / {capacity}名
+                  {playerCount} / {capacity ?? "未設定"}名
                 </span>
               )}
             </div>
@@ -626,7 +626,7 @@ export default function AdminResultsPage() {
                         );
                         const voted = m.voted_practice_ids.includes(pr.practice.id);
                         const players = pr.participants.filter((x) => !x.is_manager && x.publish_state !== "removing");
-                        const full = players.length >= pr.practice.capacity;
+                        const full = pr.practice.capacity != null && players.length >= pr.practice.capacity;
                         return (
                           <div
                             key={pr.practice.id}
@@ -636,7 +636,7 @@ export default function AdminResultsPage() {
                               {formatPracticeDate(pr.practice.practice_date)}
                             </span>
                             <span className="flex-1 truncate text-xs text-gray-500">
-                              {players.length}/{pr.practice.capacity}名
+                              {players.length}/{pr.practice.capacity ?? "未設定"}名
                               {voted ? "" : "・未投票"}
                             </span>
                             {joining?.publish_state === "removing" ? (
@@ -777,7 +777,7 @@ export default function AdminResultsPage() {
                           ).length;
                           const cap = pr.practice.capacity;
                           const tone =
-                            players > cap
+                            cap == null ? "text-gray-500" : players > cap
                               ? "text-gray-500"
                               : players === cap
                                 ? "text-gray-400"
@@ -802,7 +802,7 @@ export default function AdminResultsPage() {
                                 <div>{shortDate(pr.practice.practice_date)}</div>
                                 {/* 定員との差をここで常に見せる。超過は赤、空きありは緑 */}
                                 <div className={`text-[9px] leading-tight ${tone}`}>
-                                  {players}/{cap}
+                                  {players}/{cap ?? "未設定"}
                                 </div>
                               </button>
                             </th>

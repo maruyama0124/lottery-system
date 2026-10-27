@@ -69,7 +69,7 @@ class LotteryService:
         practice_days = [
             PracticeDay(
                 id=p.id,
-                capacity=p.capacity,
+                capacity=sum(q or 0 for q in (p.quota_grade1, p.quota_grade2, p.quota_grade3)),
                 quotas={3: p.quota_grade3 or 0, 2: p.quota_grade2 or 0, 1: p.quota_grade1 or 0},
             )
             for p in practices
@@ -145,7 +145,8 @@ class LotteryService:
 
         suggestions = self._suggest_quotas(
             [
-                (p.capacity, v, set(p.allowed_grades or GRADES))
+                (p.capacity if p.capacity is not None else sum(v[g] for g in (p.allowed_grades or GRADES)),
+                 v, set(p.allowed_grades or GRADES))
                 for p, v in zip(practices, voters_per_day)
             ],
             month_voters,
@@ -155,7 +156,8 @@ class LotteryService:
         ready = True
         for p, voters_by_grade, suggested in zip(practices, voters_per_day, suggestions):
             quotas = {3: p.quota_grade3, 2: p.quota_grade2, 1: p.quota_grade1}
-            if not p.is_assignment_locked and any(quotas[g] is None for g in GRADES):
+            if not p.is_assignment_locked and (any(quotas[g] is None for g in GRADES)
+                or p.capacity is None or p.capacity != sum(quotas[g] or 0 for g in GRADES)):
                 ready = False
 
             summaries.append(
@@ -245,18 +247,18 @@ class LotteryService:
             if practice is None:
                 raise NotFoundError(f"練習日が見つかりません: {item.practice_id}")
             quotas = {q.grade: q.quota for q in item.grades}
-            if set(quotas) != set(GRADES):
+            if set(quotas) != set(GRADES) or len(item.grades) != len(GRADES):
                 raise ValidationError("1〜3年すべての枠を指定してください")
             if practice.is_assignment_locked:
                 current = {1: practice.quota_grade1 or 0, 2: practice.quota_grade2 or 0, 3: practice.quota_grade3 or 0}
                 if quotas != current:
                     raise ConflictError("参加者が固定された練習日の枠は変更できません")
                 continue
-            # 合計と定員の一致は求めない (D-045)。代表が意図的に定員より多く/少なく
-            # 取ることがあるため、枠の合計をその日の実際の参加上限として扱う
+            # 定員は日程入力から独立させず、確定した学年枠の合計だけを用いる。
             practice.quota_grade1 = quotas[1]
             practice.quota_grade2 = quotas[2]
             practice.quota_grade3 = quotas[3]
+            practice.capacity = sum(quotas.values())
         self.db.flush()
 
     # ---------- 抽選実行 (REQ-005) ----------
@@ -288,7 +290,8 @@ class LotteryService:
         )):
             raise ConflictError("固定日の割当を公開・確定してから抽選してください")
         for p in unlocked:
-            if p.quota_grade1 is None or p.quota_grade2 is None or p.quota_grade3 is None:
+            if (p.quota_grade1 is None or p.quota_grade2 is None or p.quota_grade3 is None
+                or p.capacity is None or p.capacity != p.quota_grade1 + p.quota_grade2 + p.quota_grade3):
                 raise ConflictError(
                     "学年別の参加人数枠が未設定の練習日があります。"
                     "投票状況を確認して枠を設定してから抽選を実行してください"
@@ -651,7 +654,7 @@ class LotteryService:
             )
             return AssignmentCreated(
                 assignment_id=assignment.id,
-                capacity_exceeded=player_count > practice.capacity,
+                capacity_exceeded=practice.capacity is not None and player_count > practice.capacity,
             )
         finally:
             logger.info(

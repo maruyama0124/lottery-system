@@ -88,7 +88,7 @@ export interface Practice {
   starts_at: string; // HH:MM
   ends_at: string;
   location: string;
-  capacity: number;
+  capacity: number | null;
   /** 参加できる学年 (D-037)。null は全学年 */
   allowed_grades: number[] | null;
   /** 備考 (D-041)。「練習試合の予定」など */
@@ -126,7 +126,6 @@ export interface PracticeCreateRequest {
   starts_at: string;
   ends_at: string;
   location: string;
-  capacity: number;
   /** 参加できる学年。null は全学年 */
   allowed_grades: number[] | null;
   /** 備考。null は記載なし */
@@ -147,7 +146,7 @@ export interface PracticeSuggestion {
   starts_at: string;
   /** HH:MM */
   ends_at: string;
-  capacity: number;
+  capacity: number | null;
   use_count: number;
 }
 
@@ -180,7 +179,7 @@ export interface PracticeVoteSummary {
   starts_at: string;
   ends_at: string;
   location: string;
-  capacity: number;
+  capacity: number | null;
   /** 参加できる学年 (D-037)。null は全学年 */
   allowed_grades: number[] | null;
   /** 3年 → 1年の順 */
