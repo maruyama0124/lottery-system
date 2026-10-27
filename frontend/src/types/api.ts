@@ -145,6 +145,8 @@ export interface PracticeSuggestion {
 export interface VoteStatus {
   practice_month_id: string;
   voted_practice_ids: string[];
+  /** 既存投票を維持し、変更できない確定日。設定操作は管理者のDB操作のみ。 */
+  locked_practice_ids: string[];
   editable: boolean;
 }
 

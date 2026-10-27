@@ -2,6 +2,7 @@
 
 // メンバー画面 — これ1枚だけ (D-022)
 // 投票受付中は投票フォーム、締切後は抽選待ち、公開後は当選日。
+// 確定日だけ先行公開した月は、公開結果と未確定日の投票を併せて表示する。
 // メンバーがやることは「投票する」「結果を見る」の2つだけなので画面を分けない。
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -57,6 +58,7 @@ export default function MemberPage() {
   const [selectedMonthId, setSelectedMonthId] = useState<string | null>(null);
 
   const home = useMemberHome(user, gender, selectedMonthId);
+  const refreshHome = home.refresh;
   const { months, detail, voteStatus, myResults, participation } = home.data ?? {};
   const currentMonth = detail;
   const selectionKey = `${user?.id}:${gender}:${currentMonth?.id}`;
@@ -67,7 +69,15 @@ export default function MemberPage() {
   } | null>(null);
   const keepSelection = localSelection?.key === selectionKey &&
     (localSelection.dirty || home.stale || home.refreshing || localSelection.baseline === home.data);
-  const selectedIds = keepSelection ? localSelection.ids : voteStatus?.voted_practice_ids ?? [];
+  const lockedIds = voteStatus?.locked_practice_ids ?? [];
+  const draftIds = keepSelection ? localSelection.ids : voteStatus?.voted_practice_ids ?? [];
+  // 編集中に固定日が増えても、その日だけは最新のサーバー投票へ追従する。
+  // 未確定日の編集中の選択は保持する。
+  const selectedIds = [
+    ...draftIds.filter((id) => !lockedIds.includes(id)),
+    ...(voteStatus?.voted_practice_ids ?? []).filter((id) => lockedIds.includes(id)),
+  ];
+  const editableSelectedCount = selectedIds.filter((id) => !lockedIds.includes(id)).length;
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -77,7 +87,12 @@ export default function MemberPage() {
   const inVoteWindow = currentMonth && now >= Date.parse(currentMonth.vote_starts_at) && now <= Date.parse(currentMonth.vote_ends_at);
   const editable = ownView && inVoteWindow && (voteStatus?.editable ?? false);
   const published = currentMonth?.status === "published";
-  const showVoting = ownView && currentMonth && !published && inVoteWindow;
+  const showVoting = ownView && currentMonth && inVoteWindow && (!published || editable);
+
+  // ページを開いたまま受付開始時刻を迎えた場合も、公開月の投票可否を取得する。
+  useEffect(() => {
+    if (ownView && published && inVoteWindow) void refreshHome();
+  }, [ownView, published, inVoteWindow, refreshHome]);
 
   const switchView = () => {
     setLocalSelection(null);
@@ -86,7 +101,7 @@ export default function MemberPage() {
   };
 
   const toggle = (practiceId: string) => {
-    if (!editable || isSubmitting) return;
+    if (!editable || isSubmitting || lockedIds.includes(practiceId)) return;
     setSaved(false);
     setLocalSelection({ key: selectionKey, dirty: true, baseline: home.data, ids:
       selectedIds.includes(practiceId)
@@ -230,6 +245,7 @@ export default function MemberPage() {
                 currentUserId={user.id}
                 currentUserGrade={user.grade}
                 currentUserIsManager={user.is_manager}
+                viewGender={gender ?? user.gender}
               />
             )}
           </>
@@ -239,6 +255,11 @@ export default function MemberPage() {
             縦に並べると参加表まで毎回スクロールすることになるため */}
         {currentMonth && ownView && published && (
           <>
+            {showVoting && (
+              <p className="text-sm font-semibold text-brand-700">
+                確定済みの参加日を表示しています。未確定の日程は下から投票できます。
+              </p>
+            )}
             <div className="flex gap-2">
               {(
                 [
@@ -296,6 +317,7 @@ export default function MemberPage() {
                 currentUserId={user.id}
                 currentUserGrade={user.grade}
                 currentUserIsManager={user.is_manager}
+                viewGender={gender ?? user.gender}
               />
             ) : (
               <Card>
@@ -333,12 +355,13 @@ export default function MemberPage() {
             <div className="space-y-2">
               {detail?.practices.map((practice) => {
                 const selected = selectedIds.includes(practice.id);
+                const locked = lockedIds.includes(practice.id);
                 // 学年限定の日 (D-037)。対象外なら選べない。マネージャーは制限なし
                 const votable =
                   user.is_manager ||
                   !practice.allowed_grades ||
                   practice.allowed_grades.includes(user.grade);
-                if (!votable) {
+                if (!votable && !locked) {
                   return (
                     <div
                       key={practice.id}
@@ -369,7 +392,7 @@ export default function MemberPage() {
                     key={practice.id}
                     type="button"
                     aria-pressed={selected}
-                    disabled={!editable || isSubmitting}
+                    disabled={locked || !editable || isSubmitting}
                     onClick={() => toggle(practice.id)}
                     className={`flex w-full flex-wrap items-center gap-2.5 rounded-2xl border-2 px-3 py-2.5 text-left transition-colors ${
                       selected
@@ -395,6 +418,11 @@ export default function MemberPage() {
                     <span className="truncate text-sm text-gray-500">
                       {practice.location}
                     </span>
+                    {locked && (
+                      <span className="ml-auto rounded bg-gray-100 px-1.5 py-0.5 text-xs font-bold text-gray-500">
+                        確定済み（変更不可）
+                      </span>
+                    )}
                     {/* 備考 (D-041)。練習試合の予定などを投票前に知らせる */}
                     {practice.note && (
                       <span className="w-full pl-[34px] text-xs font-semibold text-accent-700">
@@ -422,9 +450,9 @@ export default function MemberPage() {
           >
             {isSubmitting
               ? "送信中..."
-              : selectedIds.length === 0
+              : editableSelectedCount === 0
                 ? "選択せずに送信"
-                : `${selectedIds.length}日を送信`}
+                : `${editableSelectedCount}日を送信`}
           </button>
         </div>
       )}

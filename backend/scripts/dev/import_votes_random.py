@@ -29,10 +29,12 @@ def main() -> None:
             .first()
         )
         practices = (
-            db.query(Practice).filter_by(practice_month_id=pm.id, is_deleted=False).all()
+            db.query(Practice).filter_by(
+                practice_month_id=pm.id, is_deleted=False, is_assignment_locked=False
+            ).all()
         )
         practice_ids = [p.id for p in practices]
-        members = db.query(User).filter_by(gender=GENDER, is_deleted=False).all()
+        members = db.query(User).filter_by(gender=GENDER, is_deleted=False, is_observer=False).all()
 
         db.query(Vote).filter(Vote.practice_id.in_(practice_ids)).delete(
             synchronize_session=False

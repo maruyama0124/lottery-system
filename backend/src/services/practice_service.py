@@ -1,4 +1,5 @@
 """練習日程管理サービス (REQ-003)"""
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.core.datetime_utils import to_utc
@@ -100,6 +101,13 @@ class PracticeService:
         if practice is None:
             raise NotFoundError("練習日が見つかりません")
         self.get_month_for_rep(rep, practice.practice_month_id)
+        # 月→練習日の順にロックし、抽選・公開・管理者の固定操作と直列化する。
+        self.db.scalar(select(PracticeMonth).where(
+            PracticeMonth.id == practice.practice_month_id
+        ).with_for_update())
+        self.db.refresh(practice, with_for_update=True)
+        if practice.is_assignment_locked:
+            raise ConflictError("参加者が固定された練習日は変更・削除できません")
         return practice
 
     def update_practice(self, rep: User, practice_id: str, data: PracticeCreateRequest) -> None:

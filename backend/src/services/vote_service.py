@@ -19,15 +19,27 @@ class VoteService:
 
     def get_my_votes(self, user: User, pm_id: str) -> VoteStatus:
         pm = self.practice_service.get_month_for(user, pm_id)
-        practice_ids = [p.id for p in self.practices.list_by_month(pm.id)]
+        practices = self.practices.list_by_month(pm.id)
+        practice_ids = [p.id for p in practices]
         voted = [
             v.practice_id
             for v in self.votes.list_user_votes(user.id, practice_ids)
             if not v.is_deleted
         ]
-        editable = pm.vote_starts_at <= utcnow() <= pm.vote_ends_at
+        locked = [p.id for p in practices if p.is_assignment_locked]
+        has_votable_day = any(
+            not p.is_assignment_locked and (
+                user.is_manager or p.allowed_grades is None or user.grade in p.allowed_grades
+            ) for p in practices
+        )
+        editable = (
+            pm.gender == user.gender and not user.is_observer
+            and pm.vote_starts_at <= utcnow() <= pm.vote_ends_at
+            and has_votable_day and (pm.status != "published" or bool(locked))
+        )
         return VoteStatus(
-            practice_month_id=pm.id, voted_practice_ids=sorted(voted), editable=editable
+            practice_month_id=pm.id, voted_practice_ids=sorted(voted),
+            locked_practice_ids=sorted(locked), editable=editable
         )
 
     def update_my_votes(self, user: User, pm_id: str, practice_ids: list[str]) -> None:
@@ -39,6 +51,7 @@ class VoteService:
         # 閲覧専用アカウント (D-039) は投票できない
         if user.is_observer:
             raise ForbiddenError("閲覧専用アカウントは投票できません")
+        self.db.refresh(pm, with_for_update=True)
         now = utcnow()
         if now < pm.vote_starts_at:
             raise ConflictError("投票受付はまだ開始されていません")
@@ -46,6 +59,8 @@ class VoteService:
             raise ConflictError("投票は締め切られました")
 
         month_practices = {p.id: p for p in self.practices.list_by_month(pm.id)}
+        if pm.status == "published" and not any(p.is_assignment_locked for p in month_practices.values()):
+            raise ConflictError("公開済みの月の投票は変更できません")
         selected = set(practice_ids)
         unknown = selected - set(month_practices)
         if unknown:
@@ -56,12 +71,20 @@ class VoteService:
                 details=[{"field": "practice_ids", "reason": "unknown_practice"}],
             )
 
+        locked = {pid for pid, p in month_practices.items() if p.is_assignment_locked}
+        existing_locked = {
+            v.practice_id for v in self.votes.list_user_votes(user.id, list(locked))
+            if not v.is_deleted
+        }
+        if (selected & locked) != existing_locked:
+            raise ConflictError("参加者が固定された練習日の投票は変更できません")
+
         # 学年限定の練習日 (D-037)。対象外の学年は投票できない。
         # マネージャーは定員外の別枠のため制限しない
         if not user.is_manager:
             blocked = [
                 pid
-                for pid in selected
+                for pid in selected - locked
                 if month_practices[pid].allowed_grades is not None
                 and user.grade not in month_practices[pid].allowed_grades
             ]
@@ -73,4 +96,4 @@ class VoteService:
                     details=[{"field": "practice_ids", "reason": "grade_not_allowed"}],
                 )
 
-        self.votes.replace_user_votes(user.id, list(month_practices), selected)
+        self.votes.replace_user_votes(user.id, list(set(month_practices) - locked), selected - locked)

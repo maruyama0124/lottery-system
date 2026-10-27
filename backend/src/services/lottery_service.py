@@ -61,9 +61,11 @@ class LotteryService:
     # ---------- 抽選入力の収集 ----------
 
     def _collect_inputs(
-        self, pm: PracticeMonth
+        self, pm: PracticeMonth, *, include_locked: bool = False
     ) -> tuple[list[PracticeDay], list[Member], dict[str, set[str]]]:
         practices = self.practices.list_by_month(pm.id)
+        if not include_locked:
+            practices = [p for p in practices if not p.is_assignment_locked]
         practice_days = [
             PracticeDay(
                 id=p.id,
@@ -121,7 +123,7 @@ class LotteryService:
         """
         pm = self.practice_service.get_month_for_rep(rep, pm_id)
         practices = self.practices.list_by_month(pm.id)
-        _days, members, votes = self._collect_inputs(pm)
+        _days, members, votes = self._collect_inputs(pm, include_locked=True)
         grade_of = {m.id: m.grade for m in members if not m.is_manager}
 
         # 日ごとの学年別投票者数
@@ -153,7 +155,7 @@ class LotteryService:
         ready = True
         for p, voters_by_grade, suggested in zip(practices, voters_per_day, suggestions):
             quotas = {3: p.quota_grade3, 2: p.quota_grade2, 1: p.quota_grade1}
-            if any(quotas[g] is None for g in GRADES):
+            if not p.is_assignment_locked and any(quotas[g] is None for g in GRADES):
                 ready = False
 
             summaries.append(
@@ -170,7 +172,9 @@ class LotteryService:
                             grade=g,
                             voters=voters_by_grade[g],
                             quota=quotas[g],
-                            suggested_quota=suggested[g],
+                            # 既存UIは全日程の提案値を一括保存する。
+                            # 固定日には再配分せず、保存済み値（未設定なら0）を返す。
+                            suggested_quota=(quotas[g] or 0) if p.is_assignment_locked else suggested[g],
                         )
                         for g in GRADES
                     ],
@@ -231,8 +235,10 @@ class LotteryService:
     # ---------- 枠の保存 (D-015) ----------
 
     def update_quotas(self, rep: User, pm_id: str, data: QuotaUpdateRequest) -> None:
-        pm = self.practice_service.get_month_for_rep(rep, pm_id)
-        practices = {p.id: p for p in self.practices.list_by_month(pm.id)}
+        pm = self._lock_adjustment_month(rep, pm_id)
+        practices = {p.id: p for p in self.db.scalars(select(Practice).where(
+            Practice.practice_month_id == pm.id, Practice.is_deleted.is_(False)
+        ).order_by(Practice.id).with_for_update().execution_options(populate_existing=True))}
 
         for item in data.practices:
             practice = practices.get(item.practice_id)
@@ -241,6 +247,11 @@ class LotteryService:
             quotas = {q.grade: q.quota for q in item.grades}
             if set(quotas) != set(GRADES):
                 raise ValidationError("1〜3年すべての枠を指定してください")
+            if practice.is_assignment_locked:
+                current = {1: practice.quota_grade1 or 0, 2: practice.quota_grade2 or 0, 3: practice.quota_grade3 or 0}
+                if quotas != current:
+                    raise ConflictError("参加者が固定された練習日の枠は変更できません")
+                continue
             # 合計と定員の一致は求めない (D-045)。代表が意図的に定員より多く/少なく
             # 取ることがあるため、枠の合計をその日の実際の参加上限として扱う
             practice.quota_grade1 = quotas[1]
@@ -258,13 +269,25 @@ class LotteryService:
         seed: int | None,
         confirm_rerun: bool,
     ) -> LotteryExecutionResponse:
-        pm = self.practice_service.get_month_for_rep(rep, pm_id)
+        pm = self._lock_adjustment_month(rep, pm_id)
 
         if utcnow() <= pm.vote_ends_at:
             raise ConflictError("投票期間中は抽選を実行できません (締切後に実行してください)")
 
         # 枠が未設定のまま抽選すると全員落選になるため、先に設定させる (D-015)
-        for p in self.practices.list_by_month(pm.id):
+        practices = list(self.db.scalars(select(Practice).where(
+            Practice.practice_month_id == pm.id, Practice.is_deleted.is_(False)
+        ).order_by(Practice.id).with_for_update().execution_options(populate_existing=True)))
+        unlocked = [p for p in practices if not p.is_assignment_locked]
+        locked_ids = [p.id for p in practices if p.is_assignment_locked]
+        if not unlocked:
+            raise ConflictError("抽選対象の練習日がありません（すべて固定済みです）")
+        fixed_assignments = self.repo.list_assignments(locked_ids)
+        if locked_ids and (pm.status != "published" or any(
+            a.publish_state != "published" for a in fixed_assignments
+        )):
+            raise ConflictError("固定日の割当を公開・確定してから抽選してください")
+        for p in unlocked:
             if p.quota_grade1 is None or p.quota_grade2 is None or p.quota_grade3 is None:
                 raise ConflictError(
                     "学年別の参加人数枠が未設定の練習日があります。"
@@ -294,7 +317,8 @@ class LotteryService:
         # 再実行: 前回結果を破棄 (REQ-005.12)
         if active is not None:
             self.repo.deactivate_executions(pm.id)
-            self.repo.delete_assignments_for_practices([p.id for p in practice_days])
+        # 初回でも手動の割当が存在し得る。置換するのは未固定日のみ。
+        self.repo.delete_assignments_for_practices([p.id for p in practice_days])
 
         execution = self.repo.create_execution(
             pm_id=pm.id,
@@ -305,6 +329,7 @@ class LotteryService:
                 "warnings": result.warnings,
                 # 実行時の枠を記録し、後から再現・検証できるようにする (REQ-005.11 / D-015)
                 "quotas": {p.id: p.quotas for p in practice_days},
+                "locked_practice_ids": locked_ids,
             },
         )
         for practice_id, member_id, via in result.assignments:
@@ -312,8 +337,10 @@ class LotteryService:
                 practice_id=practice_id, user_id=member_id, via=via, execution_id=execution.id
             )
 
-        pm.status = "drawn"
-        pm.published_at = None  # 再実行時は非公開に戻す (REQ-006.4)
+        # 固定日の公開結果を消さない。未固定日の新結果は pending のため見えない。
+        if not locked_ids or pm.status != "published":
+            pm.status = "drawn"
+            pm.published_at = None
         self.db.flush()
 
         return self._execution_response(execution)
@@ -527,9 +554,11 @@ class LotteryService:
             practices = {p.id: p for p in self.db.scalars(select(Practice).where(
                 Practice.id.in_(practice_ids), Practice.practice_month_id == pm.id,
                 Practice.is_deleted.is_(False),
-            ).order_by(Practice.id).with_for_update())}
+            ).order_by(Practice.id).with_for_update().execution_options(populate_existing=True))}
             if len(practices) != len(practice_ids):
                 raise NotFoundError("この月に存在しない練習日が含まれています")
+            if any(p.is_assignment_locked for p in practices.values()):
+                raise ConflictError("参加者が固定された練習日は変更できません")
             users = {u.id: u for u in self.db.scalars(select(User).where(
                 User.id.in_(user_ids), User.is_deleted.is_(False)
             ).order_by(User.id).with_for_update())}
@@ -590,6 +619,10 @@ class LotteryService:
             if practice is None:
                 raise NotFoundError("練習日が見つかりません")
             self.practice_service.get_month_for_rep(rep, practice.practice_month_id)
+            self._lock_adjustment_month(rep, practice.practice_month_id)
+            self.db.refresh(practice, with_for_update=True)
+            if practice.is_assignment_locked:
+                raise ConflictError("参加者が固定された練習日は変更できません")
     
             target = self.users.get_by_id(user_id)
             if target is None:
@@ -636,6 +669,10 @@ class LotteryService:
             if practice is None:
                 raise NotFoundError("練習日が見つかりません")
             pm = self.practice_service.get_month_for_rep(rep, practice.practice_month_id)
+            self._lock_adjustment_month(rep, pm.id)
+            self.db.refresh(practice, with_for_update=True)
+            if practice.is_assignment_locked:
+                raise ConflictError("参加者が固定された練習日は変更できません")
             if assignment.publish_state == "removing":
                 # すでに削除予定。二重に消すとメンバーから即座に消えてしまうので何もしない
                 return
@@ -667,7 +704,13 @@ class LotteryService:
             votes[v.user_id].add(v.practice_id)
         # 保留中の微調整をここで確定する (D-044)。
         # 追加予定 (pending) はメンバーに見える状態にし、削除予定 (removing) は消す
-        for a in self.repo.list_assignments(practice_ids):
+        locked_ids = {p.id for p in practices if p.is_assignment_locked}
+        assignments = self.repo.list_assignments(practice_ids)
+        if any(a.practice_id in locked_ids and a.publish_state != "published" for a in assignments):
+            raise ConflictError("固定日に未確定の割当があります。管理者に確認してください")
+        for a in assignments:
+            if a.practice_id in locked_ids:
+                continue
             if a.publish_state == "removing":
                 a.is_deleted = True
             else:

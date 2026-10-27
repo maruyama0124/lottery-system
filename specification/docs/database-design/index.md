@@ -2,15 +2,15 @@
 hide:
 - navigation
 doc_type: database-design
-version: 1.6.0
-last_updated: '2026-10-03'
+version: 1.7.0
+last_updated: '2026-10-27'
 depends_on:
 - requirements/index.md
 derived_by:
 - api-design/index.md
-sync_hash: 2820bf661115
+sync_hash: e8495ab6cee8
 dependency_hashes:
-  requirements/index.md: 540723f4a230
+  requirements/index.md: 8248ab183e0f
 ---
 
 # DB設計書 — サークル練習参加抽選システム
@@ -24,7 +24,7 @@ PostgreSQL + SQLAlchemy (ORM) を使用する。設計方針:
 - 論理削除は `is_deleted` (boolean)
 - JSON型は `jsonb`
 - 「月 × 性別」を抽選運用の単位とし、`practice_months` が投票期間・枠比率・公開状態を持つ
-- 抽選は再実行可能なため、実行のたびに `lottery_executions` を追加し、最新の有効な実行 (`is_active = true`) の割当のみを結果として扱う
+- 抽選のたびに `lottery_executions` を追加する。再実行では未固定日の割当のみを置換する。固定日の割当は過去の実行に属していても有効であり、参照時に実行の `is_active` で除外しない (D-053)
 - 落選救済の入力となる月次集計は `monthly_member_results` に保存する（結果公開時に確定）
 
 ## 2. ER図
@@ -68,6 +68,7 @@ erDiagram
         date practice_date
         time starts_at
         time ends_at
+        boolean is_assignment_locked "管理者による確定日の保護 (D-053)"
         varchar location
         int capacity "プレイヤー定員"
         int quota_grade1 "1年枠"
@@ -160,7 +161,8 @@ erDiagram
 | capacity | integer | NOT NULL, CHECK (> 0) | プレイヤー定員（マネージャーは含まない: REQ-005.2） |
 | quota_grade1 | integer | NULL 許容 | 1年の参加人数枠。抽選前に代表が設定 (REQ-005.3 / D-015) |
 | quota_grade2 | integer | NULL 許容 | 2年の参加人数枠 |
-| quota_grade3 | integer | NULL 許容 | 3年の参加人数枠。**3学年の合計 = capacity**。NULL が1つでもあると抽選は実行できない |
+| quota_grade3 | integer | NULL 許容 | 3年の参加人数枠。合計が実際の参加上限 (D-045)。未固定日にNULLがある場合は抽選不可 |
+| is_assignment_locked | boolean | NOT NULL, DEFAULT false | 管理者がSQLで設定。固定日の投票・当選は残りの日程の抽選入力から除外し、割当と公開状態を保護 (D-053)。APIから設定不可 |
 | is_deleted | boolean | NOT NULL, DEFAULT false | 抽選後の削除は警告付き (REQ-003.4) |
 | created_at / updated_at | timestamptz | NOT NULL | — |
 

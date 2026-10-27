@@ -14,6 +14,8 @@ import { apiClient, ApiClientError } from "@/lib/api-client";
 import { useApi } from "@/hooks/use-api";
 import { useResultAdjustments } from "@/hooks/use-result-adjustments";
 import { useRequireRepresentative } from "@/hooks/use-auth";
+import { useMemberRowOrder } from "@/hooks/use-member-row-order";
+import { RowOrderHandle } from "@/components/ui/row-order-handle";
 import type {
   PracticeMonth,
   PracticeMonthDetail,
@@ -81,16 +83,20 @@ export default function AdminResultsPage() {
   const [addingFor, setAddingFor] = useState<string | null>(null);
   const [selectedUserId, setSelectedUserId] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
+  const rowOrder = useMemberRowOrder(user?.id, pm?.gender, results?.by_member ?? [], saving || syncing || publishing || needsSync);
+  // この一覧表だけは、同学年のプレイヤーとマネージャーを混在させて移動できる。
+  // 他の表示の順番を崩さないよう、専用の保存領域を使う。
+  const matrixRowOrder = useMemberRowOrder(user?.id, pm?.gender, rowOrder.sort(results?.by_member ?? []), saving || syncing || publishing || needsSync, "mixed");
 
   // 絞り込み。マネージャーは学年に関係なく1つにまとめる
   const filterByGrade = (grade: string) =>
-    (results?.by_member ?? []).filter((m) => {
+    rowOrder.sort(results?.by_member ?? []).filter((m) => {
       if (grade === "all") return true;
       if (grade === "manager") return m.is_manager;
       return !m.is_manager && String(m.grade) === grade;
     });
   const filteredMembers = filterByGrade(memberGrade);
-  const matrixMembers = filterByGrade(matrixGrade);
+  const matrixMembers = matrixRowOrder.sort(filterByGrade(matrixGrade));
 
   const toggleOpen = (practiceId: string) => {
     setOpenPracticeIds((prev) => {
@@ -164,7 +170,8 @@ export default function AdminResultsPage() {
   }
 
   const renderPracticeSection = (pr: PracticeResults) => {
-    const { practice, participants } = pr;
+    const { practice } = pr;
+    const participants = rowOrder.sort(pr.participants);
     const playerCount = participants.filter((p) => !p.is_manager && p.publish_state !== "removing").length;
     const capacity = practice.capacity;
     const over = playerCount > capacity;
@@ -263,7 +270,8 @@ export default function AdminResultsPage() {
               )
               .map((p) => {
               return (
-                <li key={p.assignment_id} className="flex items-center gap-2 px-4 py-2.5">
+                <li key={p.assignment_id} {...rowOrder.rowProps(p, `practice:${practice.id}`)} className="flex items-center gap-2 px-4 py-2.5">
+                  <RowOrderHandle name={p.name} {...rowOrder.handleProps(p, `practice:${practice.id}`, participants)} />
                   <span className="flex-1 text-sm font-semibold text-gray-800">
                     {p.name}
                   </span>
@@ -562,11 +570,13 @@ export default function AdminResultsPage() {
             {filteredMembers.map((m) => {
               const open = openMemberId === m.user_id;
               return (
-                <div key={m.user_id}>
+                <div key={m.user_id} {...rowOrder.rowProps(m, "members")}>
+                  <div className="flex items-center">
+                  <RowOrderHandle name={m.name} {...rowOrder.handleProps(m, "members", filteredMembers)} />
                   <button
                     type="button"
                     onClick={() => setOpenMemberId(open ? null : m.user_id)}
-                    className={`flex w-full items-center gap-2 px-4 py-2.5 text-left ${
+                    className={`flex min-w-0 flex-1 items-center gap-2 px-4 py-2.5 text-left ${
                       open ? "bg-brand-50" : ""
                     }`}
                   >
@@ -604,6 +614,7 @@ export default function AdminResultsPage() {
                       className={`shrink-0 text-gray-400 ${open ? "" : "-rotate-90"}`}
                     />
                   </button>
+                  </div>
 
                   {/* 展開すると、その人の参加日をここで直接いじれる。
                       練習日別タブを行き来せずに1人分の調整を完結させる */}
@@ -690,6 +701,8 @@ export default function AdminResultsPage() {
           </>
         )}
 
+        {rowOrder.error && <p role="status" className="text-xs text-amber-700">{rowOrder.error}</p>}
+        {matrixRowOrder.error && <p role="status" className="text-xs text-amber-700">{matrixRowOrder.error}</p>}
         {results && tab === "matrix" && (
           <section className="rounded-xl border border-gray-200 bg-white shadow-sm">
             {results.by_practice.length === 0 ? (
@@ -746,6 +759,9 @@ export default function AdminResultsPage() {
                   )}
                   <span className="text-gray-400">
                     名前・日付をタップすると行・列に色が付きます
+                  </span>
+                  <span className="text-gray-400">
+                    名前横のつまみで同学年内を並べ替え（このブラウザに保存）
                   </span>
                 </div>
                 <div className="max-h-[70vh] overflow-auto">
@@ -815,6 +831,7 @@ export default function AdminResultsPage() {
                               </tr>
                             )}
                             <tr
+                              {...matrixRowOrder.rowProps(m, "matrix")}
                               className={`border-b border-gray-100 ${
                                 rowPicked ? "bg-sky-50" : ""
                               }`}
@@ -824,6 +841,8 @@ export default function AdminResultsPage() {
                                   rowPicked ? "bg-sky-50" : "bg-white"
                                 }`}
                               >
+                                <div className="flex items-center">
+                                <RowOrderHandle name={m.name} {...matrixRowOrder.handleProps(m, "matrix", matrixMembers)} />
                                 <button
                                   type="button"
                                   onClick={() =>
@@ -860,6 +879,7 @@ export default function AdminResultsPage() {
                                     </span>
                                   )}
                                 </button>
+                                </div>
                               </td>
                               {results.by_practice.map((pr) => {
                                 const joining = pr.participants.find(

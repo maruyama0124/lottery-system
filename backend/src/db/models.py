@@ -106,6 +106,10 @@ class Practice(Base, TimestampMixin):
     quota_grade1: Mapped[int | None] = mapped_column(nullable=True)
     quota_grade2: Mapped[int | None] = mapped_column(nullable=True)
     quota_grade3: Mapped[int | None] = mapped_column(nullable=True)
+    # 管理者がSQLで固定する例外日。API/UIからは設定させない (D-053)。
+    is_assignment_locked: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
     is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     __table_args__ = (

@@ -27,9 +27,14 @@ export async function loadMemberHome(
   const base = `/v1/practice-months/${month.id}`;
   const own = user.gender === gender && !user.is_observer;
   const published = month.status === "published";
+  const inVoteWindow = (m: PracticeMonth) => Date.now() >= Date.parse(m.vote_starts_at)
+    && Date.now() <= Date.parse(m.vote_ends_at);
+  // 公開済みでも受付中なら、確定日と未確定日の投票可否をサーバーへ確認する。
+  // 通常の締切済み公開月には通信を増やさない。
+  const requestVotes = own && (!published || inVoteWindow(month));
   const [detail, voteStatus, myResults, participation] = await Promise.all([
     get<PracticeMonthDetail>(base),
-    own && !published ? get<VoteStatus>(`${base}/votes/me`) : null,
+    requestVotes ? get<VoteStatus>(`${base}/votes/me`) : null,
     own && published ? get<MyResults>(`${base}/results/me`) : null,
     published ? get<ParticipationTable>(`${base}/participation`) : null,
   ]);
@@ -38,10 +43,13 @@ export async function loadMemberHome(
     own ? get<MyResults>(`${base}/results/me`) : null,
     get<ParticipationTable>(`${base}/participation`),
   ]) : [myResults, participation];
+  // 月一覧取得後に受付期間が変更された場合も投票フォームを取りこぼさない。
+  const latestVotes = own && !requestVotes && (detail.status !== "published" || inVoteWindow(detail))
+    ? await get<VoteStatus>(`${base}/votes/me`) : voteStatus;
   // 取得途中に非公開へ変わった場合も、結果を混ぜない。
   return {
     user, months: months.map((m) => m.id === detail.id ? detail : m), detail,
-    voteStatus: detail.status === "published" ? null : voteStatus,
+    voteStatus: latestVotes,
     myResults: detail.status === "published" ? latestMine : null,
     participation: detail.status === "published" ? latestTable : null,
   };

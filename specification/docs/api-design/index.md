@@ -2,17 +2,17 @@
 hide:
 - navigation
 doc_type: api-design
-version: 2.4.0
-last_updated: '2026-10-14'
+version: 2.6.0
+last_updated: '2026-10-27'
 depends_on:
 - requirements/index.md
 - database-design/index.md
 derived_by:
 - ui-design/index.md
-sync_hash: ddd7abc56d8c
+sync_hash: f773ad72e6f1
 dependency_hashes:
-  requirements/index.md: 540723f4a230
-  database-design/index.md: 2820bf661115
+  requirements/index.md: 8248ab183e0f
+  database-design/index.md: e8495ab6cee8
 ---
 
 # API設計書 — サークル練習参加抽選システム
@@ -161,6 +161,9 @@ graph LR
 - 公開後の微調整は `assignments.publish_state` で保留され、メンバー向けの `/results/me`・`/participation` には再公開まで反映されない。`POST /publish` は公開済みの月にも実行でき、再公開として保留分を確定する (D-044)
 - `GET /results` の `by_member` は性別グループの**全メンバー**を返す。未投票者も `votes_count = 0` で含める（誰が投票していないかを結果画面で把握するため: D-043）
 - 抽選の再実行時は既存の有効な実行が `is_active = false` になり、割当が置き換わる (REQ-005.12)
+- D-053の固定日がある場合、置換と抽選入力は未固定日だけに限定する。公開済みの月はpublishedと公開日時を保持し、固定日の公開結果だけを維持する。未固定日の新しい割当はpendingであり、再公開まではメンバー向け結果に含めない。全日固定、または固定日に未確定の割当がある場合は抽選409。固定日フラグはAPIに追加しない。
+- 固定日に対する追加・削除・一括微調整、枠変更、練習日更新・削除は409（同値の枠再送は許可）。投票PUTの全置換では固定日の投票を変えない場合のみ受付する。公開時は固定割当を変更せず、月次実績は月全体を集計する。
+- 固定日の先行公開月では受付期間中の未固定日への投票を許可する (D-054)。`GET /votes/me` は `locked_practice_ids` と、本人の性別・閲覧専用・学年・受付期間・未固定日の有無を考慮したeditableを返す。固定日なしの通常の公開月は投票PUTが409。BFFのホーム集約は受付期間中の公開月では投票状況と公開結果を並行取得し、締切済み公開月では投票取得を省く。
 
 ### 設定 (settings)
 

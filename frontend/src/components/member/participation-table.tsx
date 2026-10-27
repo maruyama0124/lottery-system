@@ -6,7 +6,9 @@
 // 3年 / 2年 / 1年 / マネージャー のタブで切り替えて1グループずつ表示する。
 // マネージャーは学年に関係なく1つにまとめる（定員外で全日参加する別枠の存在のため）。
 import { useState } from "react";
-import type { ParticipationRow, ParticipationTable as TableData } from "@/types/api";
+import { useMemberRowOrder } from "@/hooks/use-member-row-order";
+import { RowOrderHandle } from "@/components/ui/row-order-handle";
+import type { Gender, ParticipationRow, ParticipationTable as TableData } from "@/types/api";
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"] as const;
 const MANAGER = "manager" as const;
@@ -25,27 +27,29 @@ export function ParticipationTable({
   currentUserId,
   currentUserGrade,
   currentUserIsManager,
+  viewGender,
 }: {
   data: TableData;
   currentUserId: string;
   currentUserGrade: number;
   currentUserIsManager: boolean;
+  viewGender: Gender;
 }) {
+  const allRows = data.grades.flatMap((g) => g.rows.map((r) => ({ ...r, grade: g.grade })));
+  const order = useMemberRowOrder(currentUserId, viewGender, allRows);
   // API は学年ごとに返すので、マネージャーはここで抜き出して1つにまとめる
-  const managers: ParticipationRow[] = data.grades
-    .flatMap((g) => g.rows)
-    .filter((r) => r.is_manager)
-    .sort((a, b) => a.name.localeCompare(b.name, "ja"));
+  const managers = order.sort(allRows.filter((r) => r.is_manager)
+    .sort((a, b) => b.grade - a.grade || a.name.localeCompare(b.name, "ja")));
 
   const gradeTabs = data.grades
     .map((g) => ({
       key: g.grade as TabKey,
       label: `${g.grade}年`,
-      rows: g.rows.filter((r) => !r.is_manager),
+      rows: order.sort(allRows.filter((r) => r.grade === g.grade && !r.is_manager)),
     }))
     .filter((t) => t.rows.length > 0);
 
-  const tabs: { key: TabKey; label: string; rows: ParticipationRow[] }[] = [
+  const tabs: { key: TabKey; label: string; rows: (ParticipationRow & { grade: number })[] }[] = [
     ...gradeTabs,
     ...(managers.length ? [{ key: MANAGER, label: "マネージャー", rows: managers }] : []),
     // 日ごとの学年別人数を横断して見るタブ (D-041)
@@ -70,6 +74,7 @@ export function ParticipationTable({
     <section className="rounded-3xl bg-white p-5 shadow-sm">
       <h2 className="font-bold text-gray-900">練習参加表</h2>
       <p className="mt-0.5 text-sm text-gray-500">誰がどの日に参加するかの一覧</p>
+      {order.error && <p role="status" className="mt-1 text-xs text-amber-700">{order.error}</p>}
 
       {/* グループの切り替え。スマホ幅で入り切らないときは折り返して、
           最後の「集計」が画面外に隠れないようにする */}
@@ -211,8 +216,10 @@ export function ParticipationTable({
               // 自分の行の色を優先し、それ以外で選択中なら青にする
               const rowBg = isMe ? "bg-accent-50" : rowPicked ? "bg-sky-50" : "";
               return (
-                <tr key={row.user_id} className={rowBg || undefined}>
+                <tr key={row.user_id} {...order.rowProps(row, `participation:${active}`)} className={rowBg || undefined}>
                   <td className={`sticky left-0 whitespace-nowrap p-0 ${rowBg || "bg-white"}`}>
+                    <div className="flex items-center">
+                    <RowOrderHandle name={row.name} {...order.handleProps(row, `participation:${active}`, current.rows)} />
                     <button
                       type="button"
                       onClick={() => setPickedRow(rowPicked ? null : row.user_id)}
@@ -226,6 +233,7 @@ export function ParticipationTable({
                     >
                       {row.name}
                     </button>
+                    </div>
                   </td>
                   {practiceIds.map((pid) => {
                     const colPicked = pid === pickedCol;
@@ -292,7 +300,7 @@ export function ParticipationTable({
       <p className="mt-3 text-xs text-gray-400">
         {active === SUMMARY
           ? "日付をタップすると、その行に色が付きます"
-          : "名前や日付をタップすると、その行・列に色が付きます"}
+          : "名前や日付で強調表示。名前横のつまみを動かすと同学年内で並べ替えできます（このブラウザに保存）"}
       </p>
     </section>
   );

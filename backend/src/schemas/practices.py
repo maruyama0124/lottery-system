@@ -111,7 +111,8 @@ class PracticeSuggestion(BaseModel):
 class VoteStatus(BaseModel):
     practice_month_id: str
     voted_practice_ids: list[str]
-    editable: bool  # 締切前かどうか
+    locked_practice_ids: list[str] = Field(default_factory=list)
+    editable: bool  # 受付期間・本人・対象日・公開状態を確認した変更可否
 
 
 class VoteUpdateRequest(BaseModel):

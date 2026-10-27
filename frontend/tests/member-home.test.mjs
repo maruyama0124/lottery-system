@@ -87,6 +87,40 @@ test("publication changes during loading do not mix unpublished and public data"
     assert.equal(result.participation !== null, becamePublished);
   }
 });
+test("published open-window home fetches votes and public results together", async () => {
+  const data = home();
+  Object.assign(data.detail, { vote_starts_at: '2000-01-01T00:00:00Z', vote_ends_at: '2099-01-01T00:00:00Z' });
+  data.voteStatus.locked_practice_ids = ['fixed'];
+  const calls = [];
+  const result = await loadMemberHome(async (path) => {
+    calls.push(path);
+    if (path.endsWith('users/me')) return user;
+    if (path.includes('?')) return data.months;
+    if (path.endsWith('votes/me')) return data.voteStatus;
+    if (path.endsWith('results/me')) return data.myResults;
+    if (path.endsWith('participation')) return data.participation;
+    return data.detail;
+  }, 'male', null);
+  assert.equal(calls.length, 6);
+  assert.ok(calls.includes('/v1/practice-months/m1/votes/me'));
+  assert.equal(result.voteStatus.editable, true);
+  assert.equal(result.voteStatus.locked_practice_ids[0], 'fixed');
+  assert.ok(result.myResults && result.participation);
+});
+test("published month whose window reopens during loading still gets current votes", async () => {
+  const data = home();
+  const month = { ...data.detail, vote_starts_at: '2000-01-01T00:00:00Z', vote_ends_at: '2001-01-01T00:00:00Z' };
+  const detail = { ...month, vote_ends_at: '2099-01-01T00:00:00Z' };
+  const result = await loadMemberHome(async (path) => {
+    if (path.endsWith('users/me')) return user;
+    if (path.includes('?')) return [month];
+    if (path.endsWith('votes/me')) return data.voteStatus;
+    if (path.endsWith('results/me')) return data.myResults;
+    if (path.endsWith('participation')) return data.participation;
+    return detail;
+  }, 'male', null);
+  assert.equal(result.voteStatus.editable, true);
+});
 test("blocked or full browser storage still allows fresh data to display", async () => {
   const { store } = setup(async () => home(), { getItem() { throw new Error("blocked"); }, setItem() { throw new Error("quota"); }, removeItem() { throw new Error("blocked"); } });
   await store.refresh();

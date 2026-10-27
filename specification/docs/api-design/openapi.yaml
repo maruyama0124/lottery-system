@@ -936,7 +936,11 @@ components:
         voted_practice_ids:
           type: array
           items: { type: string }
-        editable: { type: boolean, description: 締切前かどうか }
+        locked_practice_ids:
+          type: array
+          items: { type: string }
+          description: 確定済みで投票変更できない練習日ID。既存投票を維持して送信する
+        editable: { type: boolean, description: 受付期間内かつ本人が投票できる未固定日があるか。通常の公開済み月はfalse }
 
     VoteUpdateRequest:
       type: object
