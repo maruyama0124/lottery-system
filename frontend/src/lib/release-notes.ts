@@ -15,6 +15,10 @@ export interface ReleaseNote {
 
 export const releaseNotes: readonly ReleaseNote[] = [
   {
+    id: "D-067", category: "使い方", title: "管理画面から投票画面へ移動",
+    changes: ["各管理画面の右上にある「投票画面へ」から、自分の投票・結果画面へ移動できます。"],
+  },
+  {
     id: "D-066", category: "お知らせ", title: "更新履歴を代表画面に追加",
     changes: [
       "下部メニューの「更新」から変更履歴を確認できます。"

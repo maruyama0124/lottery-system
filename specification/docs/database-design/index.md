@@ -10,7 +10,7 @@ derived_by:
 - api-design/index.md
 sync_hash: c60d9e4e6002
 dependency_hashes:
-  requirements/index.md: 8ee4d7df8a9f
+  requirements/index.md: 3c46150c119a
 ---
 
 # DB設計書 — サークル練習参加抽選システム

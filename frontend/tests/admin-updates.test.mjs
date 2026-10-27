@@ -107,3 +107,24 @@ test('maintainer rules keep release notes in sync with future user-facing change
     assert.match(readFileSync(file,'utf8'),/利用者に影響する.*frontend\/src\/lib\/release-notes\.ts/);
   }
 });
+
+test('shared admin header links representatives to voting without changing bottom tabs',()=>{
+  for(const gender of ['male','female']){
+    const {AdminHeader}=load('src/components/admin/header.tsx',{
+      'next/link':{default:({children,...props})=>React.createElement('a',props,children)},
+      '@/lib/auth-context':{useAuth:()=>({user:{role:'representative',gender}})},
+      '@/components/ui/icons':{VoteIcon:()=>React.createElement('svg',{'aria-hidden':true})},
+    });
+    const html=renderToStaticMarkup(React.createElement(AdminHeader,{title:'アップデート履歴'}));
+    assert.match(html,/<a[^>]*href="\/"[^>]*>.*投票画面へ<\/a>/);
+    assert.match(html,/flex-wrap/);assert.match(html,/shrink-0/);
+  }
+  for(const user of [null,{role:'member',gender:'male'}]){
+    const {AdminHeader}=load('src/components/admin/header.tsx',{
+      'next/link':{default:({children,...props})=>React.createElement('a',props,children)},
+      '@/lib/auth-context':{useAuth:()=>({user})},
+      '@/components/ui/icons':{VoteIcon:()=>null},
+    });
+    assert.doesNotMatch(renderToStaticMarkup(React.createElement(AdminHeader,{title:'管理'})),/投票画面へ/);
+  }
+});

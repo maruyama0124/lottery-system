@@ -2,15 +2,15 @@
 hide:
 - navigation
 doc_type: ui-design
-version: 2.15.1
+version: 2.16.0
 last_updated: '2026-10-27'
 depends_on:
 - requirements/index.md
 - api-design/index.md
 derived_by: []
-sync_hash: 4f2386a7b08c
+sync_hash: 4d56e109e1c1
 dependency_hashes:
-  requirements/index.md: 8ee4d7df8a9f
+  requirements/index.md: 3c46150c119a
   api-design/index.md: 153493a5b5a6
 ---
 
@@ -71,6 +71,8 @@ dependency_hashes:
 代表用の下部タブは「ホーム・日程・抽選・結果・更新」の順とし、5項目を均等幅で表示する (D-066)。選択中のタブに `aria-current="page"` を付ける。「更新」は時計アイコンを使用し、遷移先で「アップデート履歴」を表示する。カテゴリと見出し、変更内容をカードで並べ、最新項目だけ「最新」を表示する。抽選除外機能 (D-053) からの変更を新しい順に掲載し、公開日不明の項目に日付は付けない。メンバーの下部メニューは変えない。代表認証の確認中や一般メンバーには本文を描画しない。履歴は静的データであり、追加のDB通信を行わない。
 
 ## 2. 画面遷移図
+
+すべての代表画面の共通ヘッダー右側に「投票画面へ」を置き、`/` の本人向け投票・結果画面へ移動できるようにする (D-067)。ログイン状態と代表権限は維持し、下部5タブは変更しない。狭い幅では見出しを折り返してリンクの操作領域を確保する。
 
 更新履歴では男女日程の登録・編集に関するD-060〜D-063を1枚のカードにまとめ、関連する複数のDecision Logとの対応を維持する。人数設定など別の変更は別カードで表示する (D-066)。
 

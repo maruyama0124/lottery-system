@@ -1,5 +1,10 @@
 # 画面定義 — サークル練習参加抽選システム
 # 全画面モバイルファースト（D-009: 代表もスマホ利用前提）
+admin-common-header:
+  decisions: ["D-067"]
+  actions:
+    - { id: to-member-home, type: link, label: "投票画面へ", destination: "/", visibility: "ログイン中の代表のみ" }
+  layout: "見出しは折り返し可、投票へのリンクは右側で操作領域を維持"
 screens:
   admin-updates:
     name: "アップデート履歴"
