@@ -13,7 +13,13 @@ const notoSansJP = Noto_Sans_JP({
 });
 
 export const metadata: Metadata = {
-  title: "練習抽選bot クエーさん",
+  title: "クエーさん",
+  applicationName: "クエーさん",
+  appleWebApp: {
+    title: "クエーさん",
+    // 今回は表示名のみ変更し、起動モードは変更しない。
+    capable: false,
+  },
   description: "バレーボールサークルの練習参加抽選システム",
 };
 

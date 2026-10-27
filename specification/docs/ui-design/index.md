@@ -2,19 +2,21 @@
 hide:
 - navigation
 doc_type: ui-design
-version: 2.7.0
+version: 2.9.0
 last_updated: '2026-10-27'
 depends_on:
 - requirements/index.md
 - api-design/index.md
 derived_by: []
-sync_hash: 76cae6886ccf
+sync_hash: f324f042bcbb
 dependency_hashes:
-  requirements/index.md: 8248ab183e0f
+  requirements/index.md: 19eea300c404
   api-design/index.md: f773ad72e6f1
 ---
 
 # 画面設計書 — サークル練習参加抽選システム
+
+ブラウザ・ホーム画面追加時の推奨表示名は「クエーさん」とする (D-058)。Apple向けタイトルも設定するが、起動モードや画面内の既存見出しは変更しない。アイコンは既存Quasarコンポーネントのnormal表情を淡いミント色の正方形に配置したものを使う (D-059)。iPhone用180px・汎用512pxのPNGと、ブラウザ用16/32/48px入りICOを用意する。
 
 ## 1. 画面一覧
 
