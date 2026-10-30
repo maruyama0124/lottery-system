@@ -2,19 +2,21 @@
 hide:
 - navigation
 doc_type: ui-design
-version: 2.17.0
+version: 2.18.0
 last_updated: '2026-10-30'
 depends_on:
 - requirements/index.md
 - api-design/index.md
 derived_by: []
-sync_hash: 2f3cfb5eded3
+sync_hash: a23570c229c5
 dependency_hashes:
-  requirements/index.md: c5d87f6cd666
+  requirements/index.md: da22ab9916ea
   api-design/index.md: d8f067ce960b
 ---
 
 # 画面設計書 — サークル練習参加抽選システム
+
+メンバーホームのホーム画面追加ガイドは、案内リンクと区切った下段に「今後表示しない（このブラウザ）」チェックを置く (D-069)。チェックすると案内全体を非表示とし、ブラウザのlocalStorageで次回以降も保持する。保存不可時は利用中のみ非表示とする。非表示設定が読めるまで案内を表示しない。投票・参加表の操作には影響せず、代表向け更新履歴には掲載しない。
 
 ブラウザ・ホーム画面追加時の推奨表示名は「クエーさん」とする (D-058)。Apple向けタイトルも設定するが、起動モードや画面内の既存見出しは変更しない。アイコンは既存Quasarコンポーネントのnormal表情を淡いミント色の正方形に配置したものを使う (D-059)。iPhone用180px・汎用512pxのPNGと、ブラウザ用16/32/48px入りICOを用意する。
 

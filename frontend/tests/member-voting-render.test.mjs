@@ -42,6 +42,7 @@ function setup({ editable = true, open = true, observer = false, own = true } = 
     if (name === 'next/link') return { default:({children,...props})=>React.createElement('a',props,children), __esModule:true };
     if (name === '@/components/quasar') return {Quasar:()=>null};
     if (name === '@/components/member/participation-table') return {ParticipationTable:()=>null};
+    if (name === '@/components/member/home-screen-guide') return {HomeScreenGuide:()=>null};
     if (name === '@/components/ui/loading') return {Loading:()=>null};
     if (name === '@/components/ui/error-message') return {ErrorMessage:({message})=>React.createElement('p',null,message)};
     return require(name);
