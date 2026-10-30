@@ -15,6 +15,10 @@ export interface ReleaseNote {
 
 export const releaseNotes: readonly ReleaseNote[] = [
   {
+    id: "D-068", category: "お知らせ", title: "どちらの代表も男女両方を管理可能に",
+    changes: ["管理画面で男女を切り替え、日程・抽選・微調整・公開・設定を操作できます。"],
+  },
+  {
     id: "D-067", category: "使い方", title: "管理画面から投票画面へ移動",
     changes: ["各管理画面の右上にある「投票画面へ」から、自分の投票・結果画面へ移動できます。"],
   },

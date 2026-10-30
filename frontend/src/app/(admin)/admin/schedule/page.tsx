@@ -3,6 +3,7 @@
 // 練習日程管理 — 月の作成・投票期間・練習日の追加/編集/削除 (D-009)
 import { useState } from "react";
 import { AdminHeader } from "@/components/admin/header";
+import { useAdminGender, useAdminGenderLock } from "@/components/admin/gender-scope";
 import {
   ClockIcon,
   CopyIcon,
@@ -374,6 +375,7 @@ function PracticeCard({
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<PracticeFormValues>(practiceToForm(practice));
   const [busy, setBusy] = useState(false);
+  useAdminGenderLock(busy);
   const [error, setError] = useState<string | null>(null);
 
   const [genderContext, setGenderContext] = useState<PracticeGenderEdit | null>(null);
@@ -546,6 +548,7 @@ function NewMonthForm({
   const [voteEnd, setVoteEnd] = useState("");
   const [practices, setPractices] = useState<(PracticeFormValues & { target: GenderTarget })[]>([]);
   const [busy, setBusy] = useState(false);
+  useAdminGenderLock(busy);
   const [error, setError] = useState<string | null>(null);
   // 送信前に内容を一覧で見せる確認ステップ (D-016)
   const [confirming, setConfirming] = useState(false);
@@ -801,6 +804,7 @@ function VotePeriodForm({
   const [voteStart, setVoteStart] = useState(isoToDateInput(month.vote_starts_at));
   const [voteEnd, setVoteEnd] = useState(isoToDateInput(month.vote_ends_at));
   const [busy, setBusy] = useState(false);
+  useAdminGenderLock(busy);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -878,8 +882,7 @@ function VotePeriodForm({
 
 export default function AdminSchedulePage() {
   const { user, isLoading: authLoading } = useRequireRepresentative();
-  const [viewGender, setViewGender] = useState<Gender | null>(null);
-  const gender = viewGender ?? user?.gender ?? "male";
+  const { gender, setGender: setViewGender } = useAdminGender();
   const otherGender: Gender = gender === "male" ? "female" : "male";
   const {
     data: months,
@@ -898,6 +901,7 @@ export default function AdminSchedulePage() {
   const [addBusy, setAddBusy] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [addTarget, setAddTarget] = useState<GenderTarget | null>(null);
+  useAdminGenderLock(addBusy || creating);
 
   // 未選択時は先頭の月を表示する
   const resolvedId = selectedId ?? months?.[0]?.id ?? null;
@@ -910,7 +914,7 @@ export default function AdminSchedulePage() {
   } = useApi<PracticeMonthDetail>(resolvedId ? `/v1/practice-months/${resolvedId}` : null);
 
   // 過去の登録実績（場所・時刻）。入力の手間を減らすため。
-  const { data: suggestions } = useApi<PracticeSuggestion[]>("/v1/practices/suggestions");
+  const { data: suggestions } = useApi<PracticeSuggestion[]>(`/v1/practices/suggestions?gender=${gender}`);
 
   if (authLoading || !user) {
     return (
@@ -949,15 +953,6 @@ export default function AdminSchedulePage() {
     <>
       <AdminHeader title="練習日程管理" />
       <main className="space-y-6 px-4 py-4">
-        <div className="flex gap-2" aria-label="表示する性別">
-          {(["male", "female"] as const).map((g) => (
-            <button key={g} type="button" disabled={addBusy || creating} aria-pressed={gender === g}
-              onClick={() => { setViewGender(g); setSelectedId(null); setAdding(false); setAddTarget(null); setAddError(null); }}
-              className={`flex-1 rounded-lg border py-2 text-sm font-bold disabled:opacity-50 ${gender === g ? "border-brand-600 bg-brand-50 text-brand-700" : "border-gray-300 text-gray-500"}`}>
-              {targetLabel(g)}の日程
-            </button>
-          ))}
-        </div>
         {monthsLoading ? (
           <Loading />
         ) : monthsError ? (
@@ -1024,11 +1019,11 @@ export default function AdminSchedulePage() {
                   <span className="text-xs text-gray-500">代表: {user.name}</span>
                 </div>
 
-                {detail.gender === user.gender ? <VotePeriodForm
+                <VotePeriodForm
                   key={detail.id}
                   month={detail}
                   onSaved={() => mutateDetail()}
-                /> : <p className="rounded-lg bg-gray-50 p-3 text-sm text-gray-600">練習日の追加・編集・男女変更ができます。単独の削除・投票期間の変更と抽選は、担当の代表が行います。</p>}
+                />
 
                 <section>
                   <h3 className="mb-2 text-sm font-bold text-gray-900">
@@ -1039,7 +1034,6 @@ export default function AdminSchedulePage() {
                       <PracticeCard
                         key={p.id}
                         practice={p}
-                        readOnly={detail.gender !== user.gender}
                         onUpdated={() => { mutateDetail(); mutateOtherMonths(); }}
                         suggestions={suggestions}
                         yearMonth={detail.year_month}

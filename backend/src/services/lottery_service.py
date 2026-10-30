@@ -534,13 +534,13 @@ class LotteryService:
     # ---------- 微調整 (REQ-006.3) ----------
 
     def _lock_adjustment_month(self, rep: User, pm_id: str) -> PracticeMonth:
+        if rep.role != "representative":
+            raise ForbiddenError("代表権限が必要です")
         pm = self.db.scalar(select(PracticeMonth).where(
             PracticeMonth.id == pm_id, PracticeMonth.is_deleted.is_(False)
         ).with_for_update().execution_options(populate_existing=True))
         if pm is None:
             raise NotFoundError("月別練習が見つかりません")
-        if pm.gender != rep.gender:
-            raise ForbiddenError("担当性別以外の月別練習は操作できません")
         return pm
 
     def save_assignments(self, rep: User, pm_id: str, data: AssignmentBatchRequest) -> None:
@@ -569,7 +569,7 @@ class LotteryService:
                 raise NotFoundError("メンバーが見つかりません")
             for user in users.values():
                 if user.gender != pm.gender or user.is_observer:
-                    raise ForbiddenError("担当性別の参加対象メンバー以外は割当できません")
+                    raise ForbiddenError("対象月と同じ性別の参加対象メンバーのみ割当できます")
             rows = self.repo.list_assignments_for_update(practice_ids)
             active = {(a.practice_id, a.user_id): a for a in rows if not a.is_deleted}
             deleted = {(a.practice_id, a.user_id): a for a in rows if a.is_deleted}
@@ -621,7 +621,7 @@ class LotteryService:
             practice = self.practices.get(practice_id)
             if practice is None:
                 raise NotFoundError("練習日が見つかりません")
-            self.practice_service.get_month_for_rep(rep, practice.practice_month_id)
+            pm = self.practice_service.get_month_for_rep(rep, practice.practice_month_id)
             self._lock_adjustment_month(rep, practice.practice_month_id)
             self.db.refresh(practice, with_for_update=True)
             if practice.is_assignment_locked:
@@ -630,8 +630,8 @@ class LotteryService:
             target = self.users.get_by_id(user_id)
             if target is None:
                 raise NotFoundError("メンバーが見つかりません")
-            if target.gender != rep.gender:
-                raise ForbiddenError("担当性別以外のメンバーは割当できません")
+            if target.gender != pm.gender:
+                raise ForbiddenError("練習月と異なる性別のメンバーは割当できません")
     
             existing = self.repo.list_assignments([practice_id])
             current = next((a for a in existing if a.user_id == user_id), None)

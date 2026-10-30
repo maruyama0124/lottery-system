@@ -111,6 +111,7 @@ test('maintainer rules keep release notes in sync with future user-facing change
 test('shared admin header links representatives to voting without changing bottom tabs',()=>{
   for(const gender of ['male','female']){
     const {AdminHeader}=load('src/components/admin/header.tsx',{
+      './gender-scope':{AdminGenderSelector:()=>null},
       'next/link':{default:({children,...props})=>React.createElement('a',props,children)},
       '@/lib/auth-context':{useAuth:()=>({user:{role:'representative',gender}})},
       '@/components/ui/icons':{VoteIcon:()=>React.createElement('svg',{'aria-hidden':true})},
@@ -121,6 +122,7 @@ test('shared admin header links representatives to voting without changing botto
   }
   for(const user of [null,{role:'member',gender:'male'}]){
     const {AdminHeader}=load('src/components/admin/header.tsx',{
+      './gender-scope':{AdminGenderSelector:()=>null},
       'next/link':{default:({children,...props})=>React.createElement('a',props,children)},
       '@/lib/auth-context':{useAuth:()=>({user})},
       '@/components/ui/icons':{VoteIcon:()=>null},

@@ -126,7 +126,7 @@ def test_batch_auth_scope_and_empty_payload(client, make_user, batch_setup):
     _, member_token = make_user()
     _, foreign_token = make_user(role="representative", gender="female")
     assert save(client, member_token, pm, changes).status_code == 403
-    assert save(client, foreign_token, pm, changes).status_code == 403
+    assert save(client, foreign_token, pm, changes).status_code == 204
     assert client.put(f"/api/v1/practice-months/{pm['id']}/assignments", json=body(pm, changes)).status_code == 401
     assert save(client, token, pm, []).status_code == 400
 

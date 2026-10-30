@@ -3,6 +3,7 @@
 // 管理ホーム — 今月の進行状況・投票状況・次のアクション・メニュー (D-009)
 import Link from "next/link";
 import { AdminHeader } from "@/components/admin/header";
+import { useAdminGender } from "@/components/admin/gender-scope";
 import {
   ChevronRightIcon,
   DicesIcon,
@@ -229,13 +230,14 @@ function MenuList() {
 }
 
 export default function AdminHomePage() {
+  const { gender } = useAdminGender();
   const { user, isLoading: authLoading } = useRequireRepresentative();
   const {
     data: months,
     error: monthsError,
     isLoading: monthsLoading,
     mutate: mutateMonths,
-  } = useApi<PracticeMonth[]>("/v1/practice-months");
+  } = useApi<PracticeMonth[]>(user ? `/v1/practice-months?gender=${gender}` : null);
   const currentMonth = months?.[0];
   const {
     data: detail,

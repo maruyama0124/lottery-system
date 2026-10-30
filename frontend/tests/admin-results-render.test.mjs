@@ -47,6 +47,7 @@ function render(patch = {}, monthAvailable = true) {
   const context = {
     exports: {},
     require(name) {
+      if (name === "@/components/admin/gender-scope") return { useAdminGender: () => ({ gender: "male" }), useAdminGenderLock: () => {} };
       if (name === "@/hooks/use-result-adjustments") return { useResultAdjustments: () => state };
       if (name === "@/hooks/use-member-row-order") return { useMemberRowOrder: () => ({
         sort: (rows) => [...rows], rowProps: () => ({}), handleProps: () => ({}), error: null,
@@ -54,7 +55,7 @@ function render(patch = {}, monthAvailable = true) {
       if (name === "@/components/ui/row-order-handle") return { RowOrderHandle: () => null };
       if (name === "@/hooks/use-auth") return { useRequireRepresentative: () => ({ user: { role: "representative" }, isLoading: false }) };
       if (name === "@/hooks/use-api") return { useApi: (path) => ({
-        data: path === "/v1/practice-months" ? [pm]
+        data: path === "/v1/practice-months?gender=male" ? [pm]
           : path?.includes("/users?") ? { items: [] } : monthAvailable ? pm : undefined,
         mutate: async () => {},
       }) };

@@ -3,6 +3,7 @@
 // 設定 — 抽選設定・代表権限の引き継ぎ・メンバーの無効化 (D-009)
 import { useState } from "react";
 import { AdminHeader } from "@/components/admin/header";
+import { useAdminGender, useAdminGenderLock } from "@/components/admin/gender-scope";
 import { ErrorMessage } from "@/components/ui/error-message";
 import { Loading } from "@/components/ui/loading";
 import { apiClient, ApiClientError } from "@/lib/api-client";
@@ -31,8 +32,10 @@ function SuccessMessage({ text }: { text: string }) {
 // ---------- セクション1: 抽選設定 ----------
 
 function AlphaForm({ initial }: { initial: string | number }) {
+  const { gender } = useAdminGender();
   const [alpha, setAlpha] = useState(String(initial));
   const [busy, setBusy] = useState(false);
+  useAdminGenderLock(busy);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -41,7 +44,7 @@ function AlphaForm({ initial }: { initial: string | number }) {
     setSaved(false);
     setSaveError(null);
     try {
-      await apiClient.put<LotterySettings>("/v1/settings", {
+      await apiClient.put<LotterySettings>(`/v1/settings?gender=${gender}`, {
         rescue_alpha: Number(alpha),
       });
       setSaved(true);
@@ -85,7 +88,8 @@ function AlphaForm({ initial }: { initial: string | number }) {
 }
 
 function LotterySettingsSection() {
-  const { data, error, isLoading, mutate } = useApi<LotterySettings>("/v1/settings");
+  const { gender } = useAdminGender();
+  const { data, error, isLoading, mutate } = useApi<LotterySettings>(`/v1/settings?gender=${gender}`);
 
   return (
     <section className="rounded-xl border border-gray-200 p-4 shadow-sm">
@@ -118,6 +122,7 @@ function TransferSection({
 }) {
   const [selectedId, setSelectedId] = useState("");
   const [busy, setBusy] = useState(false);
+  useAdminGenderLock(busy);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -187,6 +192,7 @@ function DeactivateSection({
 }) {
   const [selectedId, setSelectedId] = useState("");
   const [busy, setBusy] = useState(false);
+  useAdminGenderLock(busy);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -271,8 +277,7 @@ export default function AdminSettingsPage() {
   const members = (roster?.items ?? []).filter(
     (u) => u.role === "member" && u.id !== user.id,
   );
-  // 権限付与は男女全体 (D-040)。無効化は担当性別のみ (NFR-002.4)
-  const sameGender = members.filter((u) => u.gender === user.gender);
+  // 権限付与・無効化とも男女全体 (D-068)。候補には性別を併記する。
 
   return (
     <>
@@ -287,7 +292,7 @@ export default function AdminSettingsPage() {
         ) : (
           <>
             <TransferSection members={members} onChanged={() => mutateRoster()} />
-            <DeactivateSection members={sameGender} onChanged={() => mutateRoster()} />
+            <DeactivateSection members={members} onChanged={() => mutateRoster()} />
           </>
         )}
 

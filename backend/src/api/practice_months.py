@@ -127,9 +127,11 @@ def add_practice(
 
 
 @router.get("/practices/suggestions", response_model=list[PracticeSuggestion])
-def list_practice_suggestions(rep: Representative, db: DbDep) -> list[PracticeSuggestion]:
-    """よく使う練習の組み合わせ（担当性別の過去実績から）(D-014)"""
-    rows = PracticeRepository(db).suggestions(rep.gender)
+def list_practice_suggestions(rep: Representative, db: DbDep,
+    gender: Annotated[str | None, Query(pattern=r"^(male|female)$")] = None,
+) -> list[PracticeSuggestion]:
+    """よく使う練習の組み合わせ（選択性別の過去実績から）(D-068)"""
+    rows = PracticeRepository(db).suggestions(gender or rep.gender)
     return [
         PracticeSuggestion(
             location=location,

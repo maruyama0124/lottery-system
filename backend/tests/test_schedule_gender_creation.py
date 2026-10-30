@@ -1,4 +1,4 @@
-"""代表による男女別・男女同時の作成。抽選と既存編集の担当性別は維持する。"""
+"""代表による男女別・男女同時の作成。男女双方の管理を許可する (D-068)。"""
 from unittest.mock import patch
 
 import pytest
@@ -74,13 +74,14 @@ def test_both_creation_preserves_independent_scope(client, make_user, db_session
     edited = {**month_body(practices=1)['practices'][0], 'capacity': 12}
     assert client.put(f"/api/v1/practices/{male_p['id']}", json=edited, headers=auth_header(token)).status_code == 204
     assert db_session.get(Practice,female_p['id']).capacity == 30
-    assert client.put(f"/api/v1/practices/{female_p['id']}", json=edited, headers=auth_header(token)).status_code == 403
-    assert client.delete(f"/api/v1/practices/{female_p['id']}?force=true", headers=auth_header(token)).status_code == 403
-    assert client.put(f"/api/v1/practice-months/{female['id']}", json={'vote_ends_at':female['vote_ends_at']}, headers=auth_header(token)).status_code == 403
-    assert client.post(f"/api/v1/practice-months/{female['id']}/lottery", json={}, headers=auth_header(token)).status_code == 403
-    assert client.post(f"/api/v1/practice-months/{female['id']}/publish", headers=auth_header(token)).status_code == 403
+    assert client.put(f"/api/v1/practices/{female_p['id']}", json=edited, headers=auth_header(token)).status_code == 204
+    assert client.put(f"/api/v1/practice-months/{female['id']}", json={'vote_ends_at':female['vote_ends_at']}, headers=auth_header(token)).status_code == 204
+    # 代表として到達できるが、抽選前・投票期間中などの業務制約は維持する。
+    assert client.post(f"/api/v1/practice-months/{female['id']}/lottery", json={}, headers=auth_header(token)).status_code == 409
+    assert client.post(f"/api/v1/practice-months/{female['id']}/publish", headers=auth_header(token)).status_code == 409
     _, member = make_user(gender='male')
     assert client.put(f"/api/v1/practice-months/{female['id']}/votes/me", json={'practice_ids':[female_p['id']]}, headers=auth_header(member)).status_code == 403
+    assert client.delete(f"/api/v1/practices/{female_p['id']}?force=true", headers=auth_header(token)).status_code == 204
 
 
 @pytest.mark.parametrize('genders', [[], ['male','male'], ['female','female'], ['other'], ['male','female','male']])

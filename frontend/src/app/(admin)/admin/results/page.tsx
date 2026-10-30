@@ -3,6 +3,7 @@
 // 結果・微調整画面（代表のみ） — ui-design/snippets/admin-results-mobile.html 準拠
 import { Fragment, useState } from "react";
 import { AdminHeader } from "@/components/admin/header";
+import { useAdminGender, useAdminGenderLock } from "@/components/admin/gender-scope";
 import { ErrorMessage } from "@/components/ui/error-message";
 import {
   ChevronDownIcon,
@@ -43,10 +44,11 @@ function formatYearMonth(ym: string): string {
 type Tab = "practice" | "member" | "matrix";
 
 export default function AdminResultsPage() {
+  const { gender } = useAdminGender();
   const { user, isLoading: authLoading } = useRequireRepresentative();
 
   const { data: months, error: monthsError } = useApi<PracticeMonth[]>(
-    user ? "/v1/practice-months" : null,
+    user ? `/v1/practice-months?gender=${gender}` : null,
   );
   // 過去の月の結果も見られるようにする (既定は最新月)
   const [selectedMonthId, setSelectedMonthId] = useState<string | null>(null);
@@ -57,11 +59,12 @@ export default function AdminResultsPage() {
   );
   const adjustments = useResultAdjustments(monthId);
   const { results, store, syncing, syncError, needsSync, publishing, saving, dirtyChanges, savedChanges, saveError } = adjustments;
+  useAdminGenderLock(saving || syncing || publishing || needsSync);
   const resultsError = adjustments.loadError;
   const isCellBusy = (practiceId: string, userId: string) =>
     !pm || pm.id !== monthId || store.isCellBusy(practiceId, userId);
 
-  // 追加用メンバー候補（自性別）
+  // 追加用メンバー候補（管理対象月の性別）
   const { data: roster } = useApi<RosterPage>(
     pm ? `/v1/users?per_page=200&gender=${pm.gender}` : null,
   );

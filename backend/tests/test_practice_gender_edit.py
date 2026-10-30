@@ -88,8 +88,7 @@ def test_stale_context_and_new_counterpart_are_rejected(client, make_user, db_se
     assert client.put(path,json=request,headers=header).status_code==409
     request['expected_versions']=client.get(path,headers=header).json()['versions']
     female_month=next(m for m in months if m['gender']=='female')
-    assert client.post(f"/api/v1/practice-months/{female_month['id']}/practices", json=request['practice'],headers=header).status_code==403
-    assert client.post('/api/v1/practices/batch',json={'year_month':'2026-08','genders':['female'],'practice':request['practice']},headers=header).status_code==201
+    assert client.post(f"/api/v1/practice-months/{female_month['id']}/practices", json=request['practice'],headers=header).status_code==201
     assert client.put(path,json=request,headers=header).status_code==409
 
 

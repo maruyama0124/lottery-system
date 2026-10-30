@@ -1,5 +1,5 @@
 """メンバー・名簿サービス (REQ-002, REQ-007)"""
-from sqlalchemy import func, select
+from sqlalchemy import func, select, Select
 from sqlalchemy.orm import Session
 
 from src.core.errors import ForbiddenError, NotFoundError
@@ -11,7 +11,7 @@ def _roster_stmt(
     grade: int | None, is_manager: bool | None, gender: str | None, q: str | None
 ):
     # 閲覧専用アカウント (D-039) は名簿・追加候補のどこにも出さない
-    stmt = select(User).where(User.is_deleted.is_(False), User.is_observer.is_(False))
+    stmt: Select[tuple[User]] = select(User).where(User.is_deleted.is_(False), User.is_observer.is_(False))
     if grade is not None:
         stmt = stmt.where(User.grade == grade)
     if is_manager is not None:
@@ -45,20 +45,19 @@ class UserService:
         return rows, total
 
     def _get_target_in_scope(self, rep: User, user_id: str) -> User:
-        """操作系は担当性別のみ (NFR-002.4)"""
+        """代表は男女双方のメンバーを管理できる (D-068)。"""
+        if rep.role != "representative":
+            raise ForbiddenError("代表権限が必要です")
         target = self.users.get_by_id(user_id)
         if target is None:
             raise NotFoundError("メンバーが見つかりません")
-        if target.gender != rep.gender:
-            raise ForbiddenError("担当性別以外のメンバーは操作できません")
         return target
 
     def update_role(self, rep: User, user_id: str, role: str) -> None:
         """代表権限の付与・剥奪 (REQ-007.2)。
 
         名簿系と同様に男女全体を対象とする (D-040)。立ち上げ時に最初の代表が
-        両性別の代表を任命できるようにするため。退会 (deactivate) は従来どおり
-        担当性別のみ
+        両性別の代表を任命できるようにするため。退会も男女双方を対象とする (D-068)。
         """
         target = self.users.get_by_id(user_id)
         if target is None or target.is_deleted:

@@ -36,12 +36,12 @@ class PracticeService:
         return pm
 
     def get_month_for_rep(self, rep: User, pm_id: str) -> PracticeMonth:
-        """代表の操作系: 担当性別のみ (NFR-002.4)"""
+        """代表は男女双方の月を管理できる (D-068)。"""
+        if rep.role != "representative":
+            raise ForbiddenError("代表権限が必要です")
         pm = self.months.get(pm_id)
         if pm is None:
             raise NotFoundError("月別練習が見つかりません")
-        if pm.gender != rep.gender:
-            raise ForbiddenError("担当性別以外の月別練習は操作できません")
         return pm
 
     def list_months(

@@ -91,7 +91,7 @@ def test_member_can_view_but_not_vote_other_gender(client, make_user) -> None:
 
 
 def test_rep_gender_scope_on_update(client, make_user) -> None:
-    """NFR-002.4: 女子代表は男子の月を操作できない"""
+    """D-068: 女子代表も男子の月を操作できる"""
     _mrep, male_rep_token = make_user(role="representative", gender="male")
     pm = create_month(client, male_rep_token)
 
@@ -101,7 +101,7 @@ def test_rep_gender_scope_on_update(client, make_user) -> None:
         json={"vote_ends_at": "2026-08-09T23:59:00+09:00"},
         headers=auth_header(female_rep_token),
     )
-    assert res.status_code == 403
+    assert res.status_code == 204
 
 
 def test_update_month_and_practice_crud(client, make_user) -> None:

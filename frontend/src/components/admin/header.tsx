@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { VoteIcon } from "@/components/ui/icons";
+import { AdminGenderSelector } from "./gender-scope";
 
 export function AdminHeader({ title }: { title: string }) {
   const { user } = useAuth();
@@ -16,7 +17,7 @@ export function AdminHeader({ title }: { title: string }) {
         </span>
         {user && (
           <span className="text-xs text-gray-500">
-            {user.gender === "male" ? "男子" : "女子"}
+            男女共通の管理権限
           </span>
         )}
         </div>
@@ -27,6 +28,7 @@ export function AdminHeader({ title }: { title: string }) {
           </Link>
         )}
       </div>
+      {user?.role === "representative" && <AdminGenderSelector />}
     </header>
   );
 }

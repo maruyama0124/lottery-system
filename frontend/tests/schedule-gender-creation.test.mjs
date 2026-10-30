@@ -15,10 +15,11 @@ const male={id:'pm-male',gender:'male',year_month:'2026-08',status:'draft',vote_
 const female={...male,id:'pm-female',gender:'female'};
 const practice={id:'p-edit',practice_date:'2026-08-24',starts_at:'18:00',ends_at:'21:30',location:'体育館',capacity:30,allowed_grades:null,note:null,vote_count:0};
 class ApiError extends Error {constructor(message){super(message);this.error={message};}}
-function setup(component='NewMonthForm',{otherExists=true,fail=false,editorGenders=['male','female'],saveFail=false,loadFail=false}={}){
+function setup(component='NewMonthForm',{otherExists=true,fail=false,editorGenders=['male','female'],saveFail=false,loadFail=false,gender='male'}={}){
   let index=0;const states=[],calls=[],created=[];
   const exports={};
   vm.runInNewContext(code,{exports,Date,Number,Set,Map,require(name){
+    if(name==='@/components/admin/gender-scope')return{useAdminGender:()=>({gender,setGender:()=>{}}),useAdminGenderLock:()=>{}};
     if(name==='react')return{...React,useState(initial){const slot=index++;if(!(slot in states))states[slot]=typeof initial==='function'?initial():initial;return[states[slot],value=>{states[slot]=typeof value==='function'?value(states[slot]):value;}];}};
     if(name==='@/hooks/use-auth')return{useRequireRepresentative:()=>({user:{id:'rep',name:'代表',role:'representative',gender:'male'},isLoading:false})};
     if(name==='@/hooks/use-api')return{useApi:path=>({data:path?.includes('gender=male')?[male]:path?.includes('gender=female')?(otherExists?[female]:[]):path?.includes('pm-male')?male:path?.includes('pm-female')?female:[],mutate:async()=>{},isLoading:false})};
@@ -91,10 +92,10 @@ test('both addition is disabled when opposite-gender month does not exist',()=>{
   ui.set(p=>p.type==='date'&&!p.id,'2026-08-24');ui.set(p=>p.placeholder==='第一体育館','テスト体育館');
   assert.equal(ui.button('追加・更新する').props.disabled,true);assert.match(ui.html(),/先にその月を作成してください/);
 });
-test('opposite-gender viewing offers schedule editing, not vote-period editing',()=>{
-  const ui=setup('page');ui.button('女子の日程').props.onClick();
-  assert.ok(ui.button('＋ 練習日を追加'));assert.equal(ui.button('投票期間を保存'),undefined);
-  assert.match(ui.html(),/抽選は、担当の代表が行います/);
+test('opposite-gender management offers schedule and vote-period editing',()=>{
+  const ui=setup('page',{gender:'female'});
+  assert.ok(ui.button('＋ 練習日を追加'));assert.ok(ui.button('投票期間を保存'));
+  assert.doesNotMatch(ui.html(),/担当の代表が行います/);
 });
 
 test('existing editor fetches both genders and saves selection with versions in one PUT',async()=>{

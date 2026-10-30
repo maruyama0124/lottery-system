@@ -1,5 +1,5 @@
 """抽選設定エンドポイント (openapi.yaml: /settings, NFR-004.1)"""
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
@@ -15,16 +15,17 @@ DbDep = Annotated[Session, Depends(get_db)]
 
 
 @router.get("", response_model=LotterySettingsResponse)
-def get_settings(rep: Representative, db: DbDep) -> LotterySettingsResponse:
-    settings = LotteryRepository(db).get_or_create_settings(rep.gender)
+def get_settings(rep: Representative, db: DbDep, gender: Literal["male", "female"] | None = None) -> LotterySettingsResponse:
+    settings = LotteryRepository(db).get_or_create_settings(gender or rep.gender)
     return LotterySettingsResponse.model_validate(settings)
 
 
 @router.put("", status_code=status.HTTP_204_NO_CONTENT)
 def update_settings(
-    data: LotterySettingsUpdateRequest, rep: Representative, db: DbDep
+    data: LotterySettingsUpdateRequest, rep: Representative, db: DbDep,
+    gender: Literal["male", "female"] | None = None,
 ) -> Response:
-    settings = LotteryRepository(db).get_or_create_settings(rep.gender)
+    settings = LotteryRepository(db).get_or_create_settings(gender or rep.gender)
     settings.rescue_alpha = data.rescue_alpha
     db.flush()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

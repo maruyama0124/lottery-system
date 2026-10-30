@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { AdminHeader } from "@/components/admin/header";
+import { useAdminGender, useAdminGenderLock } from "@/components/admin/gender-scope";
 import { ErrorMessage } from "@/components/ui/error-message";
 import { CalendarDaysIcon, DicesIcon, TriangleAlertIcon } from "@/components/ui/icons";
 import { Loading } from "@/components/ui/loading";
@@ -87,10 +88,11 @@ function VoteBar({ practice }: { practice: PracticeVoteSummary }) {
 }
 
 export default function AdminLotteryPage() {
+  const { gender } = useAdminGender();
   const { user, isLoading: authLoading } = useRequireRepresentative();
 
   const { data: months, error: monthsError } = useApi<PracticeMonth[]>(
-    user ? "/v1/practice-months" : null,
+    user ? `/v1/practice-months?gender=${gender}` : null,
   );
   // 過去の月も選べるようにする (既定は最新月)
   const [selectedMonthId, setSelectedMonthId] = useState<string | null>(null);
@@ -111,6 +113,7 @@ export default function AdminLotteryPage() {
   const [executing, setExecuting] = useState(false);
   const [execError, setExecError] = useState<string | null>(null);
   const [lastExecution, setLastExecution] = useState<LotteryExecution | null>(null);
+  useAdminGenderLock(saving || executing);
 
   if (authLoading || !user) return <Loading />;
 

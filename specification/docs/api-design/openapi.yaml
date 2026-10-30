@@ -415,11 +415,13 @@ paths:
       tags: [practice-months]
       summary: よく使う練習の候補（履歴から）
       description: |
-        担当性別の過去の登録実績から「場所 + 開始/終了時刻」の組み合わせを
+        genderで選択した性別の過去の登録実績から「場所 + 開始/終了時刻」の組み合わせを
         利用回数の多い順に返す。日程登録時の入力を省くために使う (REQ-003.6 / D-014)。
 
         定員は組み合わせのキーに含めない（施設の空き状況で毎月変わるため）。
         `capacity` は互換用の履歴値（未設定ならnull）。新UIは初期値として使用しない (D-064)。
+      parameters:
+        - $ref: '#/components/parameters/ManagementGender'
       responses:
         '200':
           description: 候補一覧（最大10件）
@@ -767,7 +769,9 @@ paths:
   /settings:
     get:
       tags: [settings]
-      summary: 抽選設定の取得（代表のみ・担当性別）
+      summary: 抽選設定の取得（代表のみ・男女双方を管理可能）
+      parameters:
+        - $ref: '#/components/parameters/ManagementGender'
       responses:
         '200':
           description: 設定
@@ -780,6 +784,8 @@ paths:
     put:
       tags: [settings]
       summary: 落選救済係数 α の更新（代表のみ）
+      parameters:
+        - $ref: '#/components/parameters/ManagementGender'
       requestBody:
         required: true
         content:
@@ -800,6 +806,12 @@ components:
       bearerFormat: JWT
 
   parameters:
+    ManagementGender:
+      name: gender
+      in: query
+      required: false
+      description: 管理対象の性別。省略時は代表本人の性別 (D-068)。
+      schema: { type: string, enum: [male, female] }
     UserId:
       name: userId
       in: path
