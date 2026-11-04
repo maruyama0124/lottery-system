@@ -2,15 +2,15 @@
 hide:
 - navigation
 doc_type: database-design
-version: 1.8.0
-last_updated: '2026-10-27'
+version: 1.9.0
+last_updated: '2026-11-04'
 depends_on:
 - requirements/index.md
 derived_by:
 - api-design/index.md
-sync_hash: c60d9e4e6002
+sync_hash: 316ac73c8291
 dependency_hashes:
-  requirements/index.md: da22ab9916ea
+  requirements/index.md: d4fe39ccea49
 ---
 
 # DB設計書 — サークル練習参加抽選システム
@@ -125,7 +125,7 @@ D-064の移行 `c8d4e2a6b913` はcapacityのNULLと0を許可し、未固定・�
 | grade | integer | NOT NULL, CHECK (1〜3) | 学年 |
 | gender | varchar(10) | NOT NULL, CHECK (male / female) | 抽選グループの決定に使用 |
 | is_manager | boolean | NOT NULL, DEFAULT false | マネージャー区分（定員外・全参加） |
-| is_observer | boolean | NOT NULL, DEFAULT false | 閲覧専用（開発者・OB 等）。名簿・抽選・参加表のいずれにも出さず、投票もできない (D-039) |
+| is_observer | boolean | NOT NULL, DEFAULT false | 閲覧専用（開発者・OB・引退者等）。名簿・抽選の対象外で投票不可。公開済み割当がある月は結果・参加表に残す (D-039 / D-070) |
 | role | varchar(20) | NOT NULL, DEFAULT 'member' | member / representative（代表。担当範囲は自分の gender） |
 | is_deleted | boolean | NOT NULL, DEFAULT false | 退会（論理削除） |
 | created_at / updated_at | timestamptz | NOT NULL | — |

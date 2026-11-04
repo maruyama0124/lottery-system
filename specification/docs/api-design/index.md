@@ -2,20 +2,22 @@
 hide:
 - navigation
 doc_type: api-design
-version: 2.12.0
-last_updated: '2026-10-30'
+version: 2.13.0
+last_updated: '2026-11-04'
 depends_on:
 - requirements/index.md
 - database-design/index.md
 derived_by:
 - ui-design/index.md
-sync_hash: d8f067ce960b
+sync_hash: 7cf7ab333356
 dependency_hashes:
-  requirements/index.md: da22ab9916ea
-  database-design/index.md: c60d9e4e6002
+  requirements/index.md: d4fe39ccea49
+  database-design/index.md: 316ac73c8291
 ---
 
 # API設計書 — サークル練習参加抽選システム
+
+`GET /practice-months/{pmId}/participation` と管理用 `GET /practice-months/{pmId}/results` のメンバー取得は抽選入力と分離する (D-070)。通常メンバーに加え、その月の有効な練習日にpublished／removingの有効な割当があるobserverも表示する。pendingのみ・削除済み割当・他月の割当ではobserverを追加しない。公開結果の公開前404と管理用結果の代表チェックは維持する。observerの投票・抽選・名簿・追加候補は従来どおり対象外。レスポンスのフィールド追加はない。
 
 ## 1. API概要
 

@@ -385,12 +385,12 @@ class LotteryService:
             raise NotFoundError("抽選結果はまだ公開されていません")
 
         practices = self.practices.list_by_month(pm.id)
-        users = {u.id: u for u in self.repo.list_members(pm.gender)}
-
         practice_ids = [p.id for p in practices]
+        assignments = self.repo.list_assignments(practice_ids, visible_only=True)
+        users = {u.id: u for u in self.repo.list_result_members(pm.gender, assignments)}
         joined: dict[str, list[str]] = defaultdict(list)
         # 公開後の微調整は再公開までメンバーに見せない (D-044)
-        for a in self.repo.list_assignments(practice_ids, visible_only=True):
+        for a in assignments:
             joined[a.user_id].append(a.practice_id)
         voters = {v.user_id for v in self.repo.list_votes_for_practices(practice_ids)}
 
@@ -446,7 +446,7 @@ class LotteryService:
             )
 
             step_started = perf_counter()
-            members = self.repo.list_members(pm.gender)
+            members = self.repo.list_result_members(pm.gender, assignments)
             logger.info(
                 "[timing] full_results list_members %.1f ms",
                 (perf_counter() - step_started) * 1000,
@@ -630,8 +630,8 @@ class LotteryService:
             target = self.users.get_by_id(user_id)
             if target is None:
                 raise NotFoundError("メンバーが見つかりません")
-            if target.gender != pm.gender:
-                raise ForbiddenError("練習月と異なる性別のメンバーは割当できません")
+            if target.gender != pm.gender or target.is_observer:
+                raise ForbiddenError("対象月と同じ性別の参加対象メンバーのみ割当できます")
     
             existing = self.repo.list_assignments([practice_id])
             current = next((a for a in existing if a.user_id == user_id), None)
@@ -721,8 +721,9 @@ class LotteryService:
         self.db.flush()
 
         wins: dict[str, int] = defaultdict(int)
-        managers = {u.id for u in self.repo.list_members(pm.gender) if u.is_manager}
-        for a in self.repo.list_assignments(practice_ids):
+        published_assignments = self.repo.list_assignments(practice_ids)
+        managers = {u.id for u in self.repo.list_result_members(pm.gender, published_assignments) if u.is_manager}
+        for a in published_assignments:
             if a.user_id not in managers:
                 wins[a.user_id] += 1
 

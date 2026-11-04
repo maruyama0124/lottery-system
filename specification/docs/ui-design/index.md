@@ -2,19 +2,21 @@
 hide:
 - navigation
 doc_type: ui-design
-version: 2.18.0
-last_updated: '2026-10-30'
+version: 2.19.0
+last_updated: '2026-11-04'
 depends_on:
 - requirements/index.md
 - api-design/index.md
 derived_by: []
-sync_hash: a23570c229c5
+sync_hash: c7d1b6b473c5
 dependency_hashes:
-  requirements/index.md: da22ab9916ea
-  api-design/index.md: d8f067ce960b
+  requirements/index.md: d4fe39ccea49
+  api-design/index.md: 7cf7ab333356
 ---
 
 # 画面設計書 — サークル練習参加抽選システム
+
+引退等でobserverに変更された人も、対象月に公開中の参加割当がある場合はメンバー参加表と代表の結果表に従来の氏名・学年・マネージャー区分で表示する (D-070)。投票・抽選への復帰ではなく表示だけの変更であり、割当のない月には表示しない。公開中の削除予定は再公開まで表示する。表示用キャッシュは従来どおり最新取得結果へ更新する。
 
 メンバーホームのホーム画面追加ガイドは、案内リンクと区切った下段に「今後表示しない（このブラウザ）」チェックを置く (D-069)。チェックすると案内全体を非表示とし、ブラウザのlocalStorageで次回以降も保持する。保存不可時は利用中のみ非表示とする。非表示設定が読めるまで案内を表示しない。投票・参加表の操作には影響せず、代表向け更新履歴には掲載しない。
 

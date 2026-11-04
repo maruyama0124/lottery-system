@@ -15,6 +15,10 @@ export interface ReleaseNote {
 
 export const releaseNotes: readonly ReleaseNote[] = [
   {
+    id: "D-070", category: "表示", title: "引退後も参加した月の記録を表示",
+    changes: ["閲覧専用に切り替えたメンバーも、公開済みの参加割当がある月は参加表・結果表に残ります。"],
+  },
+  {
     id: "D-068", category: "お知らせ", title: "どちらの代表も男女両方を管理可能に",
     changes: ["管理画面で男女を切り替え、日程・抽選・微調整・公開・設定を操作できます。"],
   },

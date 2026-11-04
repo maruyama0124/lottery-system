@@ -2,7 +2,7 @@
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import bindparam, insert, select, update
+from sqlalchemy import bindparam, insert, or_, select, update
 from sqlalchemy.orm import Session
 
 from src.core.ids import generate_id
@@ -152,11 +152,28 @@ class LotteryRepository:
         return list(self.db.scalars(stmt))
 
     def list_members(self, gender: str) -> list[User]:
-        # 閲覧専用アカウント (D-039) は抽選・結果・参加表の対象にしない
+        # 閲覧専用アカウントは抽選の対象にしない。表示用は別に取得する (D-070)。
         stmt = select(User).where(
             User.gender == gender,
             User.is_deleted.is_(False),
             User.is_observer.is_(False),
+        )
+        return list(self.db.scalars(stmt))
+
+    def list_result_members(self, gender: str, assignments: list[Assignment]) -> list[User]:
+        """現役メンバーと、対象月に公開済み割当が残るobserver (D-070)。
+
+        抽選入力のlist_membersとは分離し、observerを抽選へ戻さない。
+        removingは再公開まで公開中。pendingだけでは表示対象にしない。
+        """
+        historical_ids = {
+            a.user_id for a in assignments
+            if not a.is_deleted and a.publish_state in ("published", "removing")
+        }
+        stmt = select(User).where(
+            User.gender == gender,
+            User.is_deleted.is_(False),
+            or_(User.is_observer.is_(False), User.id.in_(historical_ids)),
         )
         return list(self.db.scalars(stmt))
 

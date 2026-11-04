@@ -43,7 +43,7 @@ class User(Base, TimestampMixin):
     gender: Mapped[str] = mapped_column(String(10), nullable=False)
     is_manager: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # 閲覧専用 (D-039)。開発者・OB など現役でない人。ログインして全画面を見られるが、
-    # 投票できず、名簿・抽選・参加表のどこにも出ない
+    # 投票・抽選・名簿の対象外。公開済み割当がある月の参加表には残す (D-070)。
     is_observer: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     role: Mapped[str] = mapped_column(String(20), nullable=False, default="member")
     is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
