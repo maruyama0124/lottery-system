@@ -1,4 +1,4 @@
-"""月別練習・練習日・投票スキーマ (openapi.yaml 準拠)"""
+"""月別練習・練習日スキーマ (openapi.yaml 準拠)"""
 from datetime import date, datetime, time
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
@@ -157,14 +157,3 @@ class PracticeSuggestion(BaseModel):
     @field_serializer("starts_at", "ends_at")
     def _format_time(self, value: time) -> str:
         return value.strftime("%H:%M")
-
-
-class VoteStatus(BaseModel):
-    practice_month_id: str
-    voted_practice_ids: list[str]
-    locked_practice_ids: list[str] = Field(default_factory=list)
-    editable: bool  # 受付期間・本人・対象日・公開状態を確認した変更可否
-
-
-class VoteUpdateRequest(BaseModel):
-    practice_ids: list[str]  # 投票する練習日IDの全量 (全置換)

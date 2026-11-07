@@ -1,5 +1,7 @@
 """practice_months / practices テーブルへのアクセス層"""
-from datetime import time, datetime
+from collections.abc import Collection
+from datetime import date, time, datetime
+from typing import Any
 
 from sqlalchemy import func, select, Select
 from sqlalchemy.orm import Session
@@ -15,6 +17,33 @@ class PracticeMonthRepository:
     def get(self, pm_id: str) -> PracticeMonth | None:
         pm = self.db.get(PracticeMonth, pm_id)
         return pm if pm and not pm.is_deleted else None
+
+    def get_for_update(self, pm_id: str) -> PracticeMonth | None:
+        return self.db.scalar(select(PracticeMonth).where(
+            PracticeMonth.id == pm_id, PracticeMonth.is_deleted.is_(False)
+        ).with_for_update().execution_options(populate_existing=True))
+
+    def list_for_year_month(
+        self, year_month: str, genders: list[str] | None = None, *, lock: bool = False,
+    ) -> list[PracticeMonth]:
+        query = select(PracticeMonth).where(
+            PracticeMonth.year_month == year_month, PracticeMonth.is_deleted.is_(False)
+        )
+        if genders is not None:
+            query = query.where(PracticeMonth.gender.in_(genders))
+        query = query.order_by(PracticeMonth.id).execution_options(populate_existing=True)
+        return list(self.db.scalars(query.with_for_update() if lock else query))
+
+    def lock(self, pm_id: str) -> None:
+        self.db.scalar(select(PracticeMonth).where(PracticeMonth.id == pm_id).with_for_update())
+
+    def refresh_for_update(self, month: PracticeMonth) -> None:
+        self.db.refresh(month, with_for_update=True)
+
+    def update_fields(self, month: PracticeMonth, **fields: Any) -> None:
+        for key, value in fields.items():
+            setattr(month, key, value)
+        self.db.flush()
 
     def get_by_ym_gender(self, year_month: str, gender: str) -> PracticeMonth | None:
         stmt = select(PracticeMonth).where(
@@ -54,6 +83,47 @@ class PracticeRepository:
     def get(self, practice_id: str) -> Practice | None:
         p = self.db.get(Practice, practice_id)
         return p if p and not p.is_deleted else None
+
+    def list_by_month_for_update(self, pm_id: str, practice_ids: list[str] | None = None) -> list[Practice]:
+        query = select(Practice).where(
+            Practice.practice_month_id == pm_id, Practice.is_deleted.is_(False)
+        )
+        if practice_ids is not None:
+            query = query.where(Practice.id.in_(practice_ids))
+        return list(self.db.scalars(query.order_by(Practice.id).with_for_update()
+            .execution_options(populate_existing=True)))
+
+    def list_by_dates_for_update(self, pm_id: str, dates: Collection[date]) -> list[Practice]:
+        if not dates:
+            return []
+        return list(self.db.scalars(select(Practice).where(
+            Practice.practice_month_id == pm_id, Practice.is_deleted.is_(False),
+            Practice.practice_date.in_(dates),
+        ).order_by(Practice.id).with_for_update().execution_options(populate_existing=True)))
+
+    def list_on_date(self, month_ids: list[str], practice_date: date, *, lock: bool = False) -> list[Practice]:
+        query = select(Practice).where(
+            Practice.practice_month_id.in_(month_ids), Practice.practice_date == practice_date,
+            Practice.is_deleted.is_(False),
+        ).order_by(Practice.id).execution_options(populate_existing=True)
+        return list(self.db.scalars(query.with_for_update() if lock else query))
+
+    def has_date_collision(self, month_ids: list[str], practice_date: date, excluded_ids: list[str]) -> bool:
+        return self.db.scalar(select(Practice.id).where(
+            Practice.practice_month_id.in_(month_ids), Practice.practice_date == practice_date,
+            Practice.id.not_in(excluded_ids), Practice.is_deleted.is_(False),
+        ).limit(1)) is not None
+
+    def refresh_for_update(self, practice: Practice) -> None:
+        self.db.refresh(practice, with_for_update=True)
+
+    def update_fields(self, practice: Practice, **fields: Any) -> None:
+        """ORM変更を登録する。flushは既存の処理単位の終わりに明示する。"""
+        for key, value in fields.items():
+            setattr(practice, key, value)
+
+    def flush(self) -> None:
+        self.db.flush()
 
     def list_by_month(self, pm_id: str) -> list[Practice]:
         stmt = (

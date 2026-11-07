@@ -10,6 +10,11 @@ class VoteRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
 
+    def has_active_for_practice(self, practice_id: str) -> bool:
+        return self.db.scalar(select(Vote.id).where(
+            Vote.practice_id == practice_id, Vote.is_deleted.is_(False)
+        ).limit(1)) is not None
+
     def list_user_votes(self, user_id: str, practice_ids: list[str]) -> list[Vote]:
         """指定練習日群に対するユーザーの投票 (削除済み含む — 全置換で再利用するため)"""
         if not practice_ids:

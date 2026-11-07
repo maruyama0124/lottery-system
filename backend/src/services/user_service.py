@@ -1,5 +1,4 @@
 """メンバー・名簿サービス (REQ-002, REQ-007)"""
-from sqlalchemy import func, select, Select
 from sqlalchemy.orm import Session
 
 from src.core.errors import ForbiddenError, NotFoundError
@@ -7,25 +6,8 @@ from src.db.models import User
 from src.repositories.user_repository import UserRepository
 
 
-def _roster_stmt(
-    grade: int | None, is_manager: bool | None, gender: str | None, q: str | None
-):
-    # 閲覧専用アカウント (D-039) は名簿・追加候補のどこにも出さない
-    stmt: Select[tuple[User]] = select(User).where(User.is_deleted.is_(False), User.is_observer.is_(False))
-    if grade is not None:
-        stmt = stmt.where(User.grade == grade)
-    if is_manager is not None:
-        stmt = stmt.where(User.is_manager.is_(is_manager))
-    if gender is not None:
-        stmt = stmt.where(User.gender == gender)
-    if q:
-        stmt = stmt.where(User.name.ilike(f"%{q}%"))
-    return stmt.order_by(User.gender, User.grade.desc(), User.name)
-
-
 class UserService:
     def __init__(self, db: Session) -> None:
-        self.db = db
         self.users = UserRepository(db)
 
     def roster(
@@ -39,10 +21,8 @@ class UserService:
         per_page: int = 50,
     ) -> tuple[list[User], int]:
         """名簿一覧 (REQ-007.1)。男女全体を対象とする (D-008)"""
-        stmt = _roster_stmt(grade, is_manager, gender, q)
-        total = self.db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
-        rows = list(self.db.scalars(stmt.offset((page - 1) * per_page).limit(per_page)))
-        return rows, total
+        return self.users.roster(grade=grade, is_manager=is_manager, gender=gender,
+            q=q, page=page, per_page=per_page)
 
     def _get_target_in_scope(self, rep: User, user_id: str) -> User:
         """代表は男女双方のメンバーを管理できる (D-068)。"""
@@ -62,11 +42,9 @@ class UserService:
         target = self.users.get_by_id(user_id)
         if target is None or target.is_deleted:
             raise NotFoundError("メンバーが見つかりません")
-        target.role = role
-        self.db.flush()
+        self.users.update_role(target, role)
 
     def deactivate(self, rep: User, user_id: str) -> None:
         """退会 (REQ-007.3): 論理削除。履歴は保持する"""
         target = self._get_target_in_scope(rep, user_id)
-        target.is_deleted = True
-        self.db.flush()
+        self.users.deactivate(target)

@@ -2,7 +2,7 @@
 hide:
 - navigation
 doc_type: requirements
-version: 4.25.0
+version: 4.26.0
 last_updated: '2026-11-07'
 depends_on:
 - business-plan/index.md
@@ -11,7 +11,7 @@ derived_by:
 - database-design/index.md
 - ui-design/index.md
 - infrastructure-design/index.md
-sync_hash: 0c44d270c1bd
+sync_hash: db8ea06a2692
 dependency_hashes:
   business-plan/index.md: 95db25dcaa0b
 ---
@@ -1016,6 +1016,15 @@ Phase 2 : 残枠配分（投票数・落選救済で重み付け）… 既存
 - **背景**: ユーザーがAPIを読みながら、投票が月別練習ファイルにあり、結果・公開まで抽選ファイルにある構成は探しづらいと指摘した。機能名から開くファイルを予測できる構造を提案し、その構造への変更依頼を受けた。
 - **互換性**: URL・HTTPメソッド・関数名・入出力スキーマ・ステータス・権限・Service呼び出し・保存前commitを維持する。Service・Repository・DB・フロントの呼び出し先は変更しない。Swaggerではvotesとresultsを独立タグにする。実行履歴はlotteryに残す。
 - **検証と範囲**: 変更前後のOpenAPIは分類タグ以外が一致することを確認し、機能ごとの所属ルーター・タグ・ルート一覧・重複登録防止をテストする。利用者の操作や機能を変えない内部整理のため代表向け更新履歴への掲載とDBマイグレーションは不要である。
+- **後続変更**: Service・Repository・スキーマの配置はD-074により変更する。D-073時点ではAPI層だけを整理した記録として維持する。
+
+### D-074: 抽選・結果Serviceと入出力スキーマの責務を分離する
+
+- **決定**: LotteryServiceを抽選準備・実行・履歴に絞り、結果取得をResultQueryService、微調整保存・公開をResultCommandServiceへ分離する。投票スキーマはschemas/votes.pyへ、結果・微調整スキーマはschemas/results.pyへ移し、APIから対応するService・スキーマを直接参照する。
+- **背景**: API層の整理後も、LotteryServiceが結果表示・微調整・公開まで抱え、ServiceにSQLやORM変更処理が混在し、投票・結果の型も別機能のファイルにあるため探しづらいと説明した。ユーザーから指摘項目1・2・4の修正依頼を受け、機能ごとの責務とDBアクセスの場所を明確にする。項目3のトランザクション責任の再設計は含めない。
+- **DB境界**: SELECT・行ロック・ORM変更の登録・flushはRepositoryへ移す。Serviceには権限・期限・固定日・公開状態・競合の判定、更新値の決定、レスポンスの組み立てを残す。共通の代表確認付き月ロックはPracticeServiceからPracticeMonthRepositoryを呼ぶ。既存Repositoryを再利用し、抽象インターフェースや新しいトランザクション管理層は追加しない。
+- **維持するもの**: URL・HTTPメソッド・Swaggerタグ・入出力型・エラー・認可・抽選ロジックは変更しない。同じSessionを共有し、月→練習日→会員→割当のロック順序、flush位置、既存のAPI／依存関数のcommit・rollback、Serviceのsavepointを維持する。テーブル・データ・フロントの変更やマイグレーションは不要である。
+- **検証**: 変更前後のOpenAPI全体を比較し、既存API・抽選・公開・observer履歴・固定日・一括保存のSQL回数予算（SELECT5・DBAPI最大7回）の回帰テストに加え、Serviceの責務、Repository境界、スキーマの所属、共通月ロック、名簿引数の委譲をテストする。利用者向け機能変更ではないため代表画面の更新履歴には追記しない。
 
 ## 6. 用語集
 

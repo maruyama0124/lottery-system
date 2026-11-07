@@ -4,15 +4,15 @@ from sqlalchemy.orm import Session
 from src.core.datetime_utils import utcnow
 from src.core.errors import AppError, ConflictError, ForbiddenError
 from src.db.models import User
-from src.repositories.practice_repository import PracticeRepository
+from src.repositories.practice_repository import PracticeMonthRepository, PracticeRepository
 from src.repositories.vote_repository import VoteRepository
-from src.schemas.practices import VoteStatus
+from src.schemas.votes import VoteStatus
 from src.services.practice_service import PracticeService
 
 
 class VoteService:
     def __init__(self, db: Session) -> None:
-        self.db = db
+        self.months = PracticeMonthRepository(db)
         self.practice_service = PracticeService(db)
         self.practices = PracticeRepository(db)
         self.votes = VoteRepository(db)
@@ -51,7 +51,7 @@ class VoteService:
         # 閲覧専用アカウント (D-039) は投票できない
         if user.is_observer:
             raise ForbiddenError("閲覧専用アカウントは投票できません")
-        self.db.refresh(pm, with_for_update=True)
+        self.months.refresh_for_update(pm)
         now = utcnow()
         if now < pm.vote_starts_at:
             raise ConflictError("投票受付はまだ開始されていません")

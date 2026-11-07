@@ -18,3 +18,10 @@ def to_utc(dt: datetime) -> datetime:
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def previous_year_month(year_month: str) -> str:
+    year, month = map(int, year_month.split("-"))
+    if month == 1:
+        return f"{year - 1}-12"
+    return f"{year}-{month - 1:02d}"

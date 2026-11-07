@@ -1,12 +1,13 @@
 """練習日程管理サービス (REQ-003)"""
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
 from src.core.datetime_utils import to_utc
 from src.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationError
-from src.db.models import Assignment, Practice, PracticeMonth, User, Vote
+from src.db.models import Practice, PracticeMonth, User
+from src.repositories.lottery_repository import LotteryRepository
 from src.repositories.practice_repository import PracticeMonthRepository, PracticeRepository
+from src.repositories.vote_repository import VoteRepository
 from src.schemas.practices import (
     PracticeCreateRequest,
     PracticeMonthUpdateRequest,
@@ -24,6 +25,8 @@ class PracticeService:
         self.db = db
         self.months = PracticeMonthRepository(db)
         self.practices = PracticeRepository(db)
+        self.votes = VoteRepository(db)
+        self.assignments = LotteryRepository(db)
 
     # ---------- 取得 ----------
 
@@ -49,14 +52,20 @@ class PracticeService:
         """既定は自分の性別。gender を指定すると他方の月も閲覧できる (D-038)"""
         return self.months.list_by_gender(gender or user.gender, year_month)
 
+    def lock_month_for_rep(self, rep: User, pm_id: str) -> PracticeMonth:
+        """抽選・枠保存・微調整・公開で共通の月ロック。"""
+        if rep.role != "representative":
+            raise ForbiddenError("代表権限が必要です")
+        pm = self.months.get_for_update(pm_id)
+        if pm is None:
+            raise NotFoundError("月別練習が見つかりません")
+        return pm
+
     # ---------- 作成・更新 (代表) ----------
 
 
     def _lock_existing_months(self, year_month, genders) -> dict[str, PracticeMonth]:
-        return {pm.gender: pm for pm in self.db.scalars(select(PracticeMonth).where(
-            PracticeMonth.year_month == year_month,
-            PracticeMonth.gender.in_(genders), PracticeMonth.is_deleted.is_(False),
-        ).order_by(PracticeMonth.id).with_for_update().execution_options(populate_existing=True))}
+        return {pm.gender: pm for pm in self.months.list_for_year_month(year_month, genders, lock=True)}
 
     def create_months(self, rep: User, data: PracticeMonthBatchCreateRequest) -> list[PracticeMonth]:
         """既存月の受付期間を維持し、同日を更新・未登録日を追加する。"""
@@ -89,10 +98,7 @@ class PracticeService:
         """既存の月へ男女別の日程を追加・同日更新する。個別編集・抽選の権限は変更しない。"""
         if rep.role != "representative":
             raise ForbiddenError("代表権限が必要です")
-        months = list(self.db.scalars(select(PracticeMonth).where(
-            PracticeMonth.year_month == data.year_month,
-            PracticeMonth.gender.in_(data.genders), PracticeMonth.is_deleted.is_(False),
-        ).order_by(PracticeMonth.id).with_for_update().execution_options(populate_existing=True)))
+        months = self.months.list_for_year_month(data.year_month, data.genders, lock=True)
         if len(months) != len(data.genders):
             raise NotFoundError("選択した性別の月が未作成です。先に対象月を作成してください")
         self._ensure_date_in_month(data, data.practice.practice_date)
@@ -102,10 +108,7 @@ class PracticeService:
     def _save_day_candidates(self, pm_id, candidates) -> list[Practice]:
         # 入力内で同日が重なった場合は最後の候補を採用する（性別ごと）。
         latest = {p.practice_date: p for p in candidates}
-        existing = list(self.db.scalars(select(Practice).where(
-            Practice.practice_month_id == pm_id, Practice.is_deleted.is_(False),
-            Practice.practice_date.in_(latest),
-        ).order_by(Practice.id).with_for_update().execution_options(populate_existing=True))) if latest else []
+        existing = self.practices.list_by_dates_for_update(pm_id, latest)
         by_date = {}
         for practice in existing:
             if practice.practice_date in by_date:
@@ -122,19 +125,19 @@ class PracticeService:
                 if changed and practice.is_assignment_locked:
                     raise ConflictError(f"{day} は参加者が固定された練習日のため更新できません")
                 if changed:
-                    for key, value in values.items():
-                        setattr(practice, key, value)
+                    self.practices.update_fields(practice, **values)
             saved.append(practice)
-        self.db.flush()
+        self.practices.flush()
         return saved
 
     def update_month(self, rep: User, pm_id: str, data: PracticeMonthUpdateRequest) -> None:
         pm = self.get_month_for_rep(rep, pm_id)
+        fields = {}
         if data.vote_starts_at is not None:
-            pm.vote_starts_at = to_utc(data.vote_starts_at)
+            fields["vote_starts_at"] = to_utc(data.vote_starts_at)
         if data.vote_ends_at is not None:
-            pm.vote_ends_at = to_utc(data.vote_ends_at)
-        self.db.flush()
+            fields["vote_ends_at"] = to_utc(data.vote_ends_at)
+        self.months.update_fields(pm, **fields)
 
     def _gender_edit_context(self, rep: User, practice_id: str, *, lock=False):
         if rep.role != "representative":
@@ -145,17 +148,10 @@ class PracticeService:
         pm = self.months.get(source.practice_month_id)
         if pm is None:
             raise NotFoundError("月別練習が見つかりません")
-        query = select(PracticeMonth).where(
-            PracticeMonth.year_month == pm.year_month, PracticeMonth.is_deleted.is_(False),
-        ).order_by(PracticeMonth.id).execution_options(populate_existing=True)
-        months = {m.gender: m for m in self.db.scalars(query.with_for_update() if lock else query)}
+        months = {m.gender: m for m in self.months.list_for_year_month(pm.year_month, lock=lock)}
         gender_by_month = {m.id: g for g, m in months.items()}
-        query = select(Practice).where(
-            Practice.practice_month_id.in_(gender_by_month),
-            Practice.practice_date == source.practice_date, Practice.is_deleted.is_(False),
-        ).order_by(Practice.id).execution_options(populate_existing=True)
         rows = {}
-        for practice in self.db.scalars(query.with_for_update() if lock else query):
+        for practice in self.practices.list_on_date(list(gender_by_month), source.practice_date, lock=lock):
             gender = gender_by_month[practice.practice_month_id]
             if gender in rows:
                 raise ConflictError("同じ性別・日付に複数の練習があるため、男女の変更はできません")
@@ -190,31 +186,28 @@ class PracticeService:
             if practice.is_assignment_locked and (changed or set(rows) != set(data.genders)):
                 raise ConflictError("参加者が固定された練習日は男女の変更・更新ができません")
             if gender not in data.genders:
-                for model in (Vote, Assignment):
-                    if self.db.scalar(select(model.id).where(
-                        model.practice_id == practice.id, model.is_deleted.is_(False),
-                    ).limit(1)) is not None:
-                        raise ConflictError("選択を外した性別の練習に投票・参加割当があるため削除できません")
+                if (self.votes.has_active_for_practice(practice.id)
+                    or self.assignments.has_active_for_practice(practice.id)):
+                    raise ConflictError("選択を外した性別の練習に投票・参加割当があるため削除できません")
         # 日付変更先に別の日程がある場合は上書きしない。
-        collision = self.db.scalar(select(Practice.id).where(
-            Practice.practice_month_id.in_([months[g].id for g in data.genders]),
-            Practice.practice_date == data.practice.practice_date,
-            Practice.id.not_in([p.id for p in rows.values()]), Practice.is_deleted.is_(False),
-        ).limit(1))
+        collision = self.practices.has_date_collision(
+            [months[g].id for g in data.genders], data.practice.practice_date,
+            [p.id for p in rows.values()],
+        )
         if collision:
             raise ConflictError("変更先の日付に別の練習があります。日付を確認してください")
         with self.db.begin_nested():
             for gender, practice in rows.items():
                 if gender not in data.genders:
-                    practice.is_deleted = True
+                    self.practices.update_fields(practice, is_deleted=True)
                 else:
-                    for key, value in values.items():
-                        if getattr(practice,key) != value:
-                            setattr(practice,key,value)
+                    self.practices.update_fields(practice, **{
+                        key: value for key, value in values.items() if getattr(practice, key) != value
+                    })
             for gender in data.genders:
                 if gender not in rows:
                     self._create_practice(months[gender].id, data.practice)
-            self.db.flush()
+            self.practices.flush()
 
     @staticmethod
     def _ensure_date_in_month(pm, practice_date) -> None:
@@ -247,10 +240,8 @@ class PracticeService:
             raise NotFoundError("練習日が見つかりません")
         self.get_month_for_rep(rep, practice.practice_month_id)
         # 月→練習日の順にロックし、抽選・公開・管理者の固定操作と直列化する。
-        self.db.scalar(select(PracticeMonth).where(
-            PracticeMonth.id == practice.practice_month_id
-        ).with_for_update())
-        self.db.refresh(practice, with_for_update=True)
+        self.months.lock(practice.practice_month_id)
+        self.practices.refresh_for_update(practice)
         if practice.is_assignment_locked:
             raise ConflictError("参加者が固定された練習日は変更・削除できません")
         return practice
@@ -263,5 +254,5 @@ class PracticeService:
             raise ConflictError(
                 "抽選実行済みの月の練習日です。削除する場合は force=true を指定してください"
             )
-        practice.is_deleted = True
-        self.db.flush()
+        self.practices.update_fields(practice, is_deleted=True)
+        self.practices.flush()

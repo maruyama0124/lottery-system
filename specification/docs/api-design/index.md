@@ -2,16 +2,16 @@
 hide:
 - navigation
 doc_type: api-design
-version: 2.16.0
+version: 2.17.0
 last_updated: '2026-11-07'
 depends_on:
 - requirements/index.md
 - database-design/index.md
 derived_by:
 - ui-design/index.md
-sync_hash: 16471458f2de
+sync_hash: 741ef9e4c2fb
 dependency_hashes:
-  requirements/index.md: 0c44d270c1bd
+  requirements/index.md: db8ea06a2692
   database-design/index.md: 316ac73c8291
 ---
 
@@ -34,7 +34,21 @@ FastAPI で実装する RESTful API。フロントエンド (Next.js) から HTT
 | deps.py | 各ルーターで使う共通の認証・認可依存関係 | エンドポイントなし |
 | health.py | 稼働確認 | health |
 
-main.pyで各ルーターを同じ `/api/v1` プレフィックスに登録する。結果系は引き続きLotteryServiceを呼び出し、Service層の分割や依存関係の再設計は今回行わない。
+main.pyで各ルーターを同じ `/api/v1` プレフィックスに登録する。
+
+### 内部の責務分担 (D-074)
+
+| 機能 | Service（backend/src/services/） | 入出力型（backend/src/schemas/） |
+|---|---|---|
+| 日程 | PracticeService | practices.py |
+| 投票 | VoteService | votes.py |
+| 抽選準備・実行・履歴 | LotteryService | lottery.py |
+| 本人結果・参加表・管理用結果の取得 | ResultQueryService | results.py |
+| 微調整保存・公開／再公開 | ResultCommandService | results.py |
+
+APIは入力と認証済みユーザーを対応Serviceへ渡す。Serviceはルール判定・更新値の決定・結果組み立てを担当し、SQL構築・取得・ロック・ORM変更登録・flushはRepositoryへ委譲する。Repositoryは同一リクエストのSessionを共有する。共通の代表確認付き月ロックはPracticeServiceからPracticeMonthRepositoryを呼ぶ。
+
+この整理でHTTP契約やトランザクション境界は変えない。微調整一括保存の応答前commit、依存関数によるcommit／rollback、日程Serviceのsavepoint、既存のロック順序とflush位置を維持する。抽選ドメイン・DB構造・フロントエンドの変更はない。
 
 ## 2. 認証・認可
 

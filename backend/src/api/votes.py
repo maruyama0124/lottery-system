@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from src.api.deps import CurrentUser
 from src.db.session import get_db
-from src.schemas.practices import VoteStatus, VoteUpdateRequest
+from src.schemas.votes import VoteStatus, VoteUpdateRequest
 from src.services.vote_service import VoteService
 
 router = APIRouter(tags=["votes"])

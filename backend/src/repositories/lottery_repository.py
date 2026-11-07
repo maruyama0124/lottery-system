@@ -20,6 +20,19 @@ class LotteryRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
 
+    def has_active_for_practice(self, practice_id: str) -> bool:
+        return self.db.scalar(select(Assignment.id).where(
+            Assignment.practice_id == practice_id, Assignment.is_deleted.is_(False)
+        ).limit(1)) is not None
+
+    def update_assignment_fields(self, assignment: Assignment, **fields: Any) -> None:
+        """公開状態の変更を登録する。変更内容の判断はServiceが行う。"""
+        for key, value in fields.items():
+            setattr(assignment, key, value)
+
+    def flush(self) -> None:
+        self.db.flush()
+
     # ---------- 実行履歴 ----------
 
     def list_executions(self, pm_id: str) -> list[LotteryExecution]:
