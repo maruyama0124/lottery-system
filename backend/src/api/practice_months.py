@@ -1,4 +1,4 @@
-"""月別練習・練習日・投票エンドポイント (openapi.yaml: /practice-months/*, /practices/*)"""
+"""日程エンドポイント — 月別練習・練習日の登録・取得・更新・削除。"""
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Response, status
@@ -19,11 +19,8 @@ from src.schemas.practices import (
     PracticeMonthUpdateRequest,
     PracticeResponse,
     PracticeSuggestion,
-    VoteStatus,
-    VoteUpdateRequest,
 )
 from src.services.practice_service import PracticeService
-from src.services.vote_service import VoteService
 
 router = APIRouter(tags=["practice-months"])
 
@@ -142,20 +139,4 @@ def delete_practice(
     force: Annotated[bool, Query()] = False,
 ) -> Response:
     PracticeService(db).delete_practice(rep, practice_id, force)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-# ---------- 投票 ----------
-
-
-@router.get("/practice-months/{pm_id}/votes/me", response_model=VoteStatus)
-def get_my_votes(pm_id: str, user: CurrentUser, db: DbDep) -> VoteStatus:
-    return VoteService(db).get_my_votes(user, pm_id)
-
-
-@router.put("/practice-months/{pm_id}/votes/me", status_code=status.HTTP_204_NO_CONTENT)
-def update_my_votes(
-    pm_id: str, data: VoteUpdateRequest, user: CurrentUser, db: DbDep
-) -> Response:
-    VoteService(db).update_my_votes(user, pm_id, data.practice_ids)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

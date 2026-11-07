@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from src.api import auth, health, lottery, practice_months, users
+from src.api import auth, health, lottery, practice_months, results, users, votes
 from src.core.errors import AppError
 import logging
 
@@ -58,7 +58,9 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix=API_PREFIX)
     app.include_router(users.router, prefix=API_PREFIX)
     app.include_router(practice_months.router, prefix=API_PREFIX)
+    app.include_router(votes.router, prefix=API_PREFIX)
     app.include_router(lottery.router, prefix=API_PREFIX)
+    app.include_router(results.router, prefix=API_PREFIX)
 
     return app
 

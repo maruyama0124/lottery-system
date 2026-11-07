@@ -2,16 +2,16 @@
 hide:
 - navigation
 doc_type: api-design
-version: 2.15.0
+version: 2.16.0
 last_updated: '2026-11-07'
 depends_on:
 - requirements/index.md
 - database-design/index.md
 derived_by:
 - ui-design/index.md
-sync_hash: 5f912aa490d9
+sync_hash: 16471458f2de
 dependency_hashes:
-  requirements/index.md: 09222d2a8ab1
+  requirements/index.md: 0c44d270c1bd
   database-design/index.md: 316ac73c8291
 ---
 
@@ -21,7 +21,20 @@ dependency_hashes:
 
 ## 1. API概要
 
-FastAPI で実装する RESTful API。フロントエンド (Next.js) から HTTP で呼び出される。リソースは大きく5つ: **認証 (auth)**、**メンバー (users)**、**月別練習 (practice-months / practices)**、**投票 (votes)**、**抽選・結果 (lottery / results)**。
+FastAPI で実装する RESTful API。フロントエンド (Next.js) から HTTP で呼び出される。APIルーターは機能別に分割し、URLとは独立してコードの配置とSwaggerタグを整理する (D-073)。URL・API契約は変更しない。
+
+| ファイル（backend/src/api/） | 責務 | Swaggerタグ |
+|---|---|---|
+| auth.py | LINEログイン・初回登録 | auth |
+| users.py | 本人情報・名簿・代表権限・無効化 | users |
+| practice_months.py | 月・練習日の日程管理 | practice-months |
+| votes.py | 本人の投票状況の取得・保存 | votes |
+| lottery.py | 投票集計・学年枠・抽選実行・実行履歴 | lottery |
+| results.py | 本人結果・参加表・管理用結果・微調整保存・公開 | results |
+| deps.py | 各ルーターで使う共通の認証・認可依存関係 | エンドポイントなし |
+| health.py | 稼働確認 | health |
+
+main.pyで各ルーターを同じ `/api/v1` プレフィックスに登録する。結果系は引き続きLotteryServiceを呼び出し、Service層の分割や依存関係の再設計は今回行わない。
 
 ## 2. 認証・認可
 

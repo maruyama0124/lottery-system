@@ -2,7 +2,7 @@
 hide:
 - navigation
 doc_type: requirements
-version: 4.24.0
+version: 4.25.0
 last_updated: '2026-11-07'
 depends_on:
 - business-plan/index.md
@@ -11,7 +11,7 @@ derived_by:
 - database-design/index.md
 - ui-design/index.md
 - infrastructure-design/index.md
-sync_hash: 09222d2a8ab1
+sync_hash: 0c44d270c1bd
 dependency_hashes:
   business-plan/index.md: 95db25dcaa0b
 ---
@@ -1009,6 +1009,13 @@ Phase 2 : 残枠配分（投票数・落選救済で重み付け）… 既存
 - **検証**: テスト用の作成・編集も現行APIへ移行し、旧データ由来の同日重複だけはテストDBで再現する。廃止ルートのSwagger非掲載と404／405、現行ルートの維持、公開前後・再公開・固定日保護を回帰確認する。旧単件比較ベンチマークは削除し、一括保存のSQL回数予算（SELECT5・DBAPI最大7回）の回帰検証を維持する。
 - **設計書同期**: 静的Swagger定義に残っていた廃止済みのメール認証・旧プロフィール項目も整理し、実装済みのLINEログイン・初回登録・ヘルスチェック・公開参加表の記載へ同期する。認証や参加表の実装を変更するものではない。
 - **表示**: 画面の操作方法や利用者向け機能は変わらない内部整理のため、代表画面の更新履歴には追記しない。
+
+### D-073: APIルーターを機能別モジュールに整理する
+
+- **決定**: API層をauth.py（認証）、users.py（ユーザー管理）、practice_months.py（日程）、votes.py（投票）、lottery.py（投票集計・学年枠・抽選実行・履歴）、results.py（結果取得・微調整・公開）、deps.py（共通認証・認可）、health.py（稼働確認）に分ける。投票をpractice_months.pyからvotes.pyへ、結果系をlottery.pyからresults.pyへ移す。
+- **背景**: ユーザーがAPIを読みながら、投票が月別練習ファイルにあり、結果・公開まで抽選ファイルにある構成は探しづらいと指摘した。機能名から開くファイルを予測できる構造を提案し、その構造への変更依頼を受けた。
+- **互換性**: URL・HTTPメソッド・関数名・入出力スキーマ・ステータス・権限・Service呼び出し・保存前commitを維持する。Service・Repository・DB・フロントの呼び出し先は変更しない。Swaggerではvotesとresultsを独立タグにする。実行履歴はlotteryに残す。
+- **検証と範囲**: 変更前後のOpenAPIは分類タグ以外が一致することを確認し、機能ごとの所属ルーター・タグ・ルート一覧・重複登録防止をテストする。利用者の操作や機能を変えない内部整理のため代表向け更新履歴への掲載とDBマイグレーションは不要である。
 
 ## 6. 用語集
 

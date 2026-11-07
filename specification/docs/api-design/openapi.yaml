@@ -19,7 +19,11 @@ tags:
   - name: votes
     description: 投票
   - name: lottery
-    description: 抽選・結果
+    description: 投票集計・学年枠・抽選実行・実行履歴
+  - name: results
+    description: 結果取得・微調整・公開
+  - name: health
+    description: 稼働確認
 
 
 paths:
@@ -473,7 +477,7 @@ paths:
 
   /practice-months/{pmId}/results/me:
     get:
-      tags: [lottery]
+      tags: [results]
       summary: 自分の当選結果（公開後のみ）
       parameters:
         - $ref: '#/components/parameters/PmId'
@@ -493,7 +497,7 @@ paths:
 
   /practice-months/{pmId}/participation:
     get:
-      tags: [lottery]
+      tags: [results]
       summary: 公開済みの練習参加表
       parameters:
         - $ref: '#/components/parameters/PmId'
@@ -507,7 +511,7 @@ paths:
 
   /practice-months/{pmId}/results:
     get:
-      tags: [lottery]
+      tags: [results]
       summary: 全結果の取得（代表のみ。練習日別・メンバー別）
       parameters:
         - $ref: '#/components/parameters/PmId'
@@ -523,7 +527,7 @@ paths:
 
   /practice-months/{pmId}/assignments:
     put:
-      tags: [lottery]
+      tags: [results]
       summary: 微調整の差分を一括保存（代表のみ）
       description: D-052。対象月・割当の基準を照合し、全件を1トランザクションで保存する。公開・再公開まではメンバーへ反映しない。同じ保存の再送は既に同じ参加状態なら成功扱いにする。
       parameters:
@@ -557,7 +561,7 @@ paths:
 
   /practice-months/{pmId}/publish:
     post:
-      tags: [lottery]
+      tags: [results]
       summary: 結果の公開（代表のみ）
       description: REQ-006.4。公開後にメンバーが /results/me を閲覧できる。月次実績 (monthly_member_results) もこの時点で確定。公開済みの月に実行すると再公開となり、保留中の微調整 (publish_state = pending / removing) を確定してメンバーへ反映する (D-044)
       parameters:
