@@ -8,11 +8,7 @@ async function forward(req: NextRequest, path: string[]) {
   const operation =
     req.method === "PUT" && /^v1\/practice-months\/[^/]+\/assignments$/.test(route)
       ? "save_assignments"
-      : req.method === "POST" && /^v1\/practices\/[^/]+\/assignments$/.test(route)
-      ? "add_assignment"
-      : req.method === "DELETE" && /^v1\/assignments\/[^/]+$/.test(route)
-        ? "remove_assignment"
-        : req.method === "GET" && /^v1\/practice-months\/[^/]+\/results$/.test(route)
+      : req.method === "GET" && /^v1\/practice-months\/[^/]+\/results$/.test(route)
           ? "full_results"
           : null;
   const startedAt = performance.now();

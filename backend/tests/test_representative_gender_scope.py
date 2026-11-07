@@ -2,6 +2,7 @@
 import pytest
 
 from tests.conftest import auth_header
+from tests.api_helpers import save_participation
 from tests.test_practices import create_month
 from tests.test_lottery_api import setup_month_with_votes
 
@@ -31,9 +32,9 @@ def test_other_gender_draw_publish_and_assignment_validation(client, make_user):
     assert client.post(f"/api/v1/practice-months/{pm['id']}/publish", headers=h).status_code == 204
     male, _ = make_user(gender="male")
     female, _ = make_user(gender="female")
-    path = f"/api/v1/practices/{pm['practices'][0]['id']}/assignments"
-    assert client.post(path, json={"user_id": male}, headers=h).status_code == 201
-    assert client.post(path, json={"user_id": female}, headers=h).status_code == 403
+    pid = pm['practices'][0]['id']
+    assert save_participation(client, pm['id'], pid, male, True, headers=h).status_code == 204
+    assert save_participation(client, pm['id'], pid, female, True, headers=h).status_code == 403
 
 
 @pytest.mark.parametrize('configured_alpha', [None, '1.7'])

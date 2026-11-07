@@ -268,11 +268,6 @@ export interface FullResults {
   by_member: MemberResult[];
 }
 
-export interface AssignmentCreated {
-  assignment_id: string;
-  capacity_exceeded: boolean;
-}
-
 export interface AssignmentChange {
   practice_id: string;
   user_id: string;

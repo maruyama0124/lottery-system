@@ -175,7 +175,7 @@ def test_commit_failure_is_not_reported_as_success(client, db_session, test_engi
         assert users[4] not in rows and rows[users[0]].publish_state == "published"
 
 
-def test_measure_individual_vs_batch(client, db_session, test_engine, make_user, batch_setup):
+def test_measure_batch_sql_budget(client, db_session, test_engine, make_user, batch_setup):
     """5追加+5削除。認証・commit込み。SQL論理回数とDBAPI呼出を分ける。"""
     token, pm, _, _ = batch_setup
     pid = pm["practices"][1]["id"]
@@ -195,26 +195,19 @@ def test_measure_individual_vs_batch(client, db_session, test_engine, make_user,
         if operation in ("SELECT", "INSERT", "UPDATE", "DELETE"):
             count["calls"] += 1
             count[operation] += len(parameters) if executemany else 1
-    samples = {"individual": [], "batch": []}
+    samples = []
     for _ in range(3):
-        for mode in samples:
-            reset(); count.clear()
-            event.listen(test_engine, "before_cursor_execute", record)
-            started = perf_counter()
-            try:
-                if mode == "individual":
-                    for aid in ids:
-                        assert client.delete(f"/api/v1/assignments/{aid}", headers=auth_header(token)).status_code == 204
-                    for uid in users[5:]:
-                        assert client.post(f"/api/v1/practices/{pid}/assignments", json={"user_id": uid}, headers=auth_header(token)).status_code == 201
-                else:
-                    changes = [change(pid, uid, False, aid, "published") for uid, aid in zip(users, ids)]
-                    changes += [change(pid, uid, True) for uid in users[5:]]
-                    assert save(client, token, pm, changes).status_code == 204
-            finally:
-                elapsed = (perf_counter() - started) * 1000
-                event.remove(test_engine, "before_cursor_execute", record)
-            samples[mode].append({**count, "ms": round(elapsed, 1)})
+        reset(); count.clear()
+        event.listen(test_engine, "before_cursor_execute", record)
+        started = perf_counter()
+        try:
+            changes = [change(pid, uid, False, aid, "published") for uid, aid in zip(users, ids)]
+            changes += [change(pid, uid, True) for uid in users[5:]]
+            assert save(client, token, pm, changes).status_code == 204
+        finally:
+            elapsed = (perf_counter() - started) * 1000
+            event.remove(test_engine, "before_cursor_execute", record)
+        samples.append({**count, "ms": round(elapsed, 1)})
     print("\nBATCH_BENCHMARK", samples)
-    assert samples["batch"][0]["SELECT"] == 5  # 認証1 + 月/日/会員/割当
-    assert samples["batch"][0]["calls"] < samples["individual"][0]["calls"]
+    assert all(sample["SELECT"] == 5 for sample in samples)  # 認証1 + 月/日/会員/割当
+    assert all(sample["calls"] <= 7 for sample in samples)  # SELECT5 + 一括UPDATE + 一括INSERT

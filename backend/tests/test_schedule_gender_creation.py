@@ -7,6 +7,8 @@ from sqlalchemy import func, select
 from src.db.models import Practice, PracticeMonth, Vote, Assignment
 from src.services.practice_service import PracticeService
 from tests.conftest import auth_header
+from tests.api_helpers import duplicate_practice
+from tests.api_helpers import create_month_response, update_practice_response
 from tests.test_practices import month_body, create_month
 
 
@@ -72,9 +74,9 @@ def test_both_creation_preserves_independent_scope(client, make_user, db_session
     male, female = [next(m for m in months if m['gender']==gender) for gender in ('male','female')]
     male_p, female_p = [m['practices'][0] for m in (male,female)]
     edited = {**month_body(practices=1)['practices'][0], 'capacity': 12}
-    assert client.put(f"/api/v1/practices/{male_p['id']}", json=edited, headers=auth_header(token)).status_code == 204
+    assert update_practice_response(client, male_p['id'], json=edited, headers=auth_header(token)).status_code == 204
     assert db_session.get(Practice,female_p['id']).capacity == 30
-    assert client.put(f"/api/v1/practices/{female_p['id']}", json=edited, headers=auth_header(token)).status_code == 204
+    assert update_practice_response(client, female_p['id'], json=edited, headers=auth_header(token)).status_code == 204
     assert client.put(f"/api/v1/practice-months/{female['id']}", json={'vote_ends_at':female['vote_ends_at']}, headers=auth_header(token)).status_code == 204
     # 代表として到達できるが、抽選前・投票期間中などの業務制約は維持する。
     assert client.post(f"/api/v1/practice-months/{female['id']}/lottery", json={}, headers=auth_header(token)).status_code == 409
@@ -225,13 +227,9 @@ def test_fixed_update_failure_rolls_back_other_gender_changes(client, make_user,
 
 def test_ambiguous_existing_same_date_rejected(client, make_user, db_session):
     _, token = make_user(role='representative')
-    body = month_body(practices=1)
-    body['practices'].append({**body['practices'][0], 'location':'別会場'})
-    response = client.post('/api/v1/practice-months', json=body, headers=auth_header(token))
-    # 旧APIは従来の同日複数登録・既存月409を維持する。
-    assert response.status_code == 201
+    pm = create_month(client, token, practices=1)
+    duplicate_practice(db_session, pm['practices'][0]['id'])
     db_session.commit()
-    assert client.post('/api/v1/practice-months', json=body, headers=auth_header(token)).status_code == 409
     # 既存の同日複数行は自動で選ばない。
     result = client.post('/api/v1/practice-months/batch', json=month_request(['male']), headers=auth_header(token))
     assert result.status_code == 409

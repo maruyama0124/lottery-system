@@ -133,10 +133,10 @@ def test_deleted_user_is_treated_as_unregistered(client, fake_line, db_session) 
     assert res.json()["registered"] is False
 
 
-def test_logout_requires_token(client, make_user) -> None:
-    assert client.post("/api/v1/auth/logout").status_code == 401
+def test_backend_logout_is_removed(client, make_user) -> None:
+    assert client.post("/api/v1/auth/logout").status_code == 404
     _user_id, token = make_user()
-    assert client.post("/api/v1/auth/logout", headers=auth_header(token)).status_code == 204
+    assert client.post("/api/v1/auth/logout", headers=auth_header(token)).status_code == 404
 
 
 def test_protected_endpoint_rejects_invalid_token(client) -> None:

@@ -7,6 +7,8 @@ from sqlalchemy import select
 from src.db.models import Assignment, Practice, Vote
 from src.services.practice_service import PracticeService
 from tests.conftest import auth_header
+from tests.api_helpers import duplicate_practice
+from tests.api_helpers import add_practice_response
 from tests.test_practices import month_body
 
 
@@ -88,7 +90,7 @@ def test_stale_context_and_new_counterpart_are_rejected(client, make_user, db_se
     assert client.put(path,json=request,headers=header).status_code==409
     request['expected_versions']=client.get(path,headers=header).json()['versions']
     female_month=next(m for m in months if m['gender']=='female')
-    assert client.post(f"/api/v1/practice-months/{female_month['id']}/practices", json=request['practice'],headers=header).status_code==201
+    assert add_practice_response(client, female_month['id'], json=request['practice'],headers=header).status_code==201
     assert client.put(path,json=request,headers=header).status_code==409
 
 
@@ -124,10 +126,10 @@ def test_gender_edit_requires_representative_and_valid_context(client, make_user
     assert client.put(path,json={**request,'expected_versions':{}},headers=header).status_code==400
 
 
-def test_same_day_multiple_existing_practices_is_ambiguous(client, make_user):
+def test_same_day_multiple_existing_practices_is_ambiguous(client, make_user, db_session):
     _,header,path,request,months = setup_edit(client,make_user)
     male_month=next(m for m in months if m['gender']=='male')
-    assert client.post(f"/api/v1/practice-months/{male_month['id']}/practices",json=request['practice'],headers=header).status_code==201
+    duplicate_practice(db_session, request['expected_versions']['male']['id'])
     assert client.get(path,headers=header).status_code==409
     assert client.put(path,json=request,headers=header).status_code==409
 

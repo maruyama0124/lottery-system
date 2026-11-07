@@ -6,6 +6,7 @@
 from datetime import datetime, timedelta, timezone
 
 from tests.conftest import auth_header
+from tests.api_helpers import save_participation, remove_assignment_response
 from tests.test_practices import create_month
 
 
@@ -257,74 +258,35 @@ def test_same_seed_reproduces_same_assignments(client, make_user) -> None:
 
 
 def test_manual_adjustment(client, make_user) -> None:
-    """REQ-006.3: 手動追加・削除。定員超過で警告フラグ"""
+    """現行の差分一括保存による手動追加・削除と同一保存の再送。"""
     rep_token, pm, _tokens = setup_month_with_votes(client, make_user)
-    run_lottery(client, rep_token, pm["id"])
-    prc_id = pm["practices"][0]["id"]
-
-    # 投票していないメンバーを手動追加
-    extra_id, _extra_token = make_user(gender="male", grade=1)
-    added = client.post(
-        f"/api/v1/practices/{prc_id}/assignments",
-        json={"user_id": extra_id},
-        headers=auth_header(rep_token),
-    )
-    assert added.status_code == 201
-    assert added.json()["capacity_exceeded"] is False  # 定員30に対して7名
-
-    # 二重追加は409
-    dup = client.post(
-        f"/api/v1/practices/{prc_id}/assignments",
-        json={"user_id": extra_id},
-        headers=auth_header(rep_token),
-    )
-    assert dup.status_code == 409
-
-    # 手動追加分は manual バッジ
-    full = client.get(
-        f"/api/v1/practice-months/{pm['id']}/results", headers=auth_header(rep_token)
-    ).json()
-    target = next(p for p in full["by_practice"] if p["practice"]["id"] == prc_id)
-    manual = [pt for pt in target["participants"] if pt["assigned_via"] == "manual"]
-    assert len(manual) == 1
-
-    # 削除
-    removed = client.delete(
-        f"/api/v1/assignments/{added.json()['assignment_id']}",
-        headers=auth_header(rep_token),
-    )
-    assert removed.status_code == 204
+    run_lottery(client, rep_token, pm['id'])
+    pid = pm['practices'][0]['id']
+    uid, _ = make_user(gender='male', grade=1)
+    header = auth_header(rep_token)
+    assert save_participation(client, pm['id'], pid, uid, True, headers=header).status_code == 204
+    assert save_participation(client, pm['id'], pid, uid, True, headers=header).status_code == 204
+    full = client.get(f"/api/v1/practice-months/{pm['id']}/results", headers=header).json()
+    target = next(d for d in full['by_practice'] if d['practice']['id'] == pid)
+    manual = [p for p in target['participants'] if p['assigned_via'] == 'manual']
+    assert len(manual) == 1 and manual[0]['user_id'] == uid
+    assert save_participation(client, pm['id'], pid, uid, False, headers=header).status_code == 204
 
 
-def test_capacity_exceeded_warning(client, make_user, db_session) -> None:
-    """定員1の練習に2人目を手動追加すると capacity_exceeded=true"""
-    _rep_id, rep_token = make_user(role="representative", gender="male")
-    pm = create_month(client, rep_token, year_month="2026-09", practices=1)
-    prc_id = pm["practices"][0]["id"]
-    # 定員は日程編集でなく学年枠で確定する。
-    client.put(
-        f"/api/v1/practice-months/{pm['id']}/quotas",
-        json={
-            "practices": [{"practice_id":prc_id,"grades":[
-                {"grade":1,"quota":1},{"grade":2,"quota":0},{"grade":3,"quota":0},
-            ]}],
-        },
-        headers=auth_header(rep_token),
-    )
-    m1, _t1 = make_user(gender="male")
-    m2, _t2 = make_user(gender="male")
-    r1 = client.post(
-        f"/api/v1/practices/{prc_id}/assignments",
-        json={"user_id": m1},
-        headers=auth_header(rep_token),
-    )
-    assert r1.json()["capacity_exceeded"] is False
-    r2 = client.post(
-        f"/api/v1/practices/{prc_id}/assignments",
-        json={"user_id": m2},
-        headers=auth_header(rep_token),
-    )
-    assert r2.json()["capacity_exceeded"] is True
+def test_manual_batch_can_exceed_capacity(client, make_user) -> None:
+    """定員超過を許可し、画面で人数と定員を比較できるデータを返す。"""
+    _, token = make_user(role='representative', gender='male')
+    pm = create_month(client, token, year_month='2026-09', practices=1)
+    pid = pm['practices'][0]['id']
+    header = auth_header(token)
+    assert client.put(f"/api/v1/practice-months/{pm['id']}/quotas", json={
+        'practices':[{'practice_id':pid,'grades':[{'grade':g,'quota':1 if g==1 else 0} for g in (1,2,3)]}]
+    }, headers=header).status_code == 204
+    for _ in range(2):
+        uid, _ = make_user(gender='male')
+        assert save_participation(client, pm['id'], pid, uid, True, headers=header).status_code == 204
+    result = client.get(f"/api/v1/practice-months/{pm['id']}/results", headers=header).json()['by_practice'][0]
+    assert result['practice']['capacity'] == 1 and len(result['participants']) == 2
 
 
 def test_publish_records_losses_for_next_month(client, make_user, db_session) -> None:
@@ -461,36 +423,32 @@ def test_adjustments_after_publish_are_held_until_republish(client, make_user) -
             f"/api/v1/practice-months/{pm['id']}/results", headers=auth_header(rep_token)
         ).json()["by_practice"][0]["participants"]
     )
-    res = client.delete(f"/api/v1/assignments/{removed_asg}", headers=auth_header(rep_token))
+    res = remove_assignment_response(client, pm['id'], removed_asg, headers=auth_header(rep_token))
     assert res.status_code == 204
     assert rep_participants()[removed_uid] == "removing"
     assert removed_uid in visible_user_ids()
 
     # 新しい人を追加 → 追加予定になり、メンバーにはまだ見えない
     extra_id, _ = make_user(gender="male", grade=1)
-    res = client.post(
-        f"/api/v1/practices/{prc_id}/assignments",
-        json={"user_id": extra_id},
+    res = save_participation(client, pm['id'], prc_id, extra_id, True,
         headers=auth_header(rep_token),
     )
-    assert res.status_code == 201
+    assert res.status_code == 204
     assert rep_participants()[extra_id] == "pending"
     assert extra_id not in visible_user_ids()
     assert visible_user_ids() == before
 
     # 削除予定の人をもう一度追加すると元に戻る (409 にならない)
-    res = client.post(
-        f"/api/v1/practices/{prc_id}/assignments",
-        json={"user_id": removed_uid},
+    res = save_participation(client, pm['id'], prc_id, removed_uid, True,
         headers=auth_header(rep_token),
     )
-    assert res.status_code == 201
+    assert res.status_code == 204
     assert rep_participants()[removed_uid] == "published"
 
     # 改めて外してから再公開 → 外した人は消え、追加した人が見える
-    client.delete(f"/api/v1/assignments/{removed_asg}", headers=auth_header(rep_token))
+    remove_assignment_response(client, pm['id'], removed_asg, headers=auth_header(rep_token))
     # 削除予定をもう一度削除しても即座には消えない (二重削除は何もしない)
-    res = client.delete(f"/api/v1/assignments/{removed_asg}", headers=auth_header(rep_token))
+    res = remove_assignment_response(client, pm['id'], removed_asg, headers=auth_header(rep_token))
     assert res.status_code == 204
     assert rep_participants()[removed_uid] == "removing"
     assert removed_uid in visible_user_ids()

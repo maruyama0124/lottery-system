@@ -2,16 +2,16 @@
 hide:
 - navigation
 doc_type: ui-design
-version: 2.20.0
+version: 2.21.0
 last_updated: '2026-11-07'
 depends_on:
 - requirements/index.md
 - api-design/index.md
 derived_by: []
-sync_hash: 09ac10a24072
+sync_hash: 2daecd72cdd1
 dependency_hashes:
-  requirements/index.md: 6454e8d3ddc1
-  api-design/index.md: 5b6bb83a13ca
+  requirements/index.md: 09222d2a8ab1
+  api-design/index.md: 5f912aa490d9
 ---
 
 # 画面設計書 — サークル練習参加抽選システム
@@ -174,7 +174,7 @@ stateDiagram-v2
 - **複製**: 場所・時刻・対象学年・備考を引き継ぎ、日付は空にする。定員・学年枠は引き継がない (REQ-003.7 / D-064)
 - **新しい月の作成は確認画面を挟む**: 「入力内容を確認」→ 対象月・投票期間・練習日一覧（日付順）を表示 →「作成する」／「修正する」。同じ日付が重複していれば注意を表示する (REQ-003.8 / D-016)。既存月への練習日追加・編集には確認画面を挟まない
 - 抽選実行後の削除は警告付き確認ダイアログ (REQ-003.4)
-- API: `POST /practice-months/batch`, `POST /practices/batch`, `PUT/DELETE /practices/{id}`, `GET /practices/suggestions`
+- API: `POST /practice-months/batch`, `POST /practices/batch`, `GET/PUT /practices/{id}/genders`, `DELETE /practices/{id}`, `GET /practices/suggestions`
 - 状態: default / confirming / saving / warning-after-lottery
 
 <iframe src="snippets/admin-schedule-mobile.html" width="100%" height="850px" frameborder="0" style="border: none; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></iframe>

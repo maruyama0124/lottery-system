@@ -68,9 +68,6 @@ class LotteryRepository:
 
     # ---------- 割当 ----------
 
-    def get_assignment(self, assignment_id: str) -> Assignment | None:
-        a = self.db.get(Assignment, assignment_id)
-        return a if a and not a.is_deleted else None
 
     def list_assignments_for_update(self, practice_ids: list[str]) -> list[Assignment]:
         """削除済みの再利用候補も含めて一括取得する。"""

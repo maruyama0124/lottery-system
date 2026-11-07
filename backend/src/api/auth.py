@@ -5,10 +5,9 @@
 """
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from src.api.deps import CurrentUser
 from src.db.session import get_db
 from src.schemas.auth import (
     LineLoginRequest,
@@ -33,9 +32,3 @@ def line_login(data: LineLoginRequest, db: DbDep) -> LineLoginResponse:
 def line_register(data: LineRegisterRequest, db: DbDep) -> TokenResponse:
     """初回登録 (D-021)。本名・学年・性別を受け取り、そのままログイン状態にする"""
     return AuthService(db).line_register(data)
-
-
-@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-def logout(_user: CurrentUser) -> Response:
-    # JWT はステートレスのためサーバー側の破棄は不要 (クライアントがトークンを破棄する)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)

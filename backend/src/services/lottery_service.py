@@ -16,7 +16,6 @@ from src.repositories.lottery_repository import LotteryRepository
 from src.repositories.practice_repository import PracticeMonthRepository, PracticeRepository
 from src.repositories.user_repository import UserRepository
 from src.schemas.lottery import (
-    AssignmentCreated,
     AssignmentBatchRequest,
     FullResults,
     GradeVoteSummary,
@@ -614,82 +613,6 @@ class LotteryService:
         finally:
             logger.info("[timing] save_assignments changes=%d %.1f ms", len(data.changes),
                         (perf_counter() - started_at) * 1000)
-
-    def add_assignment(self, rep: User, practice_id: str, user_id: str) -> AssignmentCreated:
-        started_at = perf_counter()
-        try:
-            practice = self.practices.get(practice_id)
-            if practice is None:
-                raise NotFoundError("練習日が見つかりません")
-            pm = self.practice_service.get_month_for_rep(rep, practice.practice_month_id)
-            self._lock_adjustment_month(rep, practice.practice_month_id)
-            self.db.refresh(practice, with_for_update=True)
-            if practice.is_assignment_locked:
-                raise ConflictError("参加者が固定された練習日は変更できません")
-    
-            target = self.users.get_by_id(user_id)
-            if target is None:
-                raise NotFoundError("メンバーが見つかりません")
-            if target.gender != pm.gender or target.is_observer:
-                raise ForbiddenError("対象月と同じ性別の参加対象メンバーのみ割当できます")
-    
-            existing = self.repo.list_assignments([practice_id])
-            current = next((a for a in existing if a.user_id == user_id), None)
-            if current is not None and current.publish_state != "removing":
-                raise ConflictError("このメンバーは既にこの練習日に割当済みです")
-    
-            if current is not None:
-                # 公開後に外した人を戻す。メンバーにはまだ見えたままなので published に戻すだけ (D-044)
-                current.publish_state = "published"
-                self.db.flush()
-                assignment = current
-            else:
-                assignment = self.repo.create_assignment(
-                    practice_id=practice_id, user_id=user_id, via="manual", execution_id=None
-                )
-            player_count = sum(
-                1
-                for a in self.repo.list_assignments([practice_id])
-                if a.assigned_via != "manager"
-            )
-            return AssignmentCreated(
-                assignment_id=assignment.id,
-                capacity_exceeded=practice.capacity is not None and player_count > practice.capacity,
-            )
-        finally:
-            logger.info(
-                "[timing] add_assignment %.1f ms",
-                (perf_counter() - started_at) * 1000,
-            )
-
-    def remove_assignment(self, rep: User, assignment_id: str) -> None:
-        started_at = perf_counter()
-        try:
-            assignment = self.repo.get_assignment(assignment_id)
-            if assignment is None:
-                raise NotFoundError("割当が見つかりません")
-            practice = self.practices.get(assignment.practice_id)
-            if practice is None:
-                raise NotFoundError("練習日が見つかりません")
-            pm = self.practice_service.get_month_for_rep(rep, practice.practice_month_id)
-            self._lock_adjustment_month(rep, pm.id)
-            self.db.refresh(practice, with_for_update=True)
-            if practice.is_assignment_locked:
-                raise ConflictError("参加者が固定された練習日は変更できません")
-            if assignment.publish_state == "removing":
-                # すでに削除予定。二重に消すとメンバーから即座に消えてしまうので何もしない
-                return
-            if pm.status == "published" and assignment.publish_state == "published":
-                # 公開済みの割当はすぐ消さず、再公開まで「削除予定」にとどめる (D-044)
-                assignment.publish_state = "removing"
-            else:
-                assignment.is_deleted = True
-            self.db.flush()
-        finally:
-            logger.info(
-                "[timing] remove_assignment %.1f ms",
-                (perf_counter() - started_at) * 1000,
-            )
 
 
     # ---------- 公開 (REQ-006.4) ----------

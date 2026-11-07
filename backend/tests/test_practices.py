@@ -2,6 +2,7 @@
 from datetime import datetime, timedelta, timezone
 
 from tests.conftest import auth_header
+from tests.api_helpers import create_month_response, add_practice_response, update_practice_response
 
 
 def month_body(year_month: str = "2026-08", *, open_window: bool = True, practices: int = 2):
@@ -28,8 +29,7 @@ def month_body(year_month: str = "2026-08", *, open_window: bool = True, practic
 
 
 def create_month(client, rep_token: str, **kwargs):
-    res = client.post(
-        "/api/v1/practice-months", json=month_body(**kwargs), headers=auth_header(rep_token)
+    res = create_month_response(client, json=month_body(**kwargs), headers=auth_header(rep_token)
     )
     assert res.status_code == 201, res.text
     return res.json()
@@ -44,17 +44,15 @@ def test_create_month_with_practices(client, make_user) -> None:
     assert pm["practices"][0]["capacity"] == 30
 
 
-def test_create_month_duplicate_409_and_member_403(client, make_user) -> None:
+def test_create_month_reuses_existing_and_member_is_forbidden(client, make_user) -> None:
     _rep, rep_token = make_user(role="representative", gender="male")
     create_month(client, rep_token)
-    dup = client.post(
-        "/api/v1/practice-months", json=month_body(), headers=auth_header(rep_token)
+    dup = create_month_response(client, json=month_body(), headers=auth_header(rep_token)
     )
-    assert dup.status_code == 409
+    assert dup.status_code == 201
 
     _member, member_token = make_user(gender="male")
-    ng = client.post(
-        "/api/v1/practice-months",
+    ng = create_month_response(client,
         json=month_body("2026-09"),
         headers=auth_header(member_token),
     )
@@ -117,8 +115,7 @@ def test_update_month_and_practice_crud(client, make_user) -> None:
         == 204
     )
 
-    added = client.post(
-        f"/api/v1/practice-months/{pm['id']}/practices",
+    added = add_practice_response(client, pm['id'],
         json={
             "practice_date": "2026-08-24",
             "starts_at": "18:00",
@@ -132,8 +129,7 @@ def test_update_month_and_practice_crud(client, make_user) -> None:
     prc_id = added.json()["id"]
 
     assert (
-        client.put(
-            f"/api/v1/practices/{prc_id}",
+        update_practice_response(client, prc_id,
             json={
                 "practice_date": "2026-08-24",
                 "starts_at": "19:00",
@@ -271,8 +267,7 @@ def test_practice_time_must_be_half_hour(client, make_user) -> None:
     pm = create_month(client, rep_token)
 
     def add(starts_at: str, ends_at: str):
-        return client.post(
-            f"/api/v1/practice-months/{pm['id']}/practices",
+        return add_practice_response(client, pm['id'],
             json={
                 "practice_date": "2026-08-20",
                 "starts_at": starts_at,
@@ -294,8 +289,7 @@ def test_practice_suggestions_ordered_by_use_count(client, make_user) -> None:
     # month_body は「第一体育館 18:00-21:00」を練習数ぶん作る
     create_month(client, rep_token, year_month="2026-08", practices=2)
     pm2 = create_month(client, rep_token, year_month="2026-09", practices=1)
-    client.post(
-        f"/api/v1/practice-months/{pm2['id']}/practices",
+    add_practice_response(client, pm2['id'],
         json={
             "practice_date": "2026-09-20",
             "starts_at": "19:30",
@@ -337,8 +331,7 @@ def test_practice_date_must_be_inside_the_month(client, make_user) -> None:
     pm = create_month(client, rep_token, practices=1)
 
     # 追加: 対象月の翌月の日付は 400
-    res = client.post(
-        f"/api/v1/practice-months/{pm['id']}/practices",
+    res = add_practice_response(client, pm['id'],
         json={
             "practice_date": "2026-10-05",
             "starts_at": "18:00",
@@ -352,8 +345,7 @@ def test_practice_date_must_be_inside_the_month(client, make_user) -> None:
 
     # 更新: 既存の練習日を月外に動かすのも 400
     practice_id = pm["practices"][0]["id"]
-    res = client.put(
-        f"/api/v1/practices/{practice_id}",
+    res = update_practice_response(client, practice_id,
         json={
             "practice_date": "2026-10-05",
             "starts_at": "18:00",
@@ -372,8 +364,7 @@ def test_grade_restricted_practice_blocks_votes(client, make_user) -> None:
     pm = create_month(client, rep_token, practices=1)
 
     # 1年限定の練習日を追加
-    res = client.post(
-        f"/api/v1/practice-months/{pm['id']}/practices",
+    res = add_practice_response(client, pm['id'],
         json={
             "practice_date": "2026-08-20",
             "starts_at": "18:00",
@@ -417,8 +408,7 @@ def test_grade_restricted_practice_blocks_votes(client, make_user) -> None:
     assert res.status_code == 204
 
     # 全学年 [1,2,3] を指定した場合は制限なし (None に正規化)
-    res = client.post(
-        f"/api/v1/practice-months/{pm['id']}/practices",
+    res = add_practice_response(client, pm['id'],
         json={
             "practice_date": "2026-08-21",
             "starts_at": "18:00",
@@ -448,8 +438,7 @@ def test_restricted_day_ignores_existing_votes(client, make_user) -> None:
     )
     assert res.status_code == 204
 
-    res = client.put(
-        f"/api/v1/practices/{practice['id']}",
+    res = update_practice_response(client, practice['id'],
         json={
             "practice_date": practice["practice_date"],
             "starts_at": practice["starts_at"],

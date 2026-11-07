@@ -23,157 +23,58 @@ tags:
 
 
 paths:
-  /auth/register:
+  /health:
+    get:
+      tags: [health]
+      summary: 稼働確認
+      security: []
+      responses:
+        '200':
+          description: 稼働中
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+
+  /auth/line/login:
     post:
       tags: [auth]
-      summary: アカウント登録（プロフィール込み）
-      description: |
-        登録直後はメール未確認状態。登録したメールアドレス宛に6桁の確認コードを送信し、
-        `POST /auth/verify` で確認が完了するまでログインできない (REQ-001.1 / D-011)。
+      summary: LINE IDトークンの検証とログイン
       security: []
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/RegisterRequest'
+            schema: { $ref: '#/components/schemas/LineLoginRequest' }
+      responses:
+        '200':
+          description: 登録状態と、登録済みの場合はアクセストークンを返すため200を定義する (D-021)。
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LineLoginResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /auth/line/register:
+    post:
+      tags: [auth]
+      summary: LINE認証による初回登録
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LineRegisterRequest' }
       responses:
         '201':
-          description: 登録成功（メール未確認）
+          description: 登録成功・アクセストークン発行
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/UserProfile'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '409':
-          description: メールアドレスが登録済み
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-  /auth/verify:
-    post:
-      tags: [auth]
-      summary: メールアドレス確認（6桁コード）
-      description: |
-        確認コードの有効期限は15分。入力を5回失敗するとコードが無効化され、
-        再送するまで確認できない (REQ-001.5 / D-012)。
-
-        確認に成功するとアクセストークンを返す。ログイン画面へ戻さず、
-        そのままログイン状態にすること (D-014)。
-
-        エラーは登録済みメールアドレスを判別できないよう、以下をすべて 400 で返す。
-
-        | code | 状況 |
-        |------|------|
-        | `INVALID_CODE` | コード不一致、未登録のメール、確認済み |
-        | `CODE_EXPIRED` | 有効期限切れ |
-        | `CODE_LOCKED` | 失敗回数が上限に到達 |
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/VerifyEmailRequest'
-      responses:
-        # POST の 200 は原則未定義だが、確認完了と同時にログイン状態にするため例外的に定義 (D-014)
-        '200':
-          description: 確認完了（アクセストークンを発行し、そのままログイン状態になる）
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TokenResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-
-  /auth/verify/resend:
-    post:
-      tags: [auth]
-      summary: 確認コードの再送
-      description: |
-        新しいコードを発行し、有効期限と失敗回数をリセットする。古いコードは無効になる (REQ-001.6)。
-        メールアドレスの存在を漏らさないため、未登録・確認済みの場合も 204 を返す。
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ResendVerificationRequest'
-      responses:
-        '204':
-          description: 再送受付（未登録・確認済みでも 204 を返す）
-
-  /auth/login:
-    post:
-      tags: [auth]
-      summary: ログイン（JWT発行）
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/LoginRequest'
-      responses:
-        # POST の 200 は原則未定義だが、トークン返却が必須のため例外的に定義
-        '200':
-          description: ログイン成功
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TokenResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          description: メール未確認（`EMAIL_NOT_VERIFIED`）。確認コードの入力を促すこと
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-  /auth/logout:
-    post:
-      tags: [auth]
-      summary: ログアウト
-      responses:
-        '204':
-          description: ログアウト成功
-
-  /auth/password-reset/request:
-    post:
-      tags: [auth]
-      summary: パスワードリセットメール送信
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PasswordResetRequest'
-      responses:
-        '204':
-          description: 送信受付（存在しないメールでも 204 を返す）
-
-  /auth/password-reset/confirm:
-    post:
-      tags: [auth]
-      summary: 新パスワード設定
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PasswordResetConfirm'
-      responses:
-        '204':
-          description: 再設定成功
-        '400':
-          $ref: '#/components/responses/BadRequest'
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { description: 登録済みLINEアカウント }
 
   /users/me:
     get:
@@ -257,30 +158,6 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/PracticeMonth'
-    post:
-      tags: [practice-months]
-      summary: 月別練習単位の作成（代表のみ）
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PracticeMonthCreateRequest'
-      responses:
-        '201':
-          description: 作成成功
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PracticeMonth'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          description: 同じ月×性別が既に存在
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
 
   /practice-months/batch:
     post:
@@ -387,27 +264,6 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /practice-months/{pmId}/practices:
-    post:
-      tags: [practice-months]
-      summary: 練習日の追加（代表のみ）
-      parameters:
-        - $ref: '#/components/parameters/PmId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PracticeCreateRequest'
-      responses:
-        '201':
-          description: 作成成功
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Practice'
-        '403':
-          $ref: '#/components/responses/Forbidden'
 
   /practices/suggestions:
     get:
@@ -469,24 +325,6 @@ paths:
         '409': { description: 投票・割当ありの解除、固定日変更、更新版競合、同日複数行、移動先日程との衝突 }
 
   /practices/{practiceId}:
-    put:
-      tags: [practice-months]
-      summary: 練習日の更新（代表のみ）
-      parameters:
-        - $ref: '#/components/parameters/PracticeId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PracticeCreateRequest'
-      responses:
-        '204':
-          description: 更新成功
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
     delete:
       tags: [practice-months]
       summary: 練習日の削除（代表のみ。抽選実行後は要確認）
@@ -653,6 +491,20 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /practice-months/{pmId}/participation:
+    get:
+      tags: [lottery]
+      summary: 公開済みの練習参加表
+      parameters:
+        - $ref: '#/components/parameters/PmId'
+      responses:
+        '200':
+          description: 男女を問わず閲覧できる公開参加表
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ParticipationTable' }
+        '404': { description: 対象月不明・未公開 }
+
   /practice-months/{pmId}/results:
     get:
       tags: [lottery]
@@ -702,51 +554,6 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
-  /practices/{practiceId}/assignments:
-    post:
-      tags: [lottery]
-      summary: 参加者の手動追加（代表のみ・微調整）
-      description: REQ-006.3。定員超過時は 201 で警告フラグを返す
-      parameters:
-        - $ref: '#/components/parameters/PracticeId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AssignmentCreateRequest'
-      responses:
-        '201':
-          description: 追加成功（capacity_exceeded で定員超過を警告）
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AssignmentCreated'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          description: 既に割当済み
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-  /assignments/{assignmentId}:
-    delete:
-      tags: [lottery]
-      summary: 参加者の手動削除（代表のみ・微調整）
-      parameters:
-        - name: assignmentId
-          in: path
-          required: true
-          schema: { type: string, example: asg_01H0000000000000000000000 }
-      responses:
-        '204':
-          description: 削除成功
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
 
   /practice-months/{pmId}/publish:
     post:
@@ -842,28 +649,6 @@ components:
                   field: { type: string }
                   reason: { type: string }
 
-    RegisterRequest:
-      type: object
-      required: [email, password, name, address, phone_number, grade, gender, faculty_department, student_number, is_manager]
-      properties:
-        email: { type: string, format: email }
-        password: { type: string, minLength: 8 }
-        name: { type: string }
-        address: { type: string }
-        phone_number: { type: string }
-        grade: { type: integer, enum: [1, 2, 3] }
-        gender: { $ref: '#/components/schemas/Gender' }
-        faculty_department: { type: string }
-        student_number: { type: string }
-        is_manager: { type: boolean }
-
-    LoginRequest:
-      type: object
-      required: [email, password]
-      properties:
-        email: { type: string, format: email }
-        password: { type: string }
-
     TokenResponse:
       type: object
       properties:
@@ -871,49 +656,40 @@ components:
         token_type: { type: string, example: bearer }
         expires_in: { type: integer, description: 秒 }
 
-    VerifyEmailRequest:
+    LineLoginRequest:
       type: object
-      required: [email, code]
+      required: [id_token]
       properties:
-        email: { type: string, format: email }
-        code:
-          type: string
-          pattern: '^\d{6}$'
-          example: '482915'
-          description: メールで届いた6桁の確認コード
+        id_token: { type: string }
 
-    ResendVerificationRequest:
+    LineLoginResponse:
       type: object
-      required: [email]
+      required: [registered]
       properties:
-        email: { type: string, format: email }
+        registered: { type: boolean }
+        token: { allOf: [{ $ref: '#/components/schemas/TokenResponse' }], nullable: true }
+        display_name: { type: string, nullable: true }
 
-    PasswordResetRequest:
+    LineRegisterRequest:
       type: object
-      required: [email]
+      required: [id_token, name, grade, gender]
       properties:
-        email: { type: string, format: email }
-
-    PasswordResetConfirm:
-      type: object
-      required: [token, new_password]
-      properties:
-        token: { type: string }
-        new_password: { type: string, minLength: 8 }
+        id_token: { type: string }
+        name: { type: string, minLength: 1, maxLength: 100 }
+        grade: { type: integer, minimum: 1, maximum: 3 }
+        gender: { $ref: '#/components/schemas/Gender' }
+        is_manager: { type: boolean, default: false }
 
     UserProfile:
       type: object
+      required: [id, name, grade, gender, is_manager, is_observer, role, created_at, updated_at]
       properties:
         id: { type: string, example: usr_01H0000000000000000000000 }
-        email: { type: string, format: email }
         name: { type: string }
-        address: { type: string }
-        phone_number: { type: string }
         grade: { type: integer, enum: [1, 2, 3] }
         gender: { $ref: '#/components/schemas/Gender' }
-        faculty_department: { type: string }
-        student_number: { type: string }
         is_manager: { type: boolean }
+        is_observer: { type: boolean }
         role: { type: string, enum: [member, representative] }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
@@ -1268,11 +1044,36 @@ components:
           enum: [pending, published, removing]
           description: 公開状態 (D-044)。pending = 追加予定 / published = 公開済み / removing = 削除予定。メンバーには published と removing だけが見える
 
-    AssignmentCreateRequest:
+
+    ParticipationTable:
       type: object
-      required: [user_id]
+      required: [practice_month_id, year_month, practices, grades]
       properties:
-        user_id: { type: string }
+        practice_month_id: { type: string }
+        year_month: { type: string }
+        practices:
+          type: array
+          items: { $ref: '#/components/schemas/Practice' }
+        grades:
+          type: array
+          items:
+            type: object
+            required: [grade, rows]
+            properties:
+              grade: { type: integer }
+              rows:
+                type: array
+                items:
+                  type: object
+                  required: [user_id, name, is_manager, has_voted, practice_ids]
+                  properties:
+                    user_id: { type: string }
+                    name: { type: string }
+                    is_manager: { type: boolean }
+                    has_voted: { type: boolean }
+                    practice_ids:
+                      type: array
+                      items: { type: string }
 
     AssignmentBatchRequest:
       type: object
@@ -1298,9 +1099,3 @@ components:
                 type: string
                 nullable: true
                 enum: [pending, published, removing, null]
-
-    AssignmentCreated:
-      type: object
-      properties:
-        assignment_id: { type: string }
-        capacity_exceeded: { type: boolean, description: 定員超過の警告（REQ-006.3） }

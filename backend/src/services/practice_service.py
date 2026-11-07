@@ -9,7 +9,6 @@ from src.db.models import Assignment, Practice, PracticeMonth, User, Vote
 from src.repositories.practice_repository import PracticeMonthRepository, PracticeRepository
 from src.schemas.practices import (
     PracticeCreateRequest,
-    PracticeMonthCreateRequest,
     PracticeMonthUpdateRequest,
     PracticeMonthBatchCreateRequest,
     PracticeBatchCreateRequest,
@@ -52,10 +51,6 @@ class PracticeService:
 
     # ---------- 作成・更新 (代表) ----------
 
-    def create_month(self, rep: User, data: PracticeMonthCreateRequest) -> PracticeMonth:
-        return self.create_months(rep, PracticeMonthBatchCreateRequest(
-            **data.model_dump(), genders=[rep.gender]
-        ), allow_existing=False)[0]
 
     def _lock_existing_months(self, year_month, genders) -> dict[str, PracticeMonth]:
         return {pm.gender: pm for pm in self.db.scalars(select(PracticeMonth).where(
@@ -63,8 +58,7 @@ class PracticeService:
             PracticeMonth.gender.in_(genders), PracticeMonth.is_deleted.is_(False),
         ).order_by(PracticeMonth.id).with_for_update().execution_options(populate_existing=True))}
 
-    def create_months(self, rep: User, data: PracticeMonthBatchCreateRequest,
-                      *, allow_existing: bool = True) -> list[PracticeMonth]:
+    def create_months(self, rep: User, data: PracticeMonthBatchCreateRequest) -> list[PracticeMonth]:
         """既存月の受付期間を維持し、同日を更新・未登録日を追加する。"""
         if rep.role != "representative":
             raise ForbiddenError("代表権限が必要です")
@@ -73,8 +67,6 @@ class PracticeService:
             if p.genders is not None and not set(p.genders).issubset(data.genders):
                 raise ValidationError("練習日の登録対象が作成する月の性別に含まれていません")
         existing = self._lock_existing_months(data.year_month, data.genders)
-        if existing and not allow_existing:
-            raise ConflictError(f"{data.year_month} の月別練習は既に存在します")
         try:
             with self.db.begin_nested():
                 months = []
@@ -85,11 +77,7 @@ class PracticeService:
                         vote_ends_at=to_utc(data.vote_ends_at),
                     )
                     candidates = [p for p in data.practices if gender in (p.genders or data.genders)]
-                    if allow_existing:
-                        self._save_day_candidates(pm.id, candidates)
-                    else:
-                        for candidate in candidates:
-                            self._create_practice(pm.id, candidate)
+                    self._save_day_candidates(pm.id, candidates)
                     months.append(pm)
             return months
         except IntegrityError as exc:
@@ -252,10 +240,6 @@ class PracticeService:
             note=data.note,
         )
 
-    def add_practice(self, rep: User, pm_id: str, data: PracticeCreateRequest) -> Practice:
-        pm = self.get_month_for_rep(rep, pm_id)
-        self._ensure_date_in_month(pm, data.practice_date)
-        return self._create_practice(pm_id, data)
 
     def _get_practice_for_rep(self, rep: User, practice_id: str) -> Practice:
         practice = self.practices.get(practice_id)
@@ -271,18 +255,6 @@ class PracticeService:
             raise ConflictError("参加者が固定された練習日は変更・削除できません")
         return practice
 
-    def update_practice(self, rep: User, practice_id: str, data: PracticeCreateRequest) -> None:
-        practice = self._get_practice_for_rep(rep, practice_id)
-        pm = self.months.get(practice.practice_month_id)
-        if pm is not None:
-            self._ensure_date_in_month(pm, data.practice_date)
-        practice.practice_date = data.practice_date
-        practice.starts_at = data.starts_at
-        practice.ends_at = data.ends_at
-        practice.location = data.location
-        practice.allowed_grades = data.allowed_grades
-        practice.note = data.note
-        self.db.flush()
 
     def delete_practice(self, rep: User, practice_id: str, force: bool) -> None:
         """抽選実行後の削除は force=true が必要 (REQ-003.4 の警告)"""

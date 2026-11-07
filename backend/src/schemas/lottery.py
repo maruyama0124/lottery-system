@@ -121,15 +121,6 @@ class FullResults(BaseModel):
     by_member: list[MemberResult]
 
 
-class AssignmentCreateRequest(BaseModel):
-    user_id: str
-
-
-class AssignmentCreated(BaseModel):
-    assignment_id: str
-    capacity_exceeded: bool  # 定員超過の警告 (REQ-006.3)
-
-
 class AssignmentChange(BaseModel):
     practice_id: str
     user_id: str

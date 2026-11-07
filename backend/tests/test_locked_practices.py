@@ -8,6 +8,8 @@ from src.db.models import Assignment, LotteryExecution, MonthlyMemberResult, Pra
 from src.domain.lottery import run_lottery as engine_run
 from src.services.lottery_service import LotteryService
 from tests.conftest import auth_header
+from tests.api_helpers import save_participation, remove_assignment_response
+from tests.api_helpers import update_practice_response
 from tests.test_assignment_batch import body, change
 from tests.test_lottery_api import setup_month_with_votes, run_lottery
 
@@ -121,15 +123,18 @@ def test_all_locked_and_unsettled_locked_rejected(client, db_session, locked_set
 
 def test_fixed_adjustments_schedule_and_quota_protected(client, db_session, locked_setup):
     token, pm, fixed, other = locked_setup
+    # 男女編集APIは失敗時にrollbackするため、準備済みの固定状態を確定しておく。
+    db_session.commit()
     row = db_session.scalar(select(Assignment).where(Assignment.practice_id == fixed.id, Assignment.is_deleted.is_(False)))
     before = snapshot(db_session, fixed.id)
-    assert client.delete(f"/api/v1/assignments/{row.id}", headers=auth_header(token)).status_code == 409
-    assert client.post(f"/api/v1/practices/{fixed.id}/assignments", json={'user_id':row.user_id}, headers=auth_header(token)).status_code == 409
+    assert remove_assignment_response(client, pm['id'], row.id, headers=auth_header(token)).status_code == 409
+    assert save_participation(client, pm['id'], fixed.id, row.user_id, True, headers=auth_header(token)).status_code == 409
     changes = [change(other, row.user_id, False), change(fixed.id, row.user_id, False, row.id, 'published')]
     assert client.put(f"/api/v1/practice-months/{pm['id']}/assignments", json=body(pm, changes), headers=auth_header(token)).status_code == 409
     assert client.delete(f"/api/v1/practices/{fixed.id}?force=true", headers=auth_header(token)).status_code == 409
     data = {k:pm['practices'][0][k] for k in ('practice_date','starts_at','ends_at','location','capacity')}
-    assert client.put(f"/api/v1/practices/{fixed.id}", json=data, headers=auth_header(token)).status_code == 409
+    data['location'] = '変更してはいけない会場'
+    assert update_practice_response(client, fixed.id, json=data, headers=auth_header(token)).status_code == 409
     quotas = [{'grade':g, 'quota':getattr(fixed,f'quota_grade{g}')} for g in (1,2,3)]
     request = {'practices':[{'practice_id':fixed.id, 'grades':quotas}]}
     assert client.put(f"/api/v1/practice-months/{pm['id']}/quotas", json=request, headers=auth_header(token)).status_code == 204

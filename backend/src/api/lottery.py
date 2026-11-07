@@ -1,15 +1,13 @@
 """抽選・結果エンドポイント (openapi.yaml: lottery / results / assignments / publish)"""
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
 from src.api.deps import CurrentUser, Representative
 from src.db.session import get_db
 from src.schemas.lottery import (
-    AssignmentCreated,
     AssignmentBatchRequest,
-    AssignmentCreateRequest,
     FullResults,
     LotteryExecuteRequest,
     LotteryExecutionResponse,
@@ -81,29 +79,12 @@ def full_results(pm_id: str, rep: Representative, db: DbDep) -> FullResults:
     return LotteryService(db).full_results(rep, pm_id)
 
 
-@router.post(
-    "/practices/{practice_id}/assignments",
-    status_code=status.HTTP_201_CREATED,
-    response_model=AssignmentCreated,
-)
-def add_assignment(
-    practice_id: str, data: AssignmentCreateRequest, rep: Representative, db: DbDep
-) -> AssignmentCreated:
-    return LotteryService(db).add_assignment(rep, practice_id, data.user_id)
-
-
 @router.put("/practice-months/{pm_id}/assignments", status_code=status.HTTP_204_NO_CONTENT)
 def save_assignments(pm_id: str, data: AssignmentBatchRequest, rep: Representative, db: DbDep) -> Response:
     LotteryService(db).save_assignments(rep, pm_id, data)
     # yield依存関数の終了は応答後になり得る。保存成功を返す前にcommitを確定する。
     # 例外時のrollbackはget_dbが担い、成功後のget_db.commitは空の処理になる。
     db.commit()
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.delete("/assignments/{assignment_id}", status_code=status.HTTP_204_NO_CONTENT)
-def remove_assignment(assignment_id: str, rep: Representative, db: DbDep) -> Response:
-    LotteryService(db).remove_assignment(rep, assignment_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

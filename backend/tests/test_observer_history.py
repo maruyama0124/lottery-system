@@ -7,6 +7,7 @@ from src.db.models import Assignment, MonthlyMemberResult, PracticeMonth, User, 
 from src.domain.lottery import run_lottery
 from src.services.lottery_service import LotteryService
 from tests.conftest import auth_header
+from tests.api_helpers import save_participation
 from tests.test_lottery_api import setup_month_with_votes
 from tests.test_practices import create_month
 
@@ -43,7 +44,7 @@ def test_retired_member_stays_in_both_tables_but_not_votes_roster_or_draw(client
     # 過去の投票自体は保持するが、プレイヤー一覧にいないので割り当てない。
     result = run_lottery(days, players, votes, rescue_alpha=1, seed=1)
     assert uid not in {mid for _, mid, _ in result.assignments}
-    assert client.post(f"/api/v1/practices/{pm['practices'][0]['id']}/assignments", json={'user_id': uid}, headers=auth_header(rep)).status_code == 403
+    assert save_participation(client, pm['id'], pm['practices'][0]['id'], uid, True, headers=auth_header(rep)).status_code == 403
     later = create_month(client, rep, year_month='2026-09')
     db_session.get(PracticeMonth, later['id']).status = 'published'
     db_session.flush()
@@ -74,8 +75,7 @@ def test_only_visible_month_assignments_restore_observers(client, make_user, db_
 def test_observers_without_participation_and_deleted_or_other_gender_users_stay_hidden(client, make_user, db_session):
     rep, pm, member, uid = published_month(client, make_user)
     observer, _ = make_user(is_observer=True)
-    assert client.post(f"/api/v1/practices/{pm['practices'][0]['id']}/assignments",
-        json={'user_id': observer}, headers=auth_header(rep)).status_code == 403
+    assert save_participation(client, pm['id'], pm['practices'][0]['id'], observer, True, headers=auth_header(rep)).status_code == 403
     user = db_session.get(User, uid)
     user.is_observer = True
     for field, value in [('gender', 'female'), ('is_deleted', True)]:

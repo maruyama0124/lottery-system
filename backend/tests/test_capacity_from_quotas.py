@@ -10,6 +10,7 @@ from sqlalchemy.exc import DBAPIError
 from migrations.versions.c8d4e2a6b913_capacity_from_grade_quotas import upgrade, downgrade
 from src.db.models import Practice
 from tests.conftest import auth_header
+from tests.api_helpers import create_month_response, update_practice_response
 from tests.test_practices import month_body
 
 
@@ -19,7 +20,7 @@ def create_without_capacity(client, make_user):
     body['practices'][0].pop('capacity')
     body['vote_starts_at']=(datetime.now(timezone.utc)-timedelta(days=2)).isoformat()
     body['vote_ends_at']=(datetime.now(timezone.utc)-timedelta(days=1)).isoformat()
-    response=client.post('/api/v1/practice-months',json=body,headers=auth_header(token))
+    response=create_month_response(client,json=body,headers=auth_header(token))
     assert response.status_code==201,response.text
     return auth_header(token),response.json(),body
 
@@ -45,7 +46,7 @@ def test_creation_without_capacity_requires_quota_confirmation(client,make_user,
     assert summary['quotas_ready'] is True and summary['practices'][0]['capacity']==sum(values)
     # 旧クライアントが日程編集で定員を送っても、確定値を上書きできない。
     edit={**body['practices'][0],'location':'新会場','capacity':99}
-    assert client.put('/api/v1/practices/'+pid,json=edit,headers=header).status_code==204
+    assert update_practice_response(client, pid,json=edit,headers=header).status_code==204
     assert db_session.get(Practice,pid).capacity==sum(values)
     assert client.post(base+'/lottery',json={},headers=header).status_code==201
 

@@ -9,8 +9,6 @@ from src.db.models import PracticeMonth
 from src.db.session import get_db
 from src.repositories.practice_repository import PracticeRepository
 from src.schemas.practices import (
-    PracticeCreateRequest,
-    PracticeMonthCreateRequest,
     PracticeMonthBatchCreateRequest,
     PracticeBatchCreateRequest,
     PracticeCreatedResponse,
@@ -72,18 +70,6 @@ def list_practice_months(
     return [PracticeMonthResponse.model_validate(pm) for pm in months]
 
 
-@router.post(
-    "/practice-months",
-    status_code=status.HTTP_201_CREATED,
-    response_model=PracticeMonthDetailResponse,
-)
-def create_practice_month(
-    data: PracticeMonthCreateRequest, rep: Representative, db: DbDep
-) -> PracticeMonthDetailResponse:
-    pm = PracticeService(db).create_month(rep, data)
-    return _detail(db, pm)
-
-
 @router.get("/practice-months/{pm_id}", response_model=PracticeMonthDetailResponse)
 def get_practice_month(pm_id: str, user: CurrentUser, db: DbDep) -> PracticeMonthDetailResponse:
     pm = PracticeService(db).get_month_for(user, pm_id)
@@ -112,18 +98,6 @@ def add_practices(data: PracticeBatchCreateRequest, rep: Representative, db: DbD
     except Exception:
         db.rollback()
         raise
-
-
-@router.post(
-    "/practice-months/{pm_id}/practices",
-    status_code=status.HTTP_201_CREATED,
-    response_model=PracticeResponse,
-)
-def add_practice(
-    pm_id: str, data: PracticeCreateRequest, rep: Representative, db: DbDep
-) -> PracticeResponse:
-    practice = PracticeService(db).add_practice(rep, pm_id, data)
-    return PracticeResponse.model_validate(practice)
 
 
 @router.get("/practices/suggestions", response_model=list[PracticeSuggestion])
@@ -158,14 +132,6 @@ def update_practice_genders(practice_id: str, data: PracticeGenderUpdateRequest,
     except Exception:
         db.rollback()
         raise
-
-
-@router.put("/practices/{practice_id}", status_code=status.HTTP_204_NO_CONTENT)
-def update_practice(
-    practice_id: str, data: PracticeCreateRequest, rep: Representative, db: DbDep
-) -> Response:
-    PracticeService(db).update_practice(rep, practice_id, data)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.delete("/practices/{practice_id}", status_code=status.HTTP_204_NO_CONTENT)

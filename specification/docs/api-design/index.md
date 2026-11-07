@@ -2,16 +2,16 @@
 hide:
 - navigation
 doc_type: api-design
-version: 2.14.0
+version: 2.15.0
 last_updated: '2026-11-07'
 depends_on:
 - requirements/index.md
 - database-design/index.md
 derived_by:
 - ui-design/index.md
-sync_hash: 5b6bb83a13ca
+sync_hash: 5f912aa490d9
 dependency_hashes:
-  requirements/index.md: 6454e8d3ddc1
+  requirements/index.md: 09222d2a8ab1
   database-design/index.md: 316ac73c8291
 ---
 
@@ -43,9 +43,9 @@ FastAPI で実装する RESTful API。フロントエンド (Next.js) から HTT
 
 日程作成の `capacity` は任意・非推奨とする (D-064)。新UIは送信せず、新規日程はNULLを返す。既存日程の更新ではcapacityを変更しない。`Practice / PracticeVoteSummary / PracticeSuggestion` のcapacityはNULL許容である。旧クライアントが明示した正のcapacityは作成時の互換用暫定値としてのみ受付ける。
 
-`PUT /practice-months/{pmId}/quotas` は各学年を重複なく指定したことを検証し、学年枠とその合計capacityを同時に保存する。全学年0人ならcapacity=0。未固定日で枠未設定・capacityがNULL・合計不一致なら `POST /lottery` は409。`quotas_ready` も同じ条件でfalseとなる。固定日は既存の保護を維持する。定員未設定の手動追加ではcapacity_exceededをfalseとし、不明な定員との比較は行わない。
+`PUT /practice-months/{pmId}/quotas` は各学年を重複なく指定したことを検証し、学年枠とその合計capacityを同時に保存する。全学年0人ならcapacity=0。未固定日で枠未設定・capacityがNULL・合計不一致なら `POST /lottery` は409。`quotas_ready` も同じ条件でfalseとなる。固定日は既存の保護を維持する。定員超過の警告は画面で参加人数と確定定員を比較して表示し、定員未設定なら比較しない。
 
-- `POST /practice-months/batch`: 既存の月作成本文に `genders: ["male", "female"]` を加える。対象は1〜2件・重複不可。月がなければ作成し、既存月は再利用する。同日を入力候補へ更新、未登録日は追加、同値はスキップし、201で最新の月詳細の配列を返す (D-062)。既存月の受付期間・公開状態、投票・割当・未指定の日程は維持する。旧 `POST /practice-months` は担当性別だけの作成・既存月409を維持する。
+- `POST /practice-months/batch`: 既存の月作成本文に `genders: ["male", "female"]` を加える。対象は1〜2件・重複不可。月がなければ作成し、既存月は再利用する。同日を入力候補へ更新、未登録日は追加、同値はスキップし、201で最新の月詳細の配列を返す (D-062)。既存月の受付期間・公開状態、投票・割当・未指定の日程は維持する。旧POST /practice-monthsはD-072で廃止した。
 - `POST /practices/batch`: `{ year_month, genders, practice }` を受け取り、対象月をID順にロックして同日を更新・未登録日を追加する。201で保存した練習日配列（各要素に `practice_month_id` を含む）を返す。対象月が一方でも未作成なら404。
 - 一括登録は練習日IDを維持し、同じ入力の再送で重複を作らない。入力内で同日・同性別が複数あれば最後を採用する。既存データに同日・同性別が複数あれば409。固定日の変更は409、同値は成功とする。男女の更新・追加をまとめてロールバックする。同時の月作成競合も409である。
 - いずれも代表認証を必須とし、入力不正は400、未認証は401、一般メンバーは403。練習日は対象月内に限定する。コミット失敗を成功として返さず、ロールバックする。男女のID・定員・投票・割当は共有しない。
@@ -102,7 +102,6 @@ graph LR
     subgraph AUTH["認証"]
         A1["POST /auth/line/login"]
         A2["POST /auth/line/register"]
-        A3["POST /auth/logout"]
     end
     subgraph USERS["メンバー"]
         U1["GET /users/me"]
@@ -110,15 +109,15 @@ graph LR
         U4["PUT /users/{id}/role"]
     end
     subgraph PM["月別練習・投票"]
-        P1["CRUD /practice-months"]
-        P2["CRUD /practices"]
+        P1["GET/PUT /practice-months, POST /practice-months/batch"]
+        P2["POST /practices/batch, GET/PUT /practices/{id}/genders, DELETE /practices/{id}"]
         P3["GET/PUT /votes/me"]
     end
     subgraph LOT["抽選・結果"]
         L1["POST /lottery (実行)"]
         L2["GET /vote-summary, PUT /quotas"]
         L3["GET /results, /results/me"]
-        L4["POST/DELETE assignments (微調整)"]
+        L4["PUT /practice-months/{id}/assignments (微調整)"]
     end
 ```
 
@@ -128,7 +127,6 @@ graph LR
 |----------|------|------|------|------|
 | POST | /auth/line/login | LINE ログイン（LIFF の ID トークンを検証。未登録なら `registered: false`） | 不要 | REQ-001.1, REQ-001.6 |
 | POST | /auth/line/register | 初回登録（本名・学年・性別を受け取り会員作成。JWT を発行） | 不要 | REQ-001.5 |
-| POST | /auth/logout | ログアウト（Cookie を破棄。呼び出す画面は未提供） | member | REQ-001.3 |
 
 ### メンバー (users)
 
@@ -144,14 +142,11 @@ graph LR
 | メソッド | パス | 概要 | 権限 | 要件 |
 |----------|------|------|------|------|
 | GET | /practice-months | 月別練習の一覧（既定は自性別。`?gender=` で他方も閲覧可 (D-038)。`?year_month=` 絞り込み） | member | REQ-004.1 |
-| POST | /practice-months | 月別練習単位の作成（投票期間含む） | 代表 | REQ-003, REQ-003.3 |
 | POST | /practice-months/batch | 対象性別を選んで月と練習日を原子的に一括作成 | 代表 | REQ-003.9 |
 | POST | /practices/batch | 対象性別の既存月に練習日を原子的に一括追加 | 代表 | REQ-003.9 |
 | GET | /practice-months/{pmId} | 詳細（練習日一覧含む） | member | REQ-004.1 |
-| PUT | /practice-months/{pmId} | 投票期間・枠比率等の更新 | 代表 | REQ-003.3, REQ-005.5 |
-| POST | /practice-months/{pmId}/practices | 練習日の追加 | 代表 | REQ-003.1, REQ-003.2 |
+| PUT | /practice-months/{pmId} | 投票開始・締切日時の更新 | 代表 | REQ-003.3, REQ-005.5 |
 | GET | /practices/suggestions | よく使う練習の候補（履歴から） | 代表 | REQ-003.6 |
-| PUT | /practices/{practiceId} | 練習日の更新 | 代表 | REQ-003.4 |
 | GET | /practices/{practiceId}/genders | 同日の男女登録・更新版の取得 | 代表 | REQ-003, D-063 |
 | PUT | /practices/{practiceId}/genders | 内容・男女選択の原子的な更新 | 代表 | REQ-003, D-063 |
 | DELETE | /practices/{practiceId} | 練習日の削除（抽選後は警告フラグ） | 代表 | REQ-003.4 |
@@ -167,7 +162,7 @@ graph LR
 
 ### 抽選・結果 (lottery / results)
 
-微調整画面は `PUT /practice-months/{pmId}/assignments` で差分を一括保存する (D-052)。本文は `changes`（1〜5000件）、`expected_month_status`、`expected_published_at`。各差分は練習日・会員ID・参加の有無・変更前割当ID・変更前公開状態を持つ。全件検証後に1トランザクションで保存し、成功は204（本文なし）。基準や公開状態の競合は409、重複差分や入力不正は400、不明な練習日・会員は404、対象月と異なる性別の割当・閲覧専用は403 (D-068)。同じ保存を再送した場合、既に同じ参加状態なら成功扱いにする。単件追加・削除APIは互換性のため維持するが、この画面からは呼ばない。メンバーへの公開仕様はD-044のままである。
+微調整画面は `PUT /practice-months/{pmId}/assignments` で差分を一括保存する (D-052)。本文は `changes`（1〜5000件）、`expected_month_status`、`expected_published_at`。各差分は練習日・会員ID・参加の有無・変更前割当ID・変更前公開状態を持つ。全件検証後に1トランザクションで保存し、成功は204（本文なし）。基準や公開状態の競合は409、重複差分や入力不正は400、不明な練習日・会員は404、対象月と異なる性別の割当・閲覧専用は403 (D-068)。同じ保存を再送した場合、既に同じ参加状態なら成功扱いにする。単件追加・削除APIはD-072で廃止し、一括保存へ統一する。メンバーへの公開仕様はD-044のままである。
 
 | メソッド | パス | 概要 | 権限 | 要件 |
 |----------|------|------|------|------|
@@ -179,8 +174,6 @@ graph LR
 | GET | /practice-months/{pmId}/results/me | 自分の当選結果（公開後のみ） | member | REQ-006.1 |
 | GET | /practice-months/{pmId}/participation | 練習参加表（学年別。全メンバーを並べ、未投票は `has_voted = false`。公開後のみ: D-043） | member | REQ-006.5 |
 | GET | /practice-months/{pmId}/results | 全結果（練習日別・メンバー別） | 代表 | REQ-006.2 |
-| POST | /practices/{practiceId}/assignments | 参加者の手動追加 | 代表 | REQ-006.3 |
-| DELETE | /assignments/{assignmentId} | 参加者の手動削除 | 代表 | REQ-006.3 |
 | POST | /practice-months/{pmId}/publish | 結果の公開 | 代表 | REQ-006.4 |
 
 - 未公開 (`status != published`) の `/results/me` は `404` を返す (REQ-006.4)
@@ -195,6 +188,8 @@ graph LR
 
 救済係数の取得・更新APIは提供しない。抽選は既存の男女別DB設定を読み、未作成時は従来どおり0.5で作成する。既存値のリセットや抽選ロジックの変更は行わない。
 
+廃止APIはD-072の6本である。パスを共有する現行メソッド（GET /practice-months・DELETE /practices/{id}）は残すため、旧メソッドは405、それ以外は404になる。抽選実行履歴とヘルスチェックは運用確認用途で維持する。
+
 ## 5. API仕様詳細
 
 <swagger-ui src="openapi.yaml"/>
@@ -205,12 +200,12 @@ graph LR
 
 | 要件 | 対応エンドポイント |
 |------|--------------------|
-| REQ-001 (認証) | POST /auth/line/login, /auth/line/register, /auth/logout |
+| REQ-001 (認証) | POST /auth/line/login, /auth/line/register。ログアウトはNext.jsのPOST /api/auth/logoutでCookieを削除する |
 | REQ-002 (プロフィール) | POST /auth/line/register, GET /users/me。登録後の変更は管理者がDBで行う |
-| REQ-003 (練習日程管理) | POST/PUT /practice-months, POST/PUT/DELETE /practices, GET /practices/suggestions |
+| REQ-003 (練習日程管理) | POST /practice-months/batch, POST /practices/batch, PUT /practice-months/{pmId}, GET/PUT /practices/{practiceId}/genders, DELETE /practices/{practiceId}, GET /practices/suggestions |
 | REQ-004 (投票) | GET /practice-months, GET/PUT /practice-months/{pmId}/votes/me |
 | REQ-005 (抽選) | POST /practice-months/{pmId}/lottery, GET /vote-summary, PUT /quotas, GET /executions |
-| REQ-006 (抽選結果) | GET /results/me, GET /results, GET /participation, POST/DELETE assignments, POST /publish |
+| REQ-006 (抽選結果) | GET /results/me, GET /results, GET /participation, PUT /practice-months/{pmId}/assignments, POST /publish |
 | REQ-007 (メンバー管理) | GET /users, PUT /users/{userId}/role, DELETE /users/{userId} |
 | NFR-002.3〜4 (アクセス制御) | 全エンドポイントのロール・性別スコープ検証 (403) |
 | NFR-004.1 (学年枠設定) | PUT /practice-months/{pmId}/quotas |
