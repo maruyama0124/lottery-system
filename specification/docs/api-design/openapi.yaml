@@ -20,8 +20,7 @@ tags:
     description: 投票
   - name: lottery
     description: 抽選・結果
-  - name: settings
-    description: 抽選設定
+
 
 paths:
   /auth/register:
@@ -766,38 +765,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /settings:
-    get:
-      tags: [settings]
-      summary: 抽選設定の取得（代表のみ・男女双方を管理可能）
-      parameters:
-        - $ref: '#/components/parameters/ManagementGender'
-      responses:
-        '200':
-          description: 設定
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/LotterySettings'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-    put:
-      tags: [settings]
-      summary: 落選救済係数 α の更新（代表のみ）
-      parameters:
-        - $ref: '#/components/parameters/ManagementGender'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/LotterySettingsUpdateRequest'
-      responses:
-        '204':
-          description: 更新成功
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
 components:
   securitySchemes:
     bearerAuth:
@@ -1337,15 +1304,3 @@ components:
       properties:
         assignment_id: { type: string }
         capacity_exceeded: { type: boolean, description: 定員超過の警告（REQ-006.3） }
-
-    LotterySettings:
-      type: object
-      properties:
-        gender: { $ref: '#/components/schemas/Gender' }
-        rescue_alpha: { type: number, example: 0.2 }
-
-    LotterySettingsUpdateRequest:
-      type: object
-      required: [rescue_alpha]
-      properties:
-        rescue_alpha: { type: number, minimum: 0 }

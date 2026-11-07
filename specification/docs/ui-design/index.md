@@ -2,16 +2,16 @@
 hide:
 - navigation
 doc_type: ui-design
-version: 2.19.0
-last_updated: '2026-11-04'
+version: 2.20.0
+last_updated: '2026-11-07'
 depends_on:
 - requirements/index.md
 - api-design/index.md
 derived_by: []
-sync_hash: c7d1b6b473c5
+sync_hash: 09ac10a24072
 dependency_hashes:
-  requirements/index.md: d4fe39ccea49
-  api-design/index.md: 7cf7ab333356
+  requirements/index.md: 6454e8d3ddc1
+  api-design/index.md: 5b6bb83a13ca
 ---
 
 # 画面設計書 — サークル練習参加抽選システム
@@ -58,7 +58,7 @@ dependency_hashes:
 | 4 | admin-schedule | 練習日程管理 | /admin/schedule | 代表 | REQ-003 |
 | 5 | admin-lottery | 抽選実行（枠設定を含む） | /admin/lottery | 代表 | REQ-005, 005.5, 005.12 |
 | 6 | admin-results | 結果確認・微調整 | /admin/results | 代表 | REQ-006.2〜4 |
-| 7 | admin-settings | 設定 | /admin/settings | 代表 | NFR-004.1, REQ-007.2〜3 |
+| 7 | admin-settings | 設定 | /admin/settings | 代表 | REQ-007.2〜3 |
 | 8 | home-screen-guide | ホーム画面追加ガイド | /help/home-screen | 全員（未ログイン可） | D-065 |
 | 9 | admin-updates | アップデート履歴 | /admin/updates | 代表 | REQ-008, D-066 |
 
@@ -208,9 +208,9 @@ stateDiagram-v2
 
 ### 4.7 admin-settings — 設定（代表）
 
-- 落選救済係数 α の編集 (NFR-004.1)
+- 救済係数の表示・編集欄は設けない。設定値取得の通信も行わない (D-071)。
 - 代表権限の移譲（メンバー選択 → 確認ダイアログ）(REQ-007.2)、メンバー無効化 (REQ-007.3)
-- API: `GET/PUT /settings`, `PUT /users/{id}/role`, `DELETE /users/{id}`
+- API: `PUT /users/{id}/role`, `DELETE /users/{id}`
 - 状態: default / saving / confirm-dialog
 
 <iframe src="snippets/admin-settings-mobile.html" width="100%" height="800px" frameborder="0" style="border: none; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></iframe>
@@ -230,5 +230,5 @@ stateDiagram-v2
 | REQ-006.4 (公開制御) | admin-results（公開ボタン）, home（未公開表示） |
 | REQ-006.5 (参加表) | home（全員の参加表タブ: D-025） |
 | REQ-007.2〜3 (権限・退会) | admin-settings |
-| NFR-004.1 (設定変更) | admin-settings（α） |
+| NFR-004.1 (学年枠設定) | admin-lottery |
 | D-009 (モバイルファースト) | 全画面 |

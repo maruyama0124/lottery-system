@@ -345,26 +345,19 @@ def test_publish_records_losses_for_next_month(client, make_user, db_session) ->
         assert row.losses_count == row.votes_count - row.wins_count
 
 
-def test_settings_get_and_update(client, make_user) -> None:
-    """NFR-004.1: 救済係数αの取得・変更"""
+def test_settings_api_is_removed(client, make_user) -> None:
+    """D-071: 救済係数の取得・更新APIは提供しない。"""
     _rep_id, rep_token = make_user(role="representative", gender="male")
-    res = client.get("/api/v1/settings", headers=auth_header(rep_token))
-    assert res.status_code == 200
-    assert float(res.json()["rescue_alpha"]) == 0.5  # 既定値 (D-032)
-
-    assert (
-        client.put(
-            "/api/v1/settings", json={"rescue_alpha": 0.8}, headers=auth_header(rep_token)
-        ).status_code
-        == 204
-    )
-    assert float(
-        client.get("/api/v1/settings", headers=auth_header(rep_token)).json()["rescue_alpha"]
-    ) == 0.8
-
-    # member は 403
     _m, member_token = make_user(gender="male")
-    assert client.get("/api/v1/settings", headers=auth_header(member_token)).status_code == 403
+    for headers in ({}, auth_header(rep_token), auth_header(member_token)):
+        for query in ('', '?gender=male', '?gender=female'):
+            path = '/api/v1/settings' + query
+            assert client.get(path, headers=headers).status_code == 404
+            assert client.put(path, json={'rescue_alpha': 0.8}, headers=headers).status_code == 404
+    spec = client.app.openapi()
+    assert '/api/v1/settings' not in spec['paths']
+    assert 'LotterySettingsResponse' not in spec['components']['schemas']
+    assert 'LotterySettingsUpdateRequest' not in spec['components']['schemas']
 
 
 def test_participation_table_is_visible_to_members_after_publish(client, make_user) -> None:

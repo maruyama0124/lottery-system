@@ -1,11 +1,9 @@
 """抽選・結果・設定スキーマ (openapi.yaml 準拠)"""
 from datetime import date, datetime
-from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer
+from pydantic import BaseModel, ConfigDict, Field
 
-from src.schemas.auth import Gender
 from src.schemas.practices import PracticeResponse
 
 AssignedVia = Literal["manager", "grade3", "guaranteed", "distribution", "overflow", "manual"]
@@ -144,21 +142,6 @@ class AssignmentBatchRequest(BaseModel):
     changes: list[AssignmentChange] = Field(min_length=1, max_length=5000)
     expected_month_status: Literal["draft", "voting", "closed", "drawn", "published"]
     expected_published_at: datetime | None
-
-
-class LotterySettingsResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    gender: Gender
-    rescue_alpha: Decimal
-
-    @field_serializer("rescue_alpha")
-    def _alpha_to_float(self, value: Decimal) -> float:
-        return float(value)
-
-
-class LotterySettingsUpdateRequest(BaseModel):
-    rescue_alpha: Decimal = Field(ge=0)
 
 
 class ParticipationRow(BaseModel):

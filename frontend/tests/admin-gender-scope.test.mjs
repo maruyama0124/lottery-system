@@ -51,12 +51,12 @@ test('multiple in-flight operations lock switching until all have finished',()=>
   app.scope().setLock('refresh',false);app.render();assert.equal(app.scope().busy,false);
 });
 
-test('every management read and setting write explicitly uses selected gender',()=>{
+test('month reads use selected gender; member settings remain shared without coefficient API',()=>{
   for(const file of ['page.tsx','lottery/page.tsx','results/page.tsx','schedule/page.tsx']){
     const source=readFileSync(`src/app/(admin)/admin/${file}`,'utf8');
     assert.ok(source.includes('/v1/practice-months?gender=${gender}'),file);
   }
   const settings=readFileSync('src/app/(admin)/admin/settings/page.tsx','utf8');
-  assert.equal((settings.match(/\/v1\/settings\?gender=\$\{gender\}/g)??[]).length,2);
+  assert.doesNotMatch(settings,/\/v1\/settings|rescue_alpha|AlphaForm|LotterySettingsSection/);
   assert.doesNotMatch(settings,/members\.filter\(\(u\) => u\.gender === user\.gender\)/);
 });

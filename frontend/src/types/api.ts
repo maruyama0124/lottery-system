@@ -286,10 +286,3 @@ export interface AssignmentBatchRequest {
   expected_month_status: PracticeMonthStatus;
   expected_published_at: string | null;
 }
-
-// ---------- 設定 ----------
-
-export interface LotterySettings {
-  gender: Gender;
-  rescue_alpha: string | number;
-}

@@ -36,13 +36,25 @@ def test_other_gender_draw_publish_and_assignment_validation(client, make_user):
     assert client.post(path, json={"user_id": female}, headers=h).status_code == 403
 
 
-def test_settings_are_selected_not_operator_gender(client, make_user):
-    _, token = make_user(role="representative", gender="male")
-    _, member = make_user()
-    h = auth_header(token)
-    male = client.get('/api/v1/settings?gender=male', headers=h).json()
-    assert client.put('/api/v1/settings?gender=female', json={"rescue_alpha": 7}, headers=h).status_code == 204
-    assert float(client.get('/api/v1/settings?gender=female', headers=h).json()['rescue_alpha']) == 7
-    assert client.get('/api/v1/settings', headers=h).json() == male
-    assert client.get('/api/v1/settings?gender=other', headers=h).status_code == 400
-    assert client.put('/api/v1/settings?gender=female', json={"rescue_alpha": 1}, headers=auth_header(member)).status_code == 403
+@pytest.mark.parametrize('configured_alpha', [None, '1.7'])
+def test_draw_keeps_database_coefficient_without_settings_api(client, make_user, db_session, configured_alpha):
+    from decimal import Decimal
+    from src.db.models import LotteryExecution
+    from src.repositories.lottery_repository import LotteryRepository
+
+    _, pm, _ = setup_month_with_votes(client, make_user)
+    repo = LotteryRepository(db_session)
+    if configured_alpha is not None:
+        repo.get_or_create_settings('male').rescue_alpha = Decimal(configured_alpha)
+        db_session.flush()
+    female_settings = repo.get_or_create_settings('female')
+    female_settings.rescue_alpha = Decimal('9')
+    db_session.flush()
+    _, operator = make_user(role='representative', gender='female')
+    response = client.post(f"/api/v1/practice-months/{pm['id']}/lottery", json={'seed':42}, headers=auth_header(operator))
+    assert response.status_code == 201, response.text
+    expected = float(configured_alpha) if configured_alpha is not None else 0.5
+    execution = db_session.get(LotteryExecution, response.json()['id'])
+    assert execution.settings_snapshot['rescue_alpha'] == expected
+    assert float(repo.get_settings('male').rescue_alpha) == expected
+    assert female_settings.rescue_alpha == Decimal('9')

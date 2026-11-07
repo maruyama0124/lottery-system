@@ -1,23 +1,21 @@
 "use client";
 
-// 設定 — 抽選設定・代表権限の引き継ぎ・メンバーの無効化 (D-009)
+// 設定 — 代表権限の引き継ぎ・メンバーの無効化 (D-071)
 import { useState } from "react";
 import { AdminHeader } from "@/components/admin/header";
-import { useAdminGender, useAdminGenderLock } from "@/components/admin/gender-scope";
+import { useAdminGenderLock } from "@/components/admin/gender-scope";
 import { ErrorMessage } from "@/components/ui/error-message";
 import { Loading } from "@/components/ui/loading";
 import { apiClient, ApiClientError } from "@/lib/api-client";
 import { useApi } from "@/hooks/use-api";
 import { useRequireRepresentative } from "@/hooks/use-auth";
-import type { LotterySettings, RosterPage, UserProfile } from "@/types/api";
+import type { RosterPage, UserProfile } from "@/types/api";
 
 function errorMessage(err: unknown): string {
   if (err instanceof ApiClientError) return err.error.message;
   return "エラーが発生しました";
 }
 
-const inputClass =
-  "w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-600";
 const selectClass =
   "w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-600";
 
@@ -26,82 +24,6 @@ function SuccessMessage({ text }: { text: string }) {
     <p className="mt-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm font-medium text-green-700">
       {text}
     </p>
-  );
-}
-
-// ---------- セクション1: 抽選設定 ----------
-
-function AlphaForm({ initial }: { initial: string | number }) {
-  const { gender } = useAdminGender();
-  const [alpha, setAlpha] = useState(String(initial));
-  const [busy, setBusy] = useState(false);
-  useAdminGenderLock(busy);
-  const [saved, setSaved] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-
-  const save = async () => {
-    setBusy(true);
-    setSaved(false);
-    setSaveError(null);
-    try {
-      await apiClient.put<LotterySettings>(`/v1/settings?gender=${gender}`, {
-        rescue_alpha: Number(alpha),
-      });
-      setSaved(true);
-    } catch (err) {
-      setSaveError(errorMessage(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <>
-      <label htmlFor="rescue-alpha" className="mb-1 block text-sm font-medium text-gray-700">
-        落選救済係数 α
-      </label>
-      <input
-        id="rescue-alpha"
-        type="text"
-        inputMode="decimal"
-        value={alpha}
-        onChange={(e) => setAlpha(e.target.value)}
-        className={inputClass}
-      />
-      <p className="mt-2 text-xs text-gray-500">
-        前月あまり参加できなかった人への優遇（当選枠の優先確保と並び順）は自動で働きます。
-        α は当選率が同点で並んだ人どうしのくじ引きの重み（1 + α × 前月落選数）で、
-        結果への影響はわずかです。通常は変更不要です
-      </p>
-      {saveError && <p className="mt-2 text-xs text-red-600">{saveError}</p>}
-      {saved && <SuccessMessage text="抽選設定を保存しました" />}
-      <button
-        type="button"
-        onClick={save}
-        disabled={alpha === "" || Number(alpha) < 0 || busy}
-        className="mt-4 w-full rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
-      >
-        保存する
-      </button>
-    </>
-  );
-}
-
-function LotterySettingsSection() {
-  const { gender } = useAdminGender();
-  const { data, error, isLoading, mutate } = useApi<LotterySettings>(`/v1/settings?gender=${gender}`);
-
-  return (
-    <section className="rounded-xl border border-gray-200 p-4 shadow-sm">
-      <h2 className="mb-3 font-bold text-gray-900">抽選設定</h2>
-      {isLoading ? (
-        <Loading />
-      ) : error ? (
-        <ErrorMessage message="設定の取得に失敗しました" onRetry={() => mutate()} />
-      ) : data ? (
-        <AlphaForm initial={data.rescue_alpha} />
-      ) : null}
-    </section>
   );
 }
 
@@ -283,8 +205,6 @@ export default function AdminSettingsPage() {
     <>
       <AdminHeader title="設定" />
       <main className="space-y-4 px-4 py-4">
-        <LotterySettingsSection />
-
         {rosterLoading ? (
           <Loading />
         ) : rosterError ? (

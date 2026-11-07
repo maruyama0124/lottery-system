@@ -2,16 +2,16 @@
 hide:
 - navigation
 doc_type: api-design
-version: 2.13.0
-last_updated: '2026-11-04'
+version: 2.14.0
+last_updated: '2026-11-07'
 depends_on:
 - requirements/index.md
 - database-design/index.md
 derived_by:
 - ui-design/index.md
-sync_hash: 7cf7ab333356
+sync_hash: 5b6bb83a13ca
 dependency_hashes:
-  requirements/index.md: d4fe39ccea49
+  requirements/index.md: 6454e8d3ddc1
   database-design/index.md: 316ac73c8291
 ---
 
@@ -34,10 +34,10 @@ FastAPI で実装する RESTful API。フロントエンド (Next.js) から HTT
 | ロール | 権限 |
 |--------|------|
 | member | 自分のプロフィール取得・投票・自分の抽選結果の閲覧。本人向けプロフィール更新APIは提供しない (D-049) |
-| representative（代表） | member の全権限 + 男女双方の日程管理／抽選実行／結果微調整／公開／設定変更／メンバー無効化・権限管理 (D-068) |
+| representative（代表） | member の全権限 + 男女双方の日程管理／抽選実行／結果微調整／公開／学年枠設定／メンバー無効化・権限管理 (D-068) |
 
 - **性別スコープ** (NFR-002.4 / D-068): 代表は男女双方の月・練習日・会員を管理できる。対象月ID／練習日IDを基準に処理し、割当会員の性別は対象月と照合する（不一致は403）。投票は代表も本人の性別のみ。一般メンバーは管理APIへ403、未認証は401。既存の期限・固定日・競合・公開制御は維持する。
-- `GET/PUT /settings` と `GET /practices/suggestions` は任意の `gender=male|female` を受け取る。省略時は本人の性別。代表のみ利用でき、設定・候補は対象性別で分離する。
+- `GET /practices/suggestions` は任意の `gender=male|female` を受け取る。省略時は本人の性別。代表のみ利用でき、候補は対象性別で分離する。救済係数のGET/PUT /settingsはD-071により廃止し、Swaggerにも掲載しない。
 
 ### 日程の男女一括作成 (D-060)
 
@@ -191,12 +191,9 @@ graph LR
 - 固定日に対する追加・削除・一括微調整、枠変更、練習日更新・削除は409（同値の枠再送は許可）。投票PUTの全置換では固定日の投票を変えない場合のみ受付する。公開時は固定割当を変更せず、月次実績は月全体を集計する。
 - 固定日の先行公開月では受付期間中の未固定日への投票を許可する (D-054)。`GET /votes/me` は `locked_practice_ids` と、本人の性別・閲覧専用・学年・受付期間・未固定日の有無を考慮したeditableを返す。固定日なしの通常の公開月は投票PUTが409。BFFのホーム集約は受付期間中の公開月では投票状況と公開結果を並行取得し、締切済み公開月では投票取得を省く。
 
-### 設定 (settings)
+### 救済係数の内部管理 (D-071)
 
-| メソッド | パス | 概要 | 権限 | 要件 |
-|----------|------|------|------|------|
-| GET | /settings | 抽選設定の取得（genderで対象を指定、省略時は本人の性別） | 代表 | NFR-004.1 |
-| PUT | /settings | 落選救済係数 α の更新 | 代表 | NFR-004.1 |
+救済係数の取得・更新APIは提供しない。抽選は既存の男女別DB設定を読み、未作成時は従来どおり0.5で作成する。既存値のリセットや抽選ロジックの変更は行わない。
 
 ## 5. API仕様詳細
 
@@ -216,4 +213,4 @@ graph LR
 | REQ-006 (抽選結果) | GET /results/me, GET /results, GET /participation, POST/DELETE assignments, POST /publish |
 | REQ-007 (メンバー管理) | GET /users, PUT /users/{userId}/role, DELETE /users/{userId} |
 | NFR-002.3〜4 (アクセス制御) | 全エンドポイントのロール・性別スコープ検証 (403) |
-| NFR-004.1 (設定変更) | GET/PUT /settings, PUT /practice-months/{pmId}/quotas |
+| NFR-004.1 (学年枠設定) | PUT /practice-months/{pmId}/quotas |
